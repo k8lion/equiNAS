@@ -82,3 +82,22 @@ def get_dataloaders(path_to_dir = "~"):
     test_loader = DataLoader(mnist_test, batch_size=64)
 
     return train_loader, validation_loader, test_loader
+
+def getmodelsize(model, includebuffer=False, counts=True):
+    param_size = 0
+    for param in model.parameters():
+        if counts:
+            multiplier = 1
+        else:
+            multiplier = param.element_size()
+        param_size += param.nelement() * multiplier
+    if includebuffer:
+        buffer_size = 0
+        for buffer in model.buffers():
+            if counts:
+                multiplier = 1
+            else:
+                multiplier = buffer.element_size()
+            buffer_size += buffer.nelement() * multiplier
+        return buffer_size + param_size
+    return param_size

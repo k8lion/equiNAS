@@ -54,7 +54,7 @@ if __name__ == "__main__":
     e = datetime.datetime.now()
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     loss_function = torch.nn.CrossEntropyLoss()
-    epochs = 30
+    epochs = 50
     train_loader, validation_loader, test_loader = utilities.get_dataloaders(path_to_dir="..")
     models = {'steerable': models.C8SteerableCNN(), 'unsteerable': models.UnsteerableCNN()}
     logs = {}
