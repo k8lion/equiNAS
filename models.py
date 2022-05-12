@@ -1,6 +1,10 @@
 import torch
-import escnn
-from escnn import gspaces
+try:
+    import escnn
+    from escnn import gspaces
+except:
+    from escnn import escnn
+    from escnn import gspaces
 
 
 class UnsteerableCNN(torch.nn.Module):
