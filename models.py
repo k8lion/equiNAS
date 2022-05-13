@@ -10,9 +10,9 @@ class UnsteerableCNN(torch.nn.Module):
         super(UnsteerableCNN, self).__init__()    
 
         if width_equated:
-            widths = [1, 48, 96, 192, 64]
+            widths = [1, 192, 384, 786, 64]
         else:
-            widths = [1, 24, 48, 96, 64]
+            widths = [1, 48, 96, 192, 64]
 
         self.block1 = torch.nn.Sequential(
             torch.nn.Conv2d(widths[0], widths[1], kernel_size=7, padding=1, bias=False),
