@@ -1,6 +1,7 @@
 import torch
 import escnn
 from escnn import gspaces
+import numpy as np
 
 
 class UnsteerableCNN(torch.nn.Module):
@@ -60,23 +61,27 @@ class UnsteerableCNN(torch.nn.Module):
         )
 
     def forward(self, x: torch.Tensor):
-        x = self.block1(x)
-        x = self.block2(x)
-        x = self.pool1(x)
-        
-        x = self.block3(x)
-        x = self.block4(x)
-        x = self.pool2(x)
-        
-        x = self.block5(x)
-        x = self.block6(x)
-        x = self.pool3(x)
-        
-        x = self.gpool(x)
+        self.K = np.zeros((x.size(0), x.size(0)))
 
-        x = self.fully_net(x.reshape(x.shape[0], -1))
+        for block in [self.block1, self.block2, self.pool1, self.block3, self.block4, self.pool2, self.block5, self.block6, self.pool3, self.gpool]:
+            x = block(x)
+            x_ = x.tensor.view(x.tensor.size(0), -1)
+            x_ = (x_ > 0).float()
+            K = x_ @ x_.t()
+            K2 = (1.-x_) @ (1.-x_.t())
+            self.K += K.cpu().numpy() + K2.cpu().numpy()
+
+        x = x.tensor
         
-        return x
+        x = self.fully_net1(x.reshape(x.shape[0], -1))
+
+        x_ = x.view(x.size(0), -1)
+        x_ = (x_ > 0).float()
+        K = x_ @ x_.t()
+        K2 = (1.-x_) @ (1.-x_.t())
+        self.K += K.cpu().numpy() + K2.cpu().numpy()
+        
+        return self.fully_net2(x)
 
 
 class C8SteerableCNN(torch.nn.Module):
@@ -173,48 +178,35 @@ class C8SteerableCNN(torch.nn.Module):
         c = self.gpool.out_type.size
         
         # Fully Connected
-        self.fully_net = torch.nn.Sequential(
+        self.fully_net1 = torch.nn.Sequential(
             torch.nn.Linear(c, 64),
             torch.nn.BatchNorm1d(64),
             torch.nn.ELU(inplace=True),
-            torch.nn.Linear(64, n_classes),
         )
+
+        self.fully_net2 = torch.nn.Linear(64, n_classes)
     
     def forward(self, input: torch.Tensor):
-        # wrap the input tensor in a GeometricTensor
-        # (associate it with the input type)
-        x = escnn.nn.GeometricTensor(input, self.input_type)
-        
-        # apply each equivariant block
-        
-        # Each layer has an input and an output type
-        # A layer takes a GeometricTensor in input.
-        # This tensor needs to be associated with the same representation of the layer's input type
-        #
-        # The Layer outputs a new GeometricTensor, associated with the layer's output type.
-        # As a result, consecutive layers need to have matching input/output types
-        x = self.block1(x)
-        x = self.block2(x)
-        x = self.pool1(x)
-        
-        x = self.block3(x)
-        x = self.block4(x)
-        x = self.pool2(x)
-        
-        x = self.block5(x)
-        x = self.block6(x)
-        
-        # pool over the spatial dimensions
-        x = self.pool3(x)
-        
-        # pool over the group
-        x = self.gpool(x)
+        self.K = np.zeros((input.size(0), input.size(0)))
 
-        # unwrap the output GeometricTensor
-        # (take the Pytorch tensor and discard the associated representation)
+        x = escnn.nn.GeometricTensor(input, self.input_type)
+        for block in [self.block1, self.block2, self.pool1, self.block3, self.block4, self.pool2, self.block5, self.block6, self.pool3, self.gpool]:
+            x = block(x)
+            x_ = x.tensor.view(x.tensor.size(0), -1)
+            x_ = (x_ > 0).float()
+            K = x_ @ x_.t()
+            K2 = (1.-x_) @ (1.-x_.t())
+            self.K += K.cpu().numpy() + K2.cpu().numpy()
+
         x = x.tensor
         
-        # classify with the final fully connected layers)
-        x = self.fully_net(x.reshape(x.shape[0], -1))
+        x = self.fully_net1(x.reshape(x.shape[0], -1))
+
+        x_ = x.view(x.size(0), -1)
+        x_ = (x_ > 0).float()
+        K = x_ @ x_.t()
+        K2 = (1.-x_) @ (1.-x_.t())
+        self.K += K.cpu().numpy() + K2.cpu().numpy()
         
-        return x
+        return self.fully_net2(x)
+    

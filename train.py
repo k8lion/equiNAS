@@ -12,7 +12,7 @@ def train(model, train_loader, validation_loader, loss_function, epochs, device)
         "train": train_loader,
         "validation": validation_loader
     }
-    save = {'train': {'loss': [], 'accuracy': []},
+    save = {'train': {'loss': [], 'accuracy': [], 'naswot': [], 'batch': [], 'batchloss': []},
             'validation' : {'loss': [], 'accuracy': []}}
 
     for epoch in range(epochs):
@@ -42,12 +42,24 @@ def train(model, train_loader, validation_loader, loss_function, epochs, device)
                 running_loss += loss.detach() * inputs.size(0)
                 running_corrects += torch.sum(preds == labels.data)
                 running_count += inputs.size(0)
+                if phase == "train":
+                    batch.append(running_count)
+                    save[phase]['batchloss'].append(loss.detach())
+                    if hasattr(model, "K"):
+                        s, ld = np.linalg.slogdet(model.K)
+                        rs = np.tril(model.K/model.K[1,1], -1).sum() / (np.shape(model.K)[0]*(np.shape(model.K)[0]-1))
+                        #print(relusep,ld)                        
+                        save[phase]['naswot_ld'].append(ld)
+                        save[phase]['naswot_rs'].append(rs)
 
             epoch_loss = running_loss / running_count
             epoch_acc = running_corrects.float() / running_count
 
             save[phase]['loss'].append(epoch_loss.item())
             save[phase]['accuracy'].append(epoch_acc.item())
+
+            if phase == "train":
+                save[phase]['batch'].append([b / running_count for b in batch])
     return save
 
 if __name__ == "__main__":
@@ -59,6 +71,7 @@ if __name__ == "__main__":
     models = {'steerable': models.C8SteerableCNN(), 'unsteerable': models.UnsteerableCNN()}
     logs = {}
     for (name, model) in models.items():
+        print(name, utilities.getmodelsize(model))
         save = train(model.to(device), train_loader, validation_loader, loss_function, epochs, device)
         logs[name] = save
     with open('./out/logs'+e.strftime("%Y-%m-%d_%H:%M:%S")+'.pkl', 'wb') as f:
