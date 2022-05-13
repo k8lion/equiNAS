@@ -59,7 +59,7 @@ if __name__ == "__main__":
     models = {'steerable': models.C8SteerableCNN(), 'unsteerable': models.UnsteerableCNN()}
     logs = {}
     for (name, model) in models.items():
-        save = train(model, train_loader, validation_loader, loss_function, epochs, device)
+        save = train(model.to(device), train_loader, validation_loader, loss_function, epochs, device)
         logs[name] = save
     with open('./out/logs'+e.strftime("%Y-%m-%d_%H:%M:%S")+'.pkl', 'wb') as f:
         pickle.dump(logs, f)
