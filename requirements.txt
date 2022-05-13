@@ -1,0 +1,4 @@
+escnn
+numpy
+torch
+torchvision
