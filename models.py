@@ -343,9 +343,9 @@ class C8MutantCNN(torch.nn.Module):
             torch.nn.BatchNorm2d(widths[4]),
             torch.nn.ReLU(inplace=True)
         )    
-        self.pool3 = torch.nn.AvgPool2d(kernel_size=3, stride=1, padding=1)
+        self.pool3 = torch.nn.AvgPool2d(kernel_size=3, stride=1, padding=0)
 
-        self.gpool = torch.nn.AdaptiveAvgPool2d((1,1))
+        self.gpool = torch.nn.AdaptiveAvgPool2d((1,1)) #group pooling does /8
         
         
         # Fully Connected
@@ -376,6 +376,7 @@ class C8MutantCNN(torch.nn.Module):
                                 (self.gpool, self.sgpool)]:
             xs = sblock(x)
             xu = ublock(x.tensor)
+            print(xs.tensor.size())
             print(xs.tensor.size(), escnn.nn.GeometricTensor(xu, sblock.out_type).tensor.size())
             x = xs + escnn.nn.GeometricTensor(xu, sblock.out_type)
             with torch.no_grad():
