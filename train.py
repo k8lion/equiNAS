@@ -12,11 +12,13 @@ def train(model, train_loader, validation_loader, loss_function, epochs, device)
         "train": train_loader,
         "validation": validation_loader
     }
-    save = {'train': {'loss': [], 'accuracy': [], 'naswot': [], 'batch': [], 'batchloss': []},
+    save = {'train': {'loss': [], 'accuracy': [], 'naswot_ld': [], 'naswot_rs': [], 'batch': [], 'batchloss': []},
             'validation' : {'loss': [], 'accuracy': []}}
 
     for epoch in range(epochs):
         for phase in ['train', 'validation']:
+            batch = []
+
             if phase == 'train':
                 model.train()
             else:
@@ -44,7 +46,7 @@ def train(model, train_loader, validation_loader, loss_function, epochs, device)
                 running_count += inputs.size(0)
                 if phase == "train":
                     batch.append(running_count)
-                    save[phase]['batchloss'].append(loss.detach())
+                    save[phase]['batchloss'].append(loss.detach().item())
                     if hasattr(model, "K"):
                         s, ld = np.linalg.slogdet(model.K)
                         rs = np.tril(model.K/model.K[1,1], -1).sum() / (np.shape(model.K)[0]*(np.shape(model.K)[0]-1))
@@ -59,7 +61,7 @@ def train(model, train_loader, validation_loader, loss_function, epochs, device)
             save[phase]['accuracy'].append(epoch_acc.item())
 
             if phase == "train":
-                save[phase]['batch'].append([b / running_count for b in batch])
+                save[phase]['batch'].append([b / running_count + epoch for b in batch])
     return save
 
 if __name__ == "__main__":
