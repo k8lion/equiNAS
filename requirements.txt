@@ -1,4 +1,5 @@
 escnn
+matplotlib
 numpy
 torch
 torchvision

@@ -11,7 +11,7 @@ class UnsteerableCNN(torch.nn.Module):
         super(UnsteerableCNN, self).__init__()    
 
         if width_equated:
-            widths = [1, 192, 384, 768, 64]
+            widths = [1, 192, 384, 768, 512]
         else:
             widths = [1, 48, 96, 192, 64]
 
@@ -66,21 +66,20 @@ class UnsteerableCNN(torch.nn.Module):
 
         for block in [self.block1, self.block2, self.pool1, self.block3, self.block4, self.pool2, self.block5, self.block6, self.pool3, self.gpool]:
             x = block(x)
-            x_ = x.tensor.view(x.tensor.size(0), -1)
+            with torch.no_grad():
+                x_ = x.view(x.size(0), -1)
+                x_ = (x_ > 0).float()
+                K = x_ @ x_.t()
+                K2 = (1.-x_) @ (1.-x_.t())
+                self.K += K.cpu().numpy() + K2.cpu().numpy()
+            
+        x = self.fully_net1(x.reshape(x.shape[0], -1))
+        with torch.no_grad():
+            x_ = x.view(x.size(0), -1)
             x_ = (x_ > 0).float()
             K = x_ @ x_.t()
             K2 = (1.-x_) @ (1.-x_.t())
             self.K += K.cpu().numpy() + K2.cpu().numpy()
-
-        x = x.tensor
-        
-        x = self.fully_net1(x.reshape(x.shape[0], -1))
-
-        x_ = x.view(x.size(0), -1)
-        x_ = (x_ > 0).float()
-        K = x_ @ x_.t()
-        K2 = (1.-x_) @ (1.-x_.t())
-        self.K += K.cpu().numpy() + K2.cpu().numpy()
         
         return self.fully_net2(x)
 
@@ -193,25 +192,25 @@ class C8SteerableCNN(torch.nn.Module):
         x = escnn.nn.GeometricTensor(input, self.input_type)
         for block in [self.block1, self.block2, self.pool1, self.block3, self.block4, self.pool2, self.block5, self.block6, self.pool3, self.gpool]:
             x = block(x)
-            x_ = x.tensor.view(x.tensor.size(0), -1)
-            x_ = (x_ > 0).float()
-            K = x_ @ x_.t()
-            K2 = (1.-x_) @ (1.-x_.t())
-            self.K += K.cpu().numpy() + K2.cpu().numpy()
+            with torch.no_grad():
+                x_ = x.tensor.view(x.tensor.size(0), -1)
+                x_ = (x_ > 0).float()
+                K = x_ @ x_.t()
+                K2 = (1.-x_) @ (1.-x_.t())
+                self.K += K.cpu().numpy() + K2.cpu().numpy()
 
         x = x.tensor
         
         x = self.fully_net1(x.reshape(x.shape[0], -1))
-
-        x_ = x.view(x.size(0), -1)
-        x_ = (x_ > 0).float()
-        K = x_ @ x_.t()
-        K2 = (1.-x_) @ (1.-x_.t())
-        self.K += K.cpu().numpy() + K2.cpu().numpy()
+        with torch.no_grad():
+            x_ = x.view(x.size(0), -1)
+            x_ = (x_ > 0).float()
+            K = x_ @ x_.t()
+            K2 = (1.-x_) @ (1.-x_.t())
+            self.K += K.cpu().numpy() + K2.cpu().numpy()
         
         return self.fully_net2(x)
     
-
 
 
 class C8MutantCNN(torch.nn.Module):
@@ -219,6 +218,8 @@ class C8MutantCNN(torch.nn.Module):
     def __init__(self, n_classes=10):
         
         super(C8MutantCNN, self).__init__()
+
+        self.alphas = torch.autograd.Variable(5e-1*torch.ones(10).cuda(), requires_grad=True)
         
         # the model is equivariant under rotations by 45 degrees, modelled by C8
         self.r2_act = gspaces.rot2dOnR2(N=8)
@@ -307,7 +308,7 @@ class C8MutantCNN(torch.nn.Module):
         # number of output channels
         c = self.sgpool.out_type.size
 
-        widths = [1, 192, 384, 768, 64] #[1, 48, 96, 192, 64]
+        widths = [1, 192, 384, 768, 512] #[1, 48, 96, 192, 64]
 
         self.block1 = torch.nn.Sequential(
             torch.nn.Conv2d(widths[0], widths[1], kernel_size=7, padding=1, bias=False),
@@ -343,10 +344,9 @@ class C8MutantCNN(torch.nn.Module):
             torch.nn.BatchNorm2d(widths[4]),
             torch.nn.ReLU(inplace=True)
         )    
-        self.pool3 = torch.nn.AvgPool2d(kernel_size=3, stride=1, padding=0)
+        self.pool3 = torch.nn.AvgPool2d(kernel_size=5, stride=1, padding=0)
 
-        self.gpool = torch.nn.AdaptiveAvgPool2d((1,1)) #group pooling does /8
-        
+        self.gpool = self.sgpool.export()
         
         # Fully Connected
         self.fully_net1 = torch.nn.Sequential(
@@ -364,7 +364,7 @@ class C8MutantCNN(torch.nn.Module):
         self.KS = np.zeros((input.size(0), input.size(0)))
 
         x = escnn.nn.GeometricTensor(input, self.input_type)
-        for (ublock, sblock) in [(self.block1, self.sblock1),
+        for (i, (ublock, sblock)) in enumerate([(self.block1, self.sblock1),
                                 (self.block2, self.sblock2),
                                 (self.pool1, self.spool1),
                                 (self.block3, self.sblock3),
@@ -373,12 +373,10 @@ class C8MutantCNN(torch.nn.Module):
                                 (self.block5, self.sblock5),
                                 (self.block6, self.sblock6),
                                 (self.pool3, self.spool3),
-                                (self.gpool, self.sgpool)]:
+                                (self.gpool, self.sgpool)]):
             xs = sblock(x)
             xu = ublock(x.tensor)
-            print(xs.tensor.size())
-            print(xs.tensor.size(), escnn.nn.GeometricTensor(xu, sblock.out_type).tensor.size())
-            x = xs + escnn.nn.GeometricTensor(xu, sblock.out_type)
+            x = self.alphas[i]*xs + (1-self.alphas[i])*escnn.nn.GeometricTensor(xu, sblock.out_type)
             with torch.no_grad():
                 x_ = x.tensor.view(x.tensor.size(0), -1)
                 self.KF += (x_ @ x_.t()).cpu().numpy()
