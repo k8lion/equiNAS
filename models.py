@@ -215,11 +215,13 @@ class C8SteerableCNN(torch.nn.Module):
 
 class C8MutantCNN(torch.nn.Module):
     
-    def __init__(self, n_classes=10):
+    def __init__(self, soft=False, n_classes=10):
         
         super(C8MutantCNN, self).__init__()
 
-        self.alphas = torch.autograd.Variable(5e-1*torch.ones(10).cuda(), requires_grad=True)
+        self.soft = soft
+
+        self.alphas = torch.autograd.Variable(torch.zeros(10).cuda(), requires_grad=True)
         
         # the model is equivariant under rotations by 45 degrees, modelled by C8
         self.r2_act = gspaces.rot2dOnR2(N=8)
@@ -363,6 +365,8 @@ class C8MutantCNN(torch.nn.Module):
         self.KU = np.zeros((input.size(0), input.size(0)))
         self.KS = np.zeros((input.size(0), input.size(0)))
 
+        alphas = torch.nn.functional.softmax(torch.stack((self.alphas, torch.zeros_like(self.alphas)), dim=1), dim=1)
+
         x = escnn.nn.GeometricTensor(input, self.input_type)
         for (i, (ublock, sblock)) in enumerate([(self.block1, self.sblock1),
                                 (self.block2, self.sblock2),
@@ -376,7 +380,14 @@ class C8MutantCNN(torch.nn.Module):
                                 (self.gpool, self.sgpool)]):
             xs = sblock(x)
             xu = ublock(x.tensor)
-            x = self.alphas[i]*xs + (1-self.alphas[i])*escnn.nn.GeometricTensor(xu, sblock.out_type)
+            if self.soft:
+                x = alphas[i,0]*xs + alphas[i,1]*escnn.nn.GeometricTensor(xu, sblock.out_type)
+            else:
+                t = int(alphas[i,0]*xs.tensor.size(dim=1))
+                x = escnn.nn.GeometricTensor(torch.cat((
+                    torch.narrow(xs.tensor, 1, 0, t), 
+                    torch.narrow(xu, 1, 0, xs.tensor.size(dim=1)-t)
+                ), dim=1), sblock.out_type)
             with torch.no_grad():
                 x_ = x.tensor.view(x.tensor.size(0), -1)
                 self.KF += (x_ @ x_.t()).cpu().numpy()
@@ -407,3 +418,24 @@ class C8MutantCNN(torch.nn.Module):
         
         return self.fully_net2(x)
     
+
+
+class EquiCNN(torch.nn.Module):
+    
+    def __init__(self, reset=False):
+        
+        super(EquiCNN, self).__init__()
+
+        self.reset = reset
+        self.loss_function = torch.nn.CrossEntropyLoss()
+        self.score = -1
+
+
+        self.optimizer = torch.optim.Adam(self.parameters(), lr=5e-5)
+
+    
+    def forward(self, input: torch.Tensor):
+        pass
+
+    def generate(self):
+        return []

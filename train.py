@@ -110,7 +110,7 @@ if __name__ == "__main__":
     epochs = 50
     train_loader, validation_loader, test_loader = utilities.get_dataloaders(path_to_dir="..")
     #models = {'steerable': models.C8SteerableCNN(), 'unsteerable': models.UnsteerableCNN()}
-    models = {'mutant': models.C8MutantCNN()}
+    models = {'soft': models.C8MutantCNN(soft=True), 'hard': models.C8MutantCNN(soft=False)}
     logs = {}
     for (name, model) in models.items():
         print(name, utilities.getmodelsize(model))
