@@ -2,6 +2,7 @@ import torch
 import escnn
 from escnn import gspaces
 import numpy as np
+import copy
 
 
 class UnsteerableCNN(torch.nn.Module):
@@ -426,16 +427,62 @@ class EquiCNN(torch.nn.Module):
         
         super(EquiCNN, self).__init__()
 
+        self.gspaces = np.column_stack(([gspaces.trivialOnR2(), gspaces.rot2dOnR2(N=2), gspaces.rot2dOnR2(N=4), gspaces.rot2dOnR2(N=8)], [gspaces.flip2dOnR2(), gspaces.flipRot2dOnR2(N=2), gspaces.flipRot2dOnR2(N=4), gspaces.flipRot2dOnR2(N=8)]))
+        self.gs = [(0,0) for _ in range(6)]
+        self.channels = [24, 48, 48, 96, 96, 64]
+        self.kernels = [7, 5, 5, 5, 5, 5]
+        self.paddings = [1, 2, 2, 2, 2, 1]
+        self.architect()
         self.reset = reset
         self.loss_function = torch.nn.CrossEntropyLoss()
         self.score = -1
-
-
         self.optimizer = torch.optim.Adam(self.parameters(), lr=5e-5)
+
+    def architect(self):
+        G = self.gspaces[self.gs[0]]
+        in_type = escnn.nn.FieldType(G, [G.trivial_repr])
+        self.input_type = in_type
+        self.blocks = []
+        for i in range(len(self.gs)):
+            G = self.gspaces[self.gs[i]]
+            out_type = escnn.nn.FieldType(G, self.channels[i]*[G.regular_repr])
+            self.blocks.append(escnn.nn.SequentialModule(
+                escnn.nn.R2Conv(in_type, out_type, kernel_size=self.kernels[i], padding=self.paddings[i], bias=False),
+                escnn.nn.InnerBatchNorm(out_type),
+                escnn.nn.ReLU(out_type, inplace=True)
+            ))
+            if i == 1 or i == 3:
+                self.blocks.append(escnn.nn.PointwiseAvgPoolAntialiased(out_type, sigma=0.66, stride=2))
+            in_type = out_type
+        self.blocks.append(escnn.nn.PointwiseAvgPoolAntialiased(out_type, sigma=0.66, stride=1, padding=0))
+        self.blocks.append(escnn.nn.GroupPooling(out_type))
+        
+        self.full1 = torch.nn.Sequential(
+            torch.nn.Linear(self.gpool.out_type.size, 64),
+            torch.nn.BatchNorm1d(64),
+            torch.nn.ELU(inplace=True),
+        )
+
+        self.full2 = torch.nn.Linear(64, 10)
+
 
     
     def forward(self, input: torch.Tensor):
-        pass
+        x = escnn.nn.GeometricTensor(input, self.input_type)
+        for block in self.blocks:
+            x = block(x)
+        x = x.tensor
+        x = self.full1(x.reshape(x.shape[0], -1))
+        return self.full2(x)
 
     def generate(self):
-        return []
+        candidates = []
+        for i in len(self.gs):
+            if i > 0 and (self.gs[i][0] < self.gs[i-1][0] or self.gs[i][1] < self.gs[i-1][1]):
+                candidates.append(self.offspring(i, self.gs[i-1]))
+
+        return candidates
+
+    def offspring(self, i, G):
+        child = copy.deepcopy(self)
+        child.gs[i] = G

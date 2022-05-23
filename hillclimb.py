@@ -10,7 +10,7 @@ class HillClimber(object):
     def __init__(self, reset = False):
         self.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
         self.train_loader, self.validation_loader, self.test_loader = utilities.get_dataloaders(path_to_dir="..")
-        self.network = models.EquiCNN(reset).to(self.device)
+        self.network = models.EquiCNN(reset)
         self.options = []
 
     def train(self, epochs = 1):
@@ -19,6 +19,7 @@ class HillClimber(object):
         else:
             totrain = self.options
         for model in totrain:
+            model = model.to(self.device)
             dataloaders = {
                 "train": self.train_loader,
                 "validation": self.validation_loader
