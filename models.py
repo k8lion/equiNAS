@@ -452,12 +452,12 @@ class EquiCNN(torch.nn.Module):
 
     def architect(self):
         G, _, _ = self.superspace.restrict(sgid(self.gs[0])) 
-        print(self.superspace, sgid(self.gs[0]), G)
+        #print(self.superspace, sgid(self.gs[0]), G)
         in_type = escnn.nn.FieldType(G, [G.trivial_repr])
         self.input_type = in_type
         for i in range(len(self.gs)):
             out_type = escnn.nn.FieldType(G, int(self.channels[i]/np.sqrt(G.fibergroup.order()/16))*[G.regular_repr])
-            print(in_type, out_type)
+            #print(in_type, out_type)
             if len(self.blocks) <= i:
                 self.blocks.append(escnn.nn.SequentialModule(
                     escnn.nn.R2Conv(in_type, out_type, kernel_size=self.kernels[i], padding=self.paddings[i], bias=False),
@@ -520,7 +520,7 @@ class EquiCNN(torch.nn.Module):
 
     def generate(self):
         candidates = [self.offspring(-1, self.gs[0])]
-        for d in range(len(self.gs[0])):
+        for d in range(1,len(self.gs[0])):
             if self.gs[0][d] < self.gspaces.shape[d]-1:
                 g = list(self.gs[0])
                 g[d] += 1
