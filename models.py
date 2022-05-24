@@ -437,7 +437,8 @@ class EquiCNN(torch.nn.Module):
         super(EquiCNN, self).__init__()
 
         self.superspace = gspaces.flipRot2dOnR2(N=8)
-        self.gspaces = np.column_stack(([gspaces.trivialOnR2(), gspaces.rot2dOnR2(N=2), gspaces.rot2dOnR2(N=4), gspaces.rot2dOnR2(N=8)], [gspaces.flip2dOnR2(), gspaces.flipRot2dOnR2(N=2), gspaces.flipRot2dOnR2(N=4), gspaces.flipRot2dOnR2(N=8)]))
+        self.gspaces = np.transpose(np.column_stack(([gspaces.trivialOnR2(), gspaces.rot2dOnR2(N=2), gspaces.rot2dOnR2(N=4), gspaces.rot2dOnR2(N=8)], [gspaces.flip2dOnR2(), gspaces.flipRot2dOnR2(N=2), gspaces.flipRot2dOnR2(N=4), gspaces.flipRot2dOnR2(N=8)])))
+        print(self.gspaces.shape)
         self.gs = gs
         self.channels = [24, 48, 48, 96, 96, 64]
         self.kernels = [7, 5, 5, 5, 5, 5]
@@ -467,9 +468,9 @@ class EquiCNN(torch.nn.Module):
                     self.blocks[i].add_module(name="pool", module=escnn.nn.PointwiseAvgPoolAntialiased(out_type, sigma=0.66, stride=2))                    
             else:
                 if in_type != self.blocks[i].in_type or out_type != self.blocks[i].out_type:
-                    print("changing layer", i)
-                    print(self.blocks[i].in_type, "->", in_type)
-                    print(self.blocks[i].out_type, "->", out_type)
+                    #print("changing layer", i)
+                    #print(self.blocks[i].in_type, "->", in_type)
+                    #print(self.blocks[i].out_type, "->", out_type)
                     self.blocks[i] = escnn.nn.SequentialModule(
                         escnn.nn.R2Conv(in_type, out_type, kernel_size=self.kernels[i], padding=self.paddings[i], bias=False),
                         escnn.nn.InnerBatchNorm(out_type),
@@ -478,7 +479,7 @@ class EquiCNN(torch.nn.Module):
                     if i == 1 or i == 3:
                         self.blocks[i].add_module(name="pool", module=escnn.nn.PointwiseAvgPoolAntialiased(out_type, sigma=0.66, stride=2))  
             if i < len(self.gs)-1 and self.gs[i] != self.gs[i+1]:
-                print(out_type.gspace, sgid(self.gs[i]), sgid(self.gs[i+1]))
+                #print(out_type.gspace, sgid(self.gs[i]), sgid(self.gs[i+1]))
                 sg = sgid(self.gs[i+1], self.gs[i])
                 restrict = escnn.nn.RestrictionModule(out_type, sg)
                 self.blocks[i].add_module(name="restrict", module=restrict)
@@ -519,7 +520,7 @@ class EquiCNN(torch.nn.Module):
 
     def generate(self):
         candidates = [self.offspring(-1, self.gs[0])]
-        for d in range(1,len(self.gs[0])):
+        for d in range(len(self.gs[0])):
             if self.gs[0][d] < self.gspaces.shape[d]-1:
                 g = list(self.gs[0])
                 g[d] += 1
