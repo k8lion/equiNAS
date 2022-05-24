@@ -7,15 +7,15 @@ import utilities
 from operator import attrgetter
 
 class HillClimber(object):
-    def __init__(self, reset = False):
+    def __init__(self, reset = True):
         self.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
         self.train_loader, self.validation_loader, self.test_loader = utilities.get_dataloaders(path_to_dir="..")
-        self.network = models.EquiCNN(reset)
+        self.model = models.EquiCNN(reset)
         self.options = []
 
     def train(self, epochs = 1):
         if len(self.options)==0:
-            totrain = [self.network]
+            totrain = [self.model]
         else:
             totrain = self.options
         for model in totrain:
@@ -78,8 +78,8 @@ class HillClimber(object):
                         save[phase]['batch'].append([b / running_count + epoch for b in batch])
                     else:
                         print("")
-
-            return save
+            model = model.to("cpu")
+        #return save
     
     def generate(self):
         self.options = self.model.generate()
@@ -89,8 +89,14 @@ class HillClimber(object):
         self.options = []
 
     def hillclimb(self, iterations = -1):
-        self.train()
-        while iterations >= 0:
+        self.train(epochs = 1)
+        while iterations > 0:
             self.generate()
-            self.train()
+            self.train(epochs = 1)
             self.select()
+            iterations -= 1
+
+
+if __name__ == "__main__":
+    hillclimb = HillClimber()
+    hillclimb.hillclimb(iterations=3)
