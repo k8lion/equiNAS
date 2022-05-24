@@ -421,11 +421,11 @@ class C8MutantCNN(torch.nn.Module):
 
 def sgid(index, previous_index = None):
     if previous_index is not None:
-        print(index, previous_index)
-        #if previous_index[0] == 0 and index[0] == 0:
-        #    return 2**index[1]
-        #if previous_index[1] == 0 and index[1] == 0:
-        #    return index[0]
+        #print(index, previous_index, previous_index[0],  index[0], previous_index[0] == 0, index[0] == 0)
+        if previous_index[0] == 0 and index[0] == 0:
+            return 2**index[1]
+        if previous_index[1] == 0 and index[1] == 0:
+            return index[0]
     if index[0] == 0:
         return (None, 2**index[1])
     return (0, 2**index[1])
@@ -456,6 +456,7 @@ class EquiCNN(torch.nn.Module):
         self.input_type = in_type
         for i in range(len(self.gs)):
             out_type = escnn.nn.FieldType(G, int(self.channels[i]/np.sqrt(G.fibergroup.order()/16))*[G.regular_repr])
+            print(in_type, out_type)
             if len(self.blocks) <= i:
                 self.blocks.append(escnn.nn.SequentialModule(
                     escnn.nn.R2Conv(in_type, out_type, kernel_size=self.kernels[i], padding=self.paddings[i], bias=False),
@@ -481,7 +482,7 @@ class EquiCNN(torch.nn.Module):
                 sg = sgid(self.gs[i+1], self.gs[i])
                 restrict = escnn.nn.RestrictionModule(out_type, sg)
                 self.blocks[i].add_module(name="restrict", module=restrict)
-                G, _, _ = G.restrict(sgid(self.gs[i]))
+                G, _, _ = G.restrict(sg)
                 #out_type = escnn.nn.FieldType(G, int(self.channels[i]/np.sqrt(G.fibergroup.order()/16))*[G.regular_repr])
                 disentangle = escnn.nn.DisentangleModule(restrict.out_type)
                 self.blocks[i].add_module(name="disentangle", module=disentangle)
@@ -532,5 +533,6 @@ class EquiCNN(torch.nn.Module):
         gs = self.gs
         if i >= 0:
             gs[i] = G
+            print(self.gs, gs)
         child = EquiCNN(reset = self.reset, blocks = [block for block in self.blocks], gs = gs)
         return child

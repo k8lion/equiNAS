@@ -78,6 +78,7 @@ class HillClimber(object):
                         save[phase]['batch'].append([b / running_count + epoch for b in batch])
                     else:
                         print("")
+            print(model.gs, model.score)
             model = model.to("cpu")
         #return save
     
@@ -89,14 +90,14 @@ class HillClimber(object):
         self.options = []
 
     def hillclimb(self, iterations = -1):
-        self.train(epochs = 1)
+        self.train(epochs = 10)
         while iterations > 0:
             self.generate()
-            self.train(epochs = 1)
+            self.train(epochs = 5)
             self.select()
             iterations -= 1
 
 
 if __name__ == "__main__":
     hillclimb = HillClimber()
-    hillclimb.hillclimb(iterations=3)
+    hillclimb.hillclimb(iterations=10)
