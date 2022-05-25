@@ -534,7 +534,7 @@ class EquiCNN(torch.nn.Module):
         return candidates
 
     def offspring(self, i, G):
-        gs = self.gs
+        gs = [g for g in self.gs]
         if i >= 0:
             gs[i] = G
             print(self.gs, gs)
