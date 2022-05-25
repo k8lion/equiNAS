@@ -538,5 +538,5 @@ class EquiCNN(torch.nn.Module):
         if i >= 0:
             gs[i] = G
             print(self.gs, gs)
-        child = EquiCNN(reset = self.reset, blocks = [block for block in self.blocks], gs = gs, full = [self.full1, self.full2])
+        child = EquiCNN(reset = self.reset, blocks = [block for block in self.blocks], gs = gs, fulls = [self.full1, self.full2])
         return child
