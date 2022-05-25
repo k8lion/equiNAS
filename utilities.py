@@ -3,11 +3,8 @@ import os
 from PIL import Image
 from torch.utils.data import Dataset, DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
-from torchvision.transforms import RandomRotation
-from torchvision.transforms import Pad
-from torchvision.transforms import Resize
-from torchvision.transforms import ToTensor
-from torchvision.transforms import Compose
+from torchvision.transforms import RandomRotation, Pad, Resize, ToTensor, Compose
+from torchvision.transforms.functional import InterpolationMode
 
 class MnistRotDataset(Dataset):
     
@@ -46,7 +43,7 @@ def get_dataloaders(path_to_dir = "~"):
     train_transform = Compose([
         pad,
         resize1,
-        RandomRotation(180., resample=Image.BILINEAR, expand=False),
+        RandomRotation(180., interpolation=InterpolationMode.BILINEAR, expand=False),
         resize2,
         totensor,
     ])
