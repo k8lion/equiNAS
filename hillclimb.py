@@ -31,7 +31,7 @@ class HillClimber(object):
                     'validation' : {'loss': [], 'accuracy': []}}
 
             for epoch in range(epochs):
-                print(epoch, end="\t")
+                #print(epoch, end="\t")
                 for phase in ['train', 'validation']:
                     batch = []
 
@@ -71,14 +71,15 @@ class HillClimber(object):
                     save[phase]['accuracy'].append(epoch_acc.item())
                     model.score = epoch_acc.item()
 
-                    print("{0:.3g} ".format(epoch_loss.item()), end="")
-                    print("{0:.3g} ".format(epoch_acc.item()), end="\t")
+                    #print("{0:.3g} ".format(epoch_loss.item()), end="")
+                    #print("{0:.3g} ".format(epoch_acc.item()), end="\t")
 
                     if phase == "train":
                         save[phase]['batch'].append([b / running_count + epoch for b in batch])
                     else:
-                        print("")
-            print(model.gs, model.score)
+                        pass
+                        #print("")
+            #print(model.gs, model.score)
             model = model.to("cpu")
         #return save
     
@@ -95,7 +96,7 @@ class HillClimber(object):
         self.train(epochs = 5)
         while iterations > 0:
             self.generate()
-            self.train(epochs = 2)
+            self.train(epochs = 5)
             self.select()
             iterations -= 1
 
