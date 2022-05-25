@@ -451,6 +451,7 @@ class EquiCNN(torch.nn.Module):
         self.optimizer = torch.optim.Adam(self.parameters(), lr=5e-5)
 
     def architect(self):
+        init = (len(self.blocks) == 0)
         G, _, _ = self.superspace.restrict(sgid(self.gs[0])) 
         #print(self.superspace, sgid(self.gs[0]), G)
         in_type = escnn.nn.FieldType(G, [G.trivial_repr])
@@ -458,7 +459,7 @@ class EquiCNN(torch.nn.Module):
         for i in range(len(self.gs)):
             out_type = escnn.nn.FieldType(G, int(self.channels[i]/np.sqrt(G.fibergroup.order()/16))*[G.regular_repr])
             #print(in_type, out_type)
-            if len(self.blocks) <= i:
+            if init:
                 self.blocks.append(escnn.nn.SequentialModule(
                     escnn.nn.R2Conv(in_type, out_type, kernel_size=self.kernels[i], padding=self.paddings[i], bias=False),
                     escnn.nn.InnerBatchNorm(out_type),
@@ -490,7 +491,7 @@ class EquiCNN(torch.nn.Module):
                 out_type = disentangle.out_type
             #else: copy old weights
             in_type = out_type
-        if len(self.blocks) == len(self.gs):
+        if init:
             self.blocks.append(escnn.nn.PointwiseAvgPoolAntialiased(out_type, sigma=0.66, stride=1, padding=0))
             self.blocks.append(escnn.nn.GroupPooling(out_type))
             self.full1 = torch.nn.Sequential(
