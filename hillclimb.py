@@ -85,7 +85,10 @@ class HillClimber(object):
     
     def generate(self):
         #self.options = self.model.generate()
-        self.options = [child for model in self.options for child in model.generate()]
+        children = []
+        for model in self.options:
+            children += model.generate()
+        self.options = children
 
     def select(self):
         for child in self.options:
