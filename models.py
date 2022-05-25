@@ -421,7 +421,6 @@ class C8MutantCNN(torch.nn.Module):
 
 def sgid(index, previous_index = None):
     if previous_index is not None:
-        #print(index, previous_index, previous_index[0],  index[0], previous_index[0] == 0, index[0] == 0)
         if previous_index[0] == 0 and index[0] == 0:
             return 2**index[1]
         if previous_index[1] == 0 and index[1] == 0:
@@ -432,7 +431,7 @@ def sgid(index, previous_index = None):
 
 class EquiCNN(torch.nn.Module):
     
-    def __init__(self, reset=False, blocks = [], fulls = [], gs = [(0,0) for _ in range(6)]):
+    def __init__(self, reset=False, gs = [(0,0) for _ in range(6)], parent = None):
         
         super(EquiCNN, self).__init__()
 
@@ -442,23 +441,22 @@ class EquiCNN(torch.nn.Module):
         self.channels = [24, 48, 48, 96, 96, 64]
         self.kernels = [7, 5, 5, 5, 5, 5]
         self.paddings = [1, 2, 2, 2, 2, 1]
-        self.blocks = torch.nn.ModuleList(blocks)
-        self.architect(fulls)
+        self.blocks = torch.nn.ModuleList([])
+        self.architect(parent)
         self.reset = reset #TODO: if true, reinit changed layer, else network morphism 
         self.loss_function = torch.nn.CrossEntropyLoss()
         self.score = -1
         self.optimizer = torch.optim.Adam(self.parameters(), lr=5e-5)
 
-    def architect(self, fulls = []):
-        init = (len(self.blocks) == 0)
+    def architect(self, parent = None):
+        print(self.gs)
+        init = (parent is None)
         G, _, _ = self.superspace.restrict(sgid(self.gs[0])) 
-        #print(self.superspace, sgid(self.gs[0]), G)
         in_type = escnn.nn.FieldType(G, [G.trivial_repr])
         self.input_type = in_type
         for i in range(len(self.gs)):
-            out_type = escnn.nn.FieldType(G, int(self.channels[i]/np.sqrt(G.fibergroup.order()/16))*[G.regular_repr])
-            #print(in_type, out_type)
-            if init:
+            out_type = escnn.nn.FieldType(G, int(self.channels[i]/np.sqrt(G.fibergroup.order()))*[G.regular_repr])
+            if init or self.gs[i] != parent.gs[i]:
                 self.blocks.append(escnn.nn.SequentialModule(
                     escnn.nn.R2Conv(in_type, out_type, kernel_size=self.kernels[i], padding=self.paddings[i], bias=False),
                     escnn.nn.InnerBatchNorm(out_type),
@@ -467,28 +465,22 @@ class EquiCNN(torch.nn.Module):
                 if i == 1 or i == 3:
                     self.blocks[i].add_module(name="pool", module=escnn.nn.PointwiseAvgPoolAntialiased(out_type, sigma=0.66, stride=2))                    
             else:
-                if in_type != self.blocks[i].in_type or out_type != self.blocks[i].out_type:
-                    #print("changing layer", i)
-                    #print(self.blocks[i].in_type, "->", in_type)
-                    #print(self.blocks[i].out_type, "->", out_type)
-                    self.blocks[i] = escnn.nn.SequentialModule(
-                        escnn.nn.R2Conv(in_type, out_type, kernel_size=self.kernels[i], padding=self.paddings[i], bias=False),
-                        escnn.nn.InnerBatchNorm(out_type),
-                        escnn.nn.ReLU(out_type, inplace=True),
-                    )
-                    if i == 1 or i == 3:
-                        self.blocks[i].add_module(name="pool", module=escnn.nn.PointwiseAvgPoolAntialiased(out_type, sigma=0.66, stride=2))  
-            if i < len(self.gs)-1 and self.gs[i] != self.gs[i+1]:
-                #print(out_type.gspace, sgid(self.gs[i]), sgid(self.gs[i+1]))
-                sg = sgid(self.gs[i+1], self.gs[i])
-                restrict = escnn.nn.RestrictionModule(out_type, sg)
-                self.blocks[i].add_module(name="restrict", module=restrict)
-                G, _, _ = G.restrict(sg)
-                #out_type = escnn.nn.FieldType(G, int(self.channels[i]/np.sqrt(G.fibergroup.order()/16))*[G.regular_repr])
-                disentangle = escnn.nn.DisentangleModule(restrict.out_type)
-                self.blocks[i].add_module(name="disentangle", module=disentangle)
-                out_type = disentangle.out_type
-            #else: copy old weights
+                self.blocks.append(parent.blocks[i])
+
+            if i < len(self.gs)-1:
+                if self.gs[i] != self.gs[i+1] and "restrict" not in self.blocks[i]._modules.keys():
+                    sg = sgid(self.gs[i+1], self.gs[i])
+                    restrict = escnn.nn.RestrictionModule(self.blocks[i].out_type, sg)
+                    self.blocks[i].add_module(name="restrict", module=restrict)
+                    G, _, _ = G.restrict(sg)
+                    disentangle = escnn.nn.DisentangleModule(restrict.out_type)
+                    self.blocks[i].add_module(name="disentangle", module=disentangle)
+                    out_type = disentangle.out_type
+                    print("adding restrict/entangle to layer", i)
+                if self.gs[i] == self.gs[i+1] and "restrict" in self.blocks[i]._modules.keys():
+                    print("removing restrict/entangle from layer", i)
+                    del self.blocks[i]._modules["restrict"]
+                    del self.blocks[i]._modules["disentangle"]
             in_type = out_type
         if init:
             self.blocks.append(escnn.nn.PointwiseAvgPoolAntialiased(out_type, sigma=0.66, stride=1, padding=0))
@@ -498,13 +490,13 @@ class EquiCNN(torch.nn.Module):
                 torch.nn.BatchNorm1d(64),
                 torch.nn.ELU(inplace=True),
             )
-
             self.full2 = torch.nn.Linear(64, 10)
         else:
-            if len(fulls) > 0:
-                self.full1 = fulls[0]
-                self.full2 = fulls[1]
-            if out_type != self.blocks[len(self.gs)].out_type:
+            self.blocks += parent.blocks[-2:]
+        
+            self.full1 = parent.full1
+            self.full2 = parent.full2
+            if out_type != parent.blocks[len(self.gs)].out_type:
                 self.blocks[len(self.gs)] = escnn.nn.PointwiseAvgPoolAntialiased(out_type, sigma=0.66, stride=1, padding=0)
                 self.blocks[len(self.gs)+1] = escnn.nn.GroupPooling(out_type)
                 self.full1 = torch.nn.Sequential(
@@ -537,5 +529,5 @@ class EquiCNN(torch.nn.Module):
         gs = [g for g in self.gs]
         if i >= 0:
             gs[i] = G
-        child = EquiCNN(reset = self.reset, blocks = [block for block in self.blocks], gs = gs, fulls = [self.full1, self.full2])
+        child = EquiCNN(reset = self.reset, gs = gs, parent=self)
         return child
