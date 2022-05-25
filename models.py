@@ -432,25 +432,24 @@ def sgid(index, previous_index = None):
 
 class EquiCNN(torch.nn.Module):
     
-    def __init__(self, reset=False, blocks = [], gs = [(0,0) for _ in range(6)]):
+    def __init__(self, reset=False, blocks = [], fulls = [], gs = [(0,0) for _ in range(6)]):
         
         super(EquiCNN, self).__init__()
 
         self.superspace = gspaces.flipRot2dOnR2(N=8)
         self.gspaces = np.transpose(np.column_stack(([gspaces.trivialOnR2(), gspaces.rot2dOnR2(N=2), gspaces.rot2dOnR2(N=4), gspaces.rot2dOnR2(N=8)], [gspaces.flip2dOnR2(), gspaces.flipRot2dOnR2(N=2), gspaces.flipRot2dOnR2(N=4), gspaces.flipRot2dOnR2(N=8)])))
-        print(self.gspaces.shape)
         self.gs = gs
         self.channels = [24, 48, 48, 96, 96, 64]
         self.kernels = [7, 5, 5, 5, 5, 5]
         self.paddings = [1, 2, 2, 2, 2, 1]
         self.blocks = torch.nn.ModuleList(blocks)
-        self.architect()
+        self.architect(fulls)
         self.reset = reset #TODO: if true, reinit changed layer, else network morphism 
         self.loss_function = torch.nn.CrossEntropyLoss()
         self.score = -1
         self.optimizer = torch.optim.Adam(self.parameters(), lr=5e-5)
 
-    def architect(self):
+    def architect(self, fulls = []):
         init = (len(self.blocks) == 0)
         G, _, _ = self.superspace.restrict(sgid(self.gs[0])) 
         #print(self.superspace, sgid(self.gs[0]), G)
@@ -502,6 +501,9 @@ class EquiCNN(torch.nn.Module):
 
             self.full2 = torch.nn.Linear(64, 10)
         else:
+            if len(fulls) > 0:
+                self.full1 = fulls[0]
+                self.full2 = fulls[1]
             if out_type != self.blocks[len(self.gs)].out_type:
                 self.blocks[len(self.gs)] = escnn.nn.PointwiseAvgPoolAntialiased(out_type, sigma=0.66, stride=1, padding=0)
                 self.blocks[len(self.gs)+1] = escnn.nn.GroupPooling(out_type)
@@ -536,5 +538,5 @@ class EquiCNN(torch.nn.Module):
         if i >= 0:
             gs[i] = G
             print(self.gs, gs)
-        child = EquiCNN(reset = self.reset, blocks = [block for block in self.blocks], gs = gs)
+        child = EquiCNN(reset = self.reset, blocks = [block for block in self.blocks], gs = gs, full = [self.full1, self.full2])
         return child
