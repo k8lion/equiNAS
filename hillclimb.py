@@ -86,14 +86,16 @@ class HillClimber(object):
         self.options = self.model.generate()
 
     def select(self):
+        for child in self.options:
+            print(child.gs, sum(p.numel() for p in child.parameters() if p.requires_grad), child.score)
         self.model = max(self.options, key=attrgetter("score"))
         self.options = []
 
     def hillclimb(self, iterations = -1):
-        self.train(epochs = 10)
+        self.train(epochs = 5)
         while iterations > 0:
             self.generate()
-            self.train(epochs = 5)
+            self.train(epochs = 2)
             self.select()
             iterations -= 1
 
