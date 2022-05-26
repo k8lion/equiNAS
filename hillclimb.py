@@ -34,7 +34,6 @@ class HillClimber(object):
                 #print(epoch, end="\t")
                 for phase in ['train', 'validation']:
                     batch = []
-
                     if phase == 'train':
                         model.train()
                     else:
@@ -63,7 +62,6 @@ class HillClimber(object):
                         if phase == "train":
                             batch.append(running_count)
                             save[phase]['batchloss'].append(loss.detach().item())
-
                     epoch_loss = running_loss / running_count
                     epoch_acc = running_corrects.float() / running_count
 
@@ -84,13 +82,13 @@ class HillClimber(object):
         #return save
     
     def generate(self):
-        #self.options = self.model.generate()
-        children = []
-        if len(self.options) == 0:
-            children += self.model.generate()
-        for model in self.options:
-            children += model.generate()
-        self.options = children
+        self.options = self.model.generate()
+        # children = []
+        # if len(self.options) == 0:
+        #     children += self.model.generate()
+        # for model in self.options:
+        #     children += model.generate()
+        # self.options = children
 
     def select(self):
         for child in self.options:
@@ -109,4 +107,4 @@ class HillClimber(object):
 
 if __name__ == "__main__":
     hillclimb = HillClimber()
-    hillclimb.hillclimb(iterations=10)
+    hillclimb.hillclimb(iterations=20)
