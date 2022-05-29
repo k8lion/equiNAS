@@ -5,6 +5,7 @@ import numpy as np
 import models
 import utilities
 from operator import attrgetter
+import argparse
 
 class HillClimber(object):
     def __init__(self, reset = True):
@@ -96,7 +97,7 @@ class HillClimber(object):
         self.model = max(self.options, key=attrgetter("score"))
         #self.options = []
 
-    def hillclimb(self, iterations = -1):
+    def hillclimb(self, iterations = -1, epochs = 5):
         self.train(epochs = 5)
         while iterations > 0:
             self.generate()
@@ -106,5 +107,14 @@ class HillClimber(object):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Run hillclimber algorithm')
+    parser.add_argument('--epochs', "-e", type=int, default="5",
+                        help='number of epochs per child')
+    parser.add_argument('--iterations', "-i", type=int, default="5",
+                        help='number of generations')
+    #parser.add_argument('--sum', dest='accumulate', action='store_const',
+    #                    const=sum, default=max,
+    #                    help='sum the integers (default: find the max)')
+    args = parser.parse_args()
     hillclimb = HillClimber()
-    hillclimb.hillclimb(iterations=20)
+    hillclimb.hillclimb(iterations=args.iterations, epochs=args.epochs)
