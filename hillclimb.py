@@ -26,6 +26,7 @@ class HillClimber(object):
             totrain = self.options
         for model in totrain:
             model = model.to(self.device)
+            model.optimizer = torch.optim.Adam(model.parameters(), lr=5e-5)
             dataloaders = {
                 "train": self.train_loader,
                 "validation": self.validation_loader
