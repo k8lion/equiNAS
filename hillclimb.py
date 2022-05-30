@@ -11,14 +11,13 @@ import copy
 
 class HillClimber(object):
     def __init__(self, reset = True, allkids = False):
+        self.filename = './out/logshc_'+datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")+'.pkl'
         self.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
         self.train_loader, self.validation_loader, self.test_loader = utilities.get_dataloaders(path_to_dir="..")
         self.model = models.EquiCNN(reset)
         self.options = []
         self.allkids = allkids
         self.history = {}
-        self.filename = './out/logshc_'+datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")+'.pkl'
-
 
     def train(self, epochs = 1, start = 0):
         if len(self.options)==0:
@@ -44,7 +43,6 @@ class HillClimber(object):
                               'ghistory': []}
                 else:
                     self.history[model.uuid] = copy.deepcopy(self.history[model.parent])
-            #self.history[model.uuid]["trainsteps"] += np.linspace(0, 1, epochs*len(dataloaders["train"]), endpoint=False).tolist()
             self.history[model.uuid]["epochsteps"] += np.linspace(start, start+1, epochs, endpoint=False).tolist()
             self.history[model.uuid]["ghistory"] += model.gs
             for _ in range(epochs):
@@ -110,7 +108,6 @@ class HillClimber(object):
         with open(self.filename, 'wb') as f:
             pickle.dump(self.history, f)
 
-
     def hillclimb(self, iterations = -1, epochs = 5):
         self.train(epochs = epochs, start = 0)
         for iter in range(iterations):
@@ -121,8 +118,6 @@ class HillClimber(object):
             self.save()
             
             
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Run hillclimber algorithm')
     parser.add_argument('--epochs', "-e", type=int, default="5", help='number of epochs per child')

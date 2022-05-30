@@ -440,7 +440,7 @@ class EquiCNN(torch.nn.Module):
         
         super(EquiCNN, self).__init__()
 
-        self.uuid = uuid.uuid4().int
+        self.uuid = uuid.uuid4()
         if parent is not None:
             self.parent = parent.uuid
         else:
@@ -457,8 +457,6 @@ class EquiCNN(torch.nn.Module):
         self.loss_function = torch.nn.CrossEntropyLoss()
         self.score = -1
         self.optimizer = torch.optim.Adam(self.parameters(), lr=5e-5)
-        for name, _ in self.named_parameters():
-            print(name)
 
     def architect(self, parent = None):
         init = (parent is None)
