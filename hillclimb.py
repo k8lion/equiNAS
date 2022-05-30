@@ -90,7 +90,7 @@ class HillClimber(object):
     
     def generate(self):
         if self.allkids:
-            children = [self.model]
+            children = []
             children += self.model.generate()
             for model in self.options:
                 children += model.generate()
@@ -102,6 +102,16 @@ class HillClimber(object):
         for child in self.options:
             print(child.gs, sum(p.numel() for p in child.parameters() if p.requires_grad), child.score)
         self.model = max(self.options, key=attrgetter("score"))
+        if self.allkids:
+            bests = {}
+            for child in self.options:
+                if str(child.gs) not in bests or child.score > bests[str(child.gs)]["score"]:
+                    bests[str(child.gs)] = {"uuid": child.uuid, "score": child.score}
+            uuids = [bests[g]["uuid"] for g in bests.keys()]
+            print(len(self.options), len(uuids))
+            for child in self.options:
+                if child.uuid not in uuids:
+                    self.options.remove(child)
 
     def save(self):
         for model in self.options:
