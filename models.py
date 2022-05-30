@@ -463,9 +463,6 @@ class EquiCNN(torch.nn.Module):
         if not init and self.gs == parent.gs:
             self.input_type = parent.input_type
             self.blocks = torch.nn.ModuleList([escnn.nn.SequentialModule(block._modules) if hasattr(block, "_modules") and len(block._modules) > 0 else copy.deepcopy(block) for block in parent.blocks])
-            for block in self.blocks:
-                block.weights = copy.deepcopy(block.weights)
-                block.bias = copy.deepcopy(block.bias)
             self.superspace = parent.superspace
             self.full1 = copy.deepcopy(parent.full1)
             self.full2 = copy.deepcopy(parent.full2)
