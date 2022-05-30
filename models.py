@@ -3,6 +3,7 @@ import escnn
 from escnn import gspaces
 import numpy as np
 import copy
+import uuid
 
 
 class UnsteerableCNN(torch.nn.Module):
@@ -439,6 +440,11 @@ class EquiCNN(torch.nn.Module):
         
         super(EquiCNN, self).__init__()
 
+        self.uuid = uuid.uuid4().int
+        if parent is not None:
+            self.parent = parent.uuid
+        else:
+            self.parent = None
         self.superspace = gspaces.flipRot2dOnR2(N=8)
         self.gspaces = np.transpose(np.column_stack(([gspaces.trivialOnR2(), gspaces.rot2dOnR2(N=2), gspaces.rot2dOnR2(N=4), gspaces.rot2dOnR2(N=8)], [gspaces.flip2dOnR2(), gspaces.flipRot2dOnR2(N=2), gspaces.flipRot2dOnR2(N=4), gspaces.flipRot2dOnR2(N=8)])))
         self.gs = gs
@@ -451,6 +457,8 @@ class EquiCNN(torch.nn.Module):
         self.loss_function = torch.nn.CrossEntropyLoss()
         self.score = -1
         self.optimizer = torch.optim.Adam(self.parameters(), lr=5e-5)
+        for name, _ in self.named_parameters():
+            print(name)
 
     def architect(self, parent = None):
         init = (parent is None)
@@ -544,110 +552,4 @@ class EquiCNN(torch.nn.Module):
         if i >= 0:
             gs[i] = G
         child = EquiCNN(reset = self.reset, gs = gs, parent=self)
-        return child
-
-class EquiCNNOld(torch.nn.Module):
-    
-    def __init__(self, reset=False, gs = [(0,0) for _ in range(6)], parent = None):
-        
-        super(EquiCNNOld, self).__init__()
-
-        self.superspace = gspaces.flipRot2dOnR2(N=8)
-        self.gspaces = np.transpose(np.column_stack(([gspaces.trivialOnR2(), gspaces.rot2dOnR2(N=2), gspaces.rot2dOnR2(N=4), gspaces.rot2dOnR2(N=8)], [gspaces.flip2dOnR2(), gspaces.flipRot2dOnR2(N=2), gspaces.flipRot2dOnR2(N=4), gspaces.flipRot2dOnR2(N=8)])))
-        self.gs = gs
-        self.channels = [24, 48, 48, 96, 96, 64]
-        self.kernels = [7, 5, 5, 5, 5, 5]
-        self.paddings = [1, 2, 2, 2, 2, 1]
-        self.architect(parent)
-        self.reset = reset #TODO: if true, reinit changed layer, else network morphism 
-        self.loss_function = torch.nn.CrossEntropyLoss()
-        self.score = -1
-        self.optimizer = torch.optim.Adam(self.parameters(), lr=5e-5)
-
-    def architect(self, parent = None):
-        init = (parent is None)
-        if init:
-            self.blocks = torch.nn.ModuleList([])
-        else:
-            self.blocks = parent.blocks
-        G, _, _ = self.superspace.restrict(sgid(self.gs[0])) 
-        in_type = escnn.nn.FieldType(G, [G.trivial_repr])
-        self.input_type = in_type
-        for i in range(len(self.gs)):
-            out_type = escnn.nn.FieldType(G, int(self.channels[i]/np.sqrt(G.fibergroup.order()/16))*[G.regular_repr])
-            if init:
-                self.blocks.append(escnn.nn.SequentialModule(
-                    escnn.nn.R2Conv(in_type, out_type, kernel_size=self.kernels[i], padding=self.paddings[i], bias=False),
-                    escnn.nn.InnerBatchNorm(out_type),
-                    escnn.nn.ReLU(out_type, inplace=True)
-                ))
-                if i == 1 or i == 3:
-                    self.blocks[i].add_module(name="pool", module=escnn.nn.PointwiseAvgPoolAntialiased(out_type, sigma=0.66, stride=2))                    
-            else:
-                if (self.gs != parent.gs) and (in_type != self.blocks[i].in_type or out_type != self.blocks[i].out_type):
-                    self.blocks[i] = escnn.nn.SequentialModule(
-                        escnn.nn.R2Conv(in_type, out_type, kernel_size=self.kernels[i], padding=self.paddings[i], bias=False),
-                        escnn.nn.InnerBatchNorm(out_type),
-                        escnn.nn.ReLU(out_type, inplace=True),
-                    )
-                    if i == 1 or i == 3:
-                        self.blocks[i].add_module(name="pool", module=escnn.nn.PointwiseAvgPoolAntialiased(out_type, sigma=0.66, stride=2)) 
-            if i < len(self.gs)-1 and self.gs[i] != self.gs[i+1]:
-                #print(out_type.gspace, sgid(self.gs[i]), sgid(self.gs[i+1]))
-                sg = sgid(self.gs[i+1], self.gs[i])
-                restrict = escnn.nn.RestrictionModule(out_type, sg)
-                self.blocks[i].add_module(name="restrict", module=restrict)
-                G, _, _ = G.restrict(sg)
-                disentangle = escnn.nn.DisentangleModule(restrict.out_type)
-                self.blocks[i].add_module(name="disentangle", module=disentangle)
-                out_type = disentangle.out_type
-            in_type = out_type
-        if init:
-            self.blocks.append(escnn.nn.PointwiseAvgPoolAntialiased(out_type, sigma=0.66, stride=1, padding=0))
-            self.blocks.append(escnn.nn.GroupPooling(out_type))
-            self.full1 = torch.nn.Sequential(
-                torch.nn.Linear(self.blocks[-1].out_type.size, 64),
-                torch.nn.BatchNorm1d(64),
-                torch.nn.ELU(inplace=True),
-            )
-
-            self.full2 = torch.nn.Linear(64, 10)
-        else:
-            if len(fulls) > 0:
-                self.full1 = fulls[0]
-                self.full2 = fulls[1]
-            if out_type != self.blocks[len(self.gs)].out_type:
-                self.blocks[len(self.gs)] = escnn.nn.PointwiseAvgPoolAntialiased(out_type, sigma=0.66, stride=1, padding=0)
-                self.blocks[len(self.gs)+1] = escnn.nn.GroupPooling(out_type)
-                self.full1 = torch.nn.Sequential(
-                    torch.nn.Linear(self.blocks[-1].out_type.size, 64),
-                    torch.nn.BatchNorm1d(64),
-                    torch.nn.ELU(inplace=True),
-                )
-
-    def forward(self, input: torch.Tensor):
-        x = escnn.nn.GeometricTensor(input, self.input_type)
-        for block in self.blocks:
-            x = block(x)
-        x = x.tensor
-        x = self.full1(x.reshape(x.shape[0], -1))
-        return self.full2(x)
-
-    def generate(self):
-        candidates = [self.offspring(-1, self.gs[0])]
-        for d in range(1,len(self.gs[0])):
-            if self.gs[0][d] < self.gspaces.shape[d]-1:
-                g = list(self.gs[0])
-                g[d] += 1
-                candidates.append(self.offspring(0, tuple(g)))
-        for i in range(1, len(self.gs)):
-            if self.gs[i][0] < self.gs[i-1][0] or self.gs[i][1] < self.gs[i-1][1]:
-                candidates.append(self.offspring(i, self.gs[i-1]))
-        return candidates
-
-    def offspring(self, i, G):
-        gs = [g for g in self.gs]
-        if i >= 0:
-            gs[i] = G
-        child = EquiCNNOld(reset = self.reset, blocks = [block for block in self.blocks], gs = gs, fulls = [self.full1, self.full2])
         return child
