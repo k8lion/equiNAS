@@ -61,7 +61,7 @@ class HillClimber(object):
                     for inputs, labels in dataloaders[phase]:
                         inputs = inputs.to(self.device)
                         labels = labels.to(self.device)
-
+                        print(inputs.shape)
                         outputs = model(inputs)
                         loss = model.loss_function(outputs, labels)
 
