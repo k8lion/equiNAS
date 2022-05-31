@@ -45,7 +45,7 @@ class HillClimber(object):
                 else:
                     self.history[model.uuid] = copy.deepcopy(self.history[model.parent])
             self.history[model.uuid]["epochsteps"] += np.linspace(start, start+1, epochs, endpoint=False).tolist()
-            self.history[model.uuid]["ghistory"] += model.gs
+            self.history[model.uuid]["ghistory"].append(model.gs)
             for _ in range(epochs):
                 for phase in ['train', 'validation']:
                     batch = []
@@ -108,14 +108,15 @@ class HillClimber(object):
                 if str(child.gs) not in bests or child.score > bests[str(child.gs)]["score"]:
                     bests[str(child.gs)] = {"uuid": child.uuid, "score": child.score}
             uuids = [bests[g]["uuid"] for g in bests.keys()]
-            print(len(self.options), len(uuids))
+            print(len(self.options), len(uuids), end = "")
             for child in self.options:
                 if child.uuid not in uuids:
                     self.options.remove(child)
+            print(len(self.options))
 
     def save(self):
-        for model in self.options:
-            self.history[model.uuid] = self.history[model.uuid]
+        #for model in self.options:
+            #self.history[model.uuid] = self.history[model.uuid]
         with open(self.filename, 'wb') as f:
             pickle.dump(self.history, f)
 
@@ -124,9 +125,22 @@ class HillClimber(object):
         for iter in range(iterations):
             self.generate()
             print("Iteration ", iter)
-            self.train(epochs = epochs, start = iter)
+            self.train(epochs = epochs, start = iter+1)
             self.select()
             self.save()
+
+    def baselines(self, epochs = 40):
+        allgs = [[(0,i) for _ in range(6)] for i in range(4)]
+        allgs += [[(0,i) for _ in range(5)]+[(0,0)] for i in range(1,4)]
+        allgs += [[(0,i) for _ in range(5)]+[(0,1)] for i in range(2,4)]
+        allgs += [[(0,i) for _ in range(4)]+[(0,0),(0,0)] for i in range(1,4)]
+        allgs += [[(0,i) for _ in range(4)]+[(0,1),(0,0)] for i in range(2,4)]
+        allgs += [[(0,i) for _ in range(4)]+[(0,1),(0,1)] for i in range(2,4)]
+        for gs in allgs:
+            self.options.append(models.EquiCNN(reset=False, gs = gs))
+        self.train(epochs = epochs, start = 0)
+        self.save()
+
             
             
 if __name__ == "__main__":
@@ -134,7 +148,11 @@ if __name__ == "__main__":
     parser.add_argument('--epochs', "-e", type=int, default="5", help='number of epochs per child')
     parser.add_argument('--iterations', "-i", type=int, default="20", help='number of generations')
     parser.add_argument('--allkids', action='store_true', default=False, help='expand children tree')
+    parser.add_argument('--baselines', action='store_true', default=False, help='measure baselines')
     args = parser.parse_args()
     print(args)
     hillclimb = HillClimber(allkids=args.allkids)
-    hillclimb.hillclimb(iterations=args.iterations, epochs=args.epochs)
+    if args.baselines:
+        hillclimb.baselines(epochs=args.epochs)
+    else:
+        hillclimb.hillclimb(iterations=args.iterations, epochs=args.epochs)

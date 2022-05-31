@@ -436,7 +436,7 @@ def sgid(index, previous_index = None):
 
 class EquiCNN(torch.nn.Module):
     
-    def __init__(self, reset=False, gs = [(0,0) for _ in range(6)], parent = None):
+    def __init__(self, reset = False, gs = [(0,0) for _ in range(6)], parent = None):
         
         super(EquiCNN, self).__init__()
 
