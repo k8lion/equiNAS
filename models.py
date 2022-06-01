@@ -566,7 +566,8 @@ class TDEquiCNN(torch.nn.Module):
         self.superspace = gspaces.flipRot2dOnR2(N=8)
         self.gspaces = np.transpose(np.column_stack(([gspaces.trivialOnR2(), gspaces.rot2dOnR2(N=2), gspaces.rot2dOnR2(N=4), gspaces.rot2dOnR2(N=8)], [gspaces.flip2dOnR2(), gspaces.flipRot2dOnR2(N=2), gspaces.flipRot2dOnR2(N=4), gspaces.flipRot2dOnR2(N=8)])))
         self.gs = gs
-        self.channels = [24, 48, 48, 96, 96, 64]
+        #self.channels = [24, 48, 48, 96, 96, 64]
+        self.channels = [8, 8, 8, 8, 8, 64]
         self.kernels = [7, 5, 5, 5, 5, 5]
         self.paddings = [1, 2, 2, 2, 2, 1]
         self.blocks = torch.nn.ModuleList([])
@@ -591,7 +592,7 @@ class TDEquiCNN(torch.nn.Module):
         in_type = escnn.nn.FieldType(G, [G.trivial_repr])
         self.input_type = in_type
         for i in range(len(self.gs)):
-            out_type = escnn.nn.FieldType(G, int(self.channels[i]/np.sqrt(G.fibergroup.order()))*[G.regular_repr])
+            out_type = escnn.nn.FieldType(G, int(self.channels[i])*[G.regular_repr]) #/np.sqrt(G.fibergroup.order())
             #if init or self.gs[i] != parent.gs[i]:
             #if init or (in_type != parent.blocks[i].in_type or out_type != first(parent.blocks[i]._modules).out_type):
             self.blocks.append(escnn.nn.SequentialModule(
