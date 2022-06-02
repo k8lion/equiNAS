@@ -1,9 +1,12 @@
 import torch
+import torch.nn.functional as F
 import escnn
 from escnn import gspaces
 import numpy as np
 import copy
 import uuid
+
+from torch.random import initial_seed
 
 
 class UnsteerableCNN(torch.nn.Module):
@@ -667,4 +670,250 @@ class TDEquiCNN(torch.nn.Module):
         if i >= 0:
             gs[i] = G
         child = TDEquiCNN(reset = self.reset, gs = gs, parent=self)
+        return child
+
+def rotmat2d(theta):
+    theta = torch.tensor(theta)
+    return torch.tensor([[torch.cos(theta), -torch.sin(theta), 0],
+                         [torch.sin(theta), torch.cos(theta), 0]])
+def rotmat3d(theta):
+    theta = torch.tensor(theta)
+    return torch.tensor([[1, 0, 0, 0],
+                         [0, torch.cos(theta), -torch.sin(theta), 0],
+                         [0, torch.sin(theta), torch.cos(theta), 0]])
+
+def rot(x, theta, dtype): #TODO test and fix
+    rot_mat = rotmat3d(theta)[None, ...].type(dtype).repeat(x.shape[0],1,1)
+    grid = F.affine_grid(rot_mat, x.size()).type(dtype)
+    x = F.grid_sample(x, grid)
+    return x
+
+def rotate_4(x: torch.Tensor, r: int) -> torch.Tensor:
+    return x.rot90(r, dims=(-2, -1))
+
+def rotate_n(x: torch.Tensor, r: int, n: int) -> torch.Tensor:
+    if r == 0:
+        roty = x
+    elif n == 2:
+        roty = rotate_4(x, 2*r)
+    elif n == 4:
+        roty = rotate_4(x, r)
+    else:
+        roty = rot(x, 2*r*np.pi/n, type(x))
+    return roty
+
+def rotatestack_n(y: torch.Tensor, r: int, n: int) -> torch.Tensor:
+    assert len(y.shape) >= 3
+    assert y.shape[-3] == n
+
+    roty = rotate_n(y, r, n)
+    roty = torch.stack([torch.select(roty, -3, (n-r+i)%n) for i in range(n)], dim=-3)
+    return roty
+
+class LiftingConv2d(torch.nn.Module):
+
+    def __init__(self, group: tuple, in_channels: int, out_channels: int, kernel_size: int, padding: int = 0, bias: bool = True):
+
+        super(LiftingConv2d, self).__init__()
+
+        self.group = group
+        self.kernel_size = kernel_size
+        self.stride = 1
+        self.dilation = 1
+        self.padding = padding
+        self.out_channels = out_channels
+        self.in_channels = in_channels
+
+        self.weight = torch.nn.Parameter(torch.normal(mean=0.0, std=1 / (out_channels * in_channels)**(
+                1/2), size=(out_channels, in_channels, kernel_size, kernel_size)), requires_grad=True)
+
+        if bias:
+            self.bias = torch.nn.Parameter(
+                torch.zeros(out_channels), requires_grad=True)
+        else:
+            self.bias = None
+
+    def build_filter(self) -> torch.Tensor:
+
+        _filter = torch.stack([rotatestack_n(self.weight.data, i, 2**self.group[1])
+                            for i in range(2**self.group[1])], dim=-4)
+
+        if self.bias is not None:
+            _bias = torch.stack([self.bias.data for _ in range(2**self.group[1])], dim=1)
+        else:
+            _bias = None
+
+        return _filter, _bias
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+
+        _filter, _bias = self.build_filter()
+
+        assert _bias.shape == (self.out_channels, 2**self.group[1])
+        assert _filter.shape == (
+                self.out_channels, 2**self.group[1], self.in_channels, self.kernel_size, self.kernel_size)
+
+        _filter = _filter.reshape(
+                self.out_channels * 2**self.group[1], self.in_channels, self.kernel_size, self.kernel_size)
+        _bias = _bias.reshape(self.out_channels * 2**self.group[1])
+
+        out = torch.conv2d(x, _filter,
+                        stride=self.stride,
+                        padding=self.padding,
+                        dilation=self.dilation,
+                        bias=_bias)
+
+        return out.view(-1, self.out_channels, 2**self.group[1], out.shape[-2], out.shape[-1])
+
+class GroupConv2d(torch.nn.Module):
+
+    def __init__(self, group: tuple, in_channels: int, out_channels: int, kernel_size: int, padding: int = 0, bias: bool = True):
+        
+        super(GroupConv2d, self).__init__()
+
+        self.group = group
+        self.kernel_size = kernel_size
+        self.stride = 1
+        self.dilation = 1
+        self.padding = padding
+        self.out_channels = out_channels
+        self.in_channels = in_channels
+        
+        self.weight = torch.nn.Parameter(torch.normal(mean = 0.0, std = 1 / (out_channels * in_channels)**(1/2), 
+                size=(out_channels, in_channels, 2**self.group[1], kernel_size, kernel_size)), requires_grad=True)
+        
+        if bias:
+            self.bias = torch.nn.Parameter(torch.zeros(out_channels), requires_grad=True)
+        else:
+            self.bias = None
+      
+  
+    def build_filter(self) ->torch.Tensor:
+        
+        _filter = torch.stack([rotatestack_n(self.weight.data, i, 2**self.group[1]) for i in range(2**self.group[1])], dim = -5)
+
+        if self.bias is not None:
+            _bias = torch.stack([self.bias.data for _ in range(2**self.group[1])], dim = 1)
+        else:
+            _bias = None
+
+        return _filter, _bias
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+
+        _filter, _bias = self.build_filter()
+
+        assert _bias.shape == (self.out_channels, 2**self.group[1])
+        assert _filter.shape == (self.out_channels, 2**self.group[1], self.in_channels, 2**self.group[1], self.kernel_size, self.kernel_size)
+
+        _filter = _filter.reshape(self.out_channels * 2**self.group[1], self.in_channels * 2**self.group[1], self.kernel_size, self.kernel_size)
+        _bias = _bias.reshape(self.out_channels * 2**self.group[1])
+
+        x = x.view(x.shape[0], self.in_channels*2**self.group[1], x.shape[-2], x.shape[-1])
+
+        out = torch.conv2d(x, _filter,
+                        stride=self.stride,
+                        padding=self.padding,
+                        dilation=self.dilation,
+                        bias=_bias)
+
+        return out.view(-1, self.out_channels, 2**self.group[1], out.shape[-2], out.shape[-1])
+
+
+class TDRegEquiCNN(torch.nn.Module):
+    
+    def __init__(self, gs = [(0,0) for _ in range(6)], parent = None):
+        
+        super(TDRegEquiCNN, self).__init__()
+
+        self.uuid = uuid.uuid4()
+        if parent is not None:
+            self.parent = parent.uuid
+        else:
+            self.parent = None
+        self.gs = gs
+        self.channels = [24, 48, 48, 96, 96, 64]
+        self.kernels = [7, 5, 5, 5, 5, 5]
+        self.paddings = [1, 2, 2, 2, 2, 1]
+        self.blocks = torch.nn.ModuleList([])
+        self.architect(parent)
+        self.loss_function = torch.nn.CrossEntropyLoss()
+        self.score = -1
+        self.optimizer = torch.optim.Adam(self.parameters(), lr=5e-5)
+
+    def architect(self, parent = None):
+        init = (parent is None)
+        if not init and self.gs == parent.gs:
+            self.blocks = copy.deepcopy(parent.blocks)
+            self.full1 = copy.deepcopy(parent.full1)
+            self.full2 = copy.deepcopy(parent.full2)
+            return 
+        self.blocks.append(torch.nn.Sequential(
+                LiftingConv2d(self.gs[0], 1, self.channels[0], self.kernels[0], self.paddings[0], bias=True),
+                torch.nn.BatchNorm3d(self.channels[0]),
+                torch.nn.ReLU(inplace=True)
+            )
+        )
+        
+        for i in range(1, len(self.gs)):
+            self.blocks.append(torch.nn.Sequential(
+                GroupConv2d(self.gs[i], self.channels[i-1], self.channels[i], self.kernels[0], self.paddings[0], bias=True),
+                torch.nn.BatchNorm3d(self.channels[i]),
+                torch.nn.ReLU(inplace=True)
+                )
+            )
+            if i == 1 or i == 3:
+                self.blocks[i].add_module(name="pool", module = torch.nn.MaxPool3d((1,3,3), (1,2,2), padding=(0,1,1)))
+            if not init and self.gs[i] == parent.gs[i]:
+                self.blocks[i]._modules['0'].weights = copy.deepcopy(parent.blocks[i]._modules['0'].weights)
+            elif not init:
+                pass #TODO copy expanded weights
+
+            if i < len(self.gs)-1:
+                pass #TODO convert space if needed
+
+        if init:
+            self.blocks.append(torch.nn.MaxPool3d((2**self.gs[-1][1],3,3), (1,1,1), padding=(0,0,0)))
+            self.full1 = torch.nn.Sequential(
+                torch.nn.Linear(self.channels[-1], 64),
+                torch.nn.BatchNorm1d(64),
+                torch.nn.ELU(inplace=True),
+            )
+            self.full2 = torch.nn.Linear(64, 10)
+        else:
+            self.blocks.append(copy.deepcopy(parent.blocks[-1]))
+        
+            self.full1 = copy.deepcopy(parent.full1)
+            self.full2 = copy.deepcopy(parent.full2)
+            if self.gs[-1] != parent.gs[-1]:
+                self.blocks[-1] = torch.nn.MaxPool3d((2**self.gs[-1][1],3,3), (1,1,1), padding=(0,0,0))
+                self.full1 = torch.nn.Sequential(
+                    torch.nn.Linear(self.channels[-1], 64),
+                    torch.nn.BatchNorm1d(64),
+                    torch.nn.ELU(inplace=True),
+                )
+
+    def forward(self, x: torch.Tensor):
+        for (i,block) in enumerate(self.blocks):
+            x = block(x)
+        x = self.full1(x.reshape(x.shape[0], -1))
+        return self.full2(x)
+
+    def generate(self):
+        candidates = [self.offspring(-1, self.gs[0])]
+        for d in range(1,len(self.gs[0])):
+            if self.gs[0][d] > 0:
+                g = list(self.gs[0])
+                g[d] -= 1
+                candidates.append(self.offspring(0, tuple(g)))
+        for i in range(1, len(self.gs)):
+            if self.gs[i][0] > self.gs[i-1][0] or self.gs[i][1] > self.gs[i-1][1]:
+                candidates.append(self.offspring(i, self.gs[i-1]))
+        return candidates
+
+    def offspring(self, i, G):
+        gs = [g for g in self.gs]
+        if i >= 0:
+            gs[i] = G
+        child = TDRegEquiCNN(gs = gs, parent=self)
         return child

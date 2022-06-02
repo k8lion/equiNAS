@@ -10,11 +10,14 @@ import copy
 
 
 class HillClimber(object):
-    def __init__(self, reset = True, allkids = False):
+    def __init__(self, reset = True, allkids = False, reg = False, filename = "history.pkl"):
         self.filename = './out/logshc_'+datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")+'.pkl'
         self.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
         self.train_loader, self.validation_loader, self.test_loader = utilities.get_dataloaders(path_to_dir="..")
-        self.model = models.EquiCNN(reset)
+        if reg:
+            self.model = models.TDRegEquiCNN()
+        else:
+            self.model = models.EquiCNN(reset)
         self.options = []
         self.allkids = allkids
         self.history = {}
@@ -149,9 +152,10 @@ if __name__ == "__main__":
     parser.add_argument('--iterations', "-i", type=int, default="20", help='number of generations')
     parser.add_argument('--allkids', action='store_true', default=False, help='expand children tree')
     parser.add_argument('--baselines', action='store_true', default=False, help='measure baselines')
+    parser.add_argument('--reg', action='store_true', default=False, help='reg group convs')
     args = parser.parse_args()
     print(args)
-    hillclimb = HillClimber(allkids=args.allkids)
+    hillclimb = HillClimber(allkids=args.allkids, reg=args.reg)
     if args.baselines:
         hillclimb.baselines(epochs=args.epochs)
     else:
