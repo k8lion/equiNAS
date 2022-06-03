@@ -15,7 +15,7 @@ class HillClimber(object):
         self.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
         self.train_loader, self.validation_loader, self.test_loader = utilities.get_dataloaders(path_to_dir="..")
         if reg:
-            self.model = models.TDRegEquiCNN()
+            self.model = models.TDRegEquiCNN(gs=[(0,2) for _ in range(6)])
         else:
             self.model = models.EquiCNN(reset)
         self.options = []
@@ -64,7 +64,6 @@ class HillClimber(object):
                     for inputs, labels in dataloaders[phase]:
                         inputs = inputs.to(self.device)
                         labels = labels.to(self.device)
-                        print(inputs.shape)
                         outputs = model(inputs)
                         loss = model.loss_function(outputs, labels)
 

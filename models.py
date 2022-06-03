@@ -735,7 +735,7 @@ class LiftingConv2d(torch.nn.Module):
 
     def build_filter(self) -> torch.Tensor:
 
-        _filter = torch.stack([rotatestack_n(self.weight.data, i, 2**self.group[1])
+        _filter = torch.stack([rotate_n(self.weight.data, i, 2**self.group[1])
                             for i in range(2**self.group[1])], dim=-4)
 
         if self.bias is not None:
@@ -819,6 +819,23 @@ class GroupConv2d(torch.nn.Module):
 
         return out.view(-1, self.out_channels, 2**self.group[1], out.shape[-2], out.shape[-1])
 
+class Reshaper(torch.nn.Module):
+
+    def __init__(self, in_channels: int, out_channels: int, in_groupsize: int, out_groupsize: int):
+
+        super(Reshaper, self).__init__()
+
+        assert in_groupsize*in_channels == out_groupsize*out_channels
+        self.out_channels = out_channels
+        self.in_channels = in_channels
+        self.in_groupsize = in_groupsize
+        self.out_groupsize = out_groupsize
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        #print(x.shape, self.in_channels, self.out_channels, self.in_groupsize, self.out_groupsize)
+        assert x.shape[1] == self.in_channels
+        assert x.shape[2] == self.in_groupsize
+        return x.view(-1, self.out_channels, self.out_groupsize, x.shape[-2], x.shape[-1])
 
 class TDRegEquiCNN(torch.nn.Module):
     
@@ -842,6 +859,7 @@ class TDRegEquiCNN(torch.nn.Module):
         self.optimizer = torch.optim.Adam(self.parameters(), lr=5e-5)
 
     def architect(self, parent = None):
+        #print(self.gs)
         init = (parent is None)
         if not init and self.gs == parent.gs:
             self.blocks = copy.deepcopy(parent.blocks)
@@ -849,33 +867,34 @@ class TDRegEquiCNN(torch.nn.Module):
             self.full2 = copy.deepcopy(parent.full2)
             return 
         self.blocks.append(torch.nn.Sequential(
-                LiftingConv2d(self.gs[0], 1, self.channels[0], self.kernels[0], self.paddings[0], bias=True),
-                torch.nn.BatchNorm3d(self.channels[0]),
+                LiftingConv2d(self.gs[0], 1, int(self.channels[0]/2**self.gs[0][1]), self.kernels[0], self.paddings[0], bias=True),
+                torch.nn.BatchNorm3d(int(self.channels[0]/2**self.gs[0][1])),
                 torch.nn.ReLU(inplace=True)
             )
         )
         
         for i in range(1, len(self.gs)):
             self.blocks.append(torch.nn.Sequential(
-                GroupConv2d(self.gs[i], self.channels[i-1], self.channels[i], self.kernels[0], self.paddings[0], bias=True),
-                torch.nn.BatchNorm3d(self.channels[i]),
+                GroupConv2d(self.gs[i], int(self.channels[i-1]/2**self.gs[i][1]), int(self.channels[i]/2**self.gs[i][1]), self.kernels[i], self.paddings[i], bias=True),
+                torch.nn.BatchNorm3d(int(self.channels[i]/2**self.gs[i][1])),
                 torch.nn.ReLU(inplace=True)
                 )
             )
             if i == 1 or i == 3:
                 self.blocks[i].add_module(name="pool", module = torch.nn.MaxPool3d((1,3,3), (1,2,2), padding=(0,1,1)))
             if not init and self.gs[i] == parent.gs[i]:
-                self.blocks[i]._modules['0'].weights = copy.deepcopy(parent.blocks[i]._modules['0'].weights)
+                self.blocks[i] = copy.deepcopy(parent.blocks[i])
             elif not init:
                 pass #TODO copy expanded weights
 
             if i < len(self.gs)-1:
-                pass #TODO convert space if needed
+                if self.gs[i+1] != self.gs[i]:
+                    self.blocks[i].add_module(name="reshaper", module = Reshaper(in_channels=int(self.channels[i]/2**self.gs[i][1]), out_channels=int(self.channels[i]/2**self.gs[i+1][1]), in_groupsize=2**self.gs[i][1], out_groupsize=2**self.gs[i+1][1]))
 
         if init:
-            self.blocks.append(torch.nn.MaxPool3d((2**self.gs[-1][1],3,3), (1,1,1), padding=(0,0,0)))
+            self.blocks.append(torch.nn.MaxPool3d((2**self.gs[-1][1],5,5), (1,1,1), padding=(0,0,0)))
             self.full1 = torch.nn.Sequential(
-                torch.nn.Linear(self.channels[-1], 64),
+                torch.nn.Linear(int(self.channels[-1]/2**self.gs[-1][1]), 64),
                 torch.nn.BatchNorm1d(64),
                 torch.nn.ELU(inplace=True),
             )
@@ -886,15 +905,18 @@ class TDRegEquiCNN(torch.nn.Module):
             self.full1 = copy.deepcopy(parent.full1)
             self.full2 = copy.deepcopy(parent.full2)
             if self.gs[-1] != parent.gs[-1]:
-                self.blocks[-1] = torch.nn.MaxPool3d((2**self.gs[-1][1],3,3), (1,1,1), padding=(0,0,0))
+                self.blocks[-1] = torch.nn.MaxPool3d((2**self.gs[-1][1],5,5), (1,1,1), padding=(0,0,0))
                 self.full1 = torch.nn.Sequential(
-                    torch.nn.Linear(self.channels[-1], 64),
+                    torch.nn.Linear(int(self.channels[-1]/2**self.gs[-1][1]), 64),
                     torch.nn.BatchNorm1d(64),
                     torch.nn.ELU(inplace=True),
                 )
 
     def forward(self, x: torch.Tensor):
         for (i,block) in enumerate(self.blocks):
+            #print(x.shape)
+            #if hasattr(block, "_modules") and "0" in block._modules:
+            #    print(block._modules["0"].in_channels)
             x = block(x)
         x = self.full1(x.reshape(x.shape[0], -1))
         return self.full2(x)
@@ -902,10 +924,10 @@ class TDRegEquiCNN(torch.nn.Module):
     def generate(self):
         candidates = [self.offspring(-1, self.gs[0])]
         for d in range(1,len(self.gs[0])):
-            if self.gs[0][d] > 0:
+            if self.gs[-1][d] > 0:
                 g = list(self.gs[0])
                 g[d] -= 1
-                candidates.append(self.offspring(0, tuple(g)))
+                candidates.append(self.offspring(len(self.gs)-1, tuple(g)))
         for i in range(1, len(self.gs)):
             if self.gs[i][0] > self.gs[i-1][0] or self.gs[i][1] > self.gs[i-1][1]:
                 candidates.append(self.offspring(i, self.gs[i-1]))
