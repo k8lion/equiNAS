@@ -868,7 +868,7 @@ class TDRegEquiCNN(torch.nn.Module):
             return 
         self.blocks.append(torch.nn.Sequential(
                 LiftingConv2d(self.gs[0], 1, int(self.channels[0]/2**self.gs[0][1]), self.kernels[0], self.paddings[0], bias=True),
-                torch.nn.BatchNorm3d(int(self.channels[0]/2**self.gs[0][1])),
+                #torch.nn.BatchNorm3d(int(self.channels[0]/2**self.gs[0][1])),
                 torch.nn.ReLU(inplace=True)
             )
         )
@@ -876,7 +876,7 @@ class TDRegEquiCNN(torch.nn.Module):
         for i in range(1, len(self.gs)):
             self.blocks.append(torch.nn.Sequential(
                 GroupConv2d(self.gs[i], int(self.channels[i-1]/2**self.gs[i][1]), int(self.channels[i]/2**self.gs[i][1]), self.kernels[i], self.paddings[i], bias=True),
-                torch.nn.BatchNorm3d(int(self.channels[i]/2**self.gs[i][1])),
+                #torch.nn.BatchNorm3d(int(self.channels[i]/2**self.gs[i][1])),
                 torch.nn.ReLU(inplace=True)
                 )
             )
@@ -895,7 +895,7 @@ class TDRegEquiCNN(torch.nn.Module):
             self.blocks.append(torch.nn.MaxPool3d((2**self.gs[-1][1],5,5), (1,1,1), padding=(0,0,0)))
             self.full1 = torch.nn.Sequential(
                 torch.nn.Linear(int(self.channels[-1]/2**self.gs[-1][1]), 64),
-                torch.nn.BatchNorm1d(64),
+                #torch.nn.BatchNorm1d(64),
                 torch.nn.ELU(inplace=True),
             )
             self.full2 = torch.nn.Linear(64, 10)
@@ -908,7 +908,7 @@ class TDRegEquiCNN(torch.nn.Module):
                 self.blocks[-1] = torch.nn.MaxPool3d((2**self.gs[-1][1],5,5), (1,1,1), padding=(0,0,0))
                 self.full1 = torch.nn.Sequential(
                     torch.nn.Linear(int(self.channels[-1]/2**self.gs[-1][1]), 64),
-                    torch.nn.BatchNorm1d(64),
+                    #torch.nn.BatchNorm1d(64),
                     torch.nn.ELU(inplace=True),
                 )
 
@@ -929,8 +929,8 @@ class TDRegEquiCNN(torch.nn.Module):
                 g[d] -= 1
                 candidates.append(self.offspring(len(self.gs)-1, tuple(g)))
         for i in range(1, len(self.gs)):
-            if self.gs[i][0] > self.gs[i-1][0] or self.gs[i][1] > self.gs[i-1][1]:
-                candidates.append(self.offspring(i, self.gs[i-1]))
+            if self.gs[i][0] < self.gs[i-1][0] or self.gs[i][1] < self.gs[i-1][1]:
+                candidates.append(self.offspring(i-1, self.gs[i]))
         return candidates
 
     def offspring(self, i, G):
