@@ -23,6 +23,9 @@ class MnistRotDataset(Dataset):
         self.images = data[:, :-1].reshape(-1, 28, 28).astype(np.float32)
         self.labels = data[:, -1].astype(np.int64)
         self.num_samples = len(self.labels)
+
+        #self.images = np.pad(self.images, pad_width=((0,0), (2, 3), (2, 3)), mode='edge')
+
     
     def __getitem__(self, index):
         image, label = self.images[index], self.labels[index]

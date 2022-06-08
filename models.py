@@ -835,6 +835,8 @@ class Reshaper(torch.nn.Module):
         #print(x.shape, self.in_channels, self.out_channels, self.in_groupsize, self.out_groupsize)
         assert x.shape[1] == self.in_channels
         assert x.shape[2] == self.in_groupsize
+        #factor = int(self.out_groupsize / self.in_groupsize)
+        #x = tensor x[:,:,i::factor,:,:] 
         return x.view(-1, self.out_channels, self.out_groupsize, x.shape[-2], x.shape[-1])
 
 class TDRegEquiCNN(torch.nn.Module):
@@ -857,6 +859,9 @@ class TDRegEquiCNN(torch.nn.Module):
         self.loss_function = torch.nn.CrossEntropyLoss()
         self.score = -1
         self.optimizer = torch.optim.Adam(self.parameters(), lr=5e-5)
+        for (n,p) in self.named_parameters():
+            if p.requires_grad:
+                print(n, p.shape)
 
     def architect(self, parent = None):
         #print(self.gs)
@@ -874,6 +879,7 @@ class TDRegEquiCNN(torch.nn.Module):
         )
         
         for i in range(1, len(self.gs)):
+            print(i, self.gs[i], int(self.channels[i-1]/2**self.gs[i][1]), int(self.channels[i]/2**self.gs[i][1]))
             self.blocks.append(torch.nn.Sequential(
                 GroupConv2d(self.gs[i], int(self.channels[i-1]/2**self.gs[i][1]), int(self.channels[i]/2**self.gs[i][1]), self.kernels[i], self.paddings[i], bias=True),
                 #torch.nn.BatchNorm3d(int(self.channels[i]/2**self.gs[i][1])),
@@ -893,6 +899,7 @@ class TDRegEquiCNN(torch.nn.Module):
 
         if init:
             self.blocks.append(torch.nn.MaxPool3d((2**self.gs[-1][1],5,5), (1,1,1), padding=(0,0,0)))
+            print(int(self.channels[-1]/2**self.gs[-1][1]))
             self.full1 = torch.nn.Sequential(
                 torch.nn.Linear(int(self.channels[-1]/2**self.gs[-1][1]), 64),
                 #torch.nn.BatchNorm1d(64),
@@ -913,11 +920,13 @@ class TDRegEquiCNN(torch.nn.Module):
                 )
 
     def forward(self, x: torch.Tensor):
+        print(x.shape)
         for (i,block) in enumerate(self.blocks):
             #print(x.shape)
             #if hasattr(block, "_modules") and "0" in block._modules:
             #    print(block._modules["0"].in_channels)
             x = block(x)
+            print(x.shape)
         x = self.full1(x.reshape(x.shape[0], -1))
         return self.full2(x)
 

@@ -29,7 +29,7 @@ class HillClimber(object):
             totrain = self.options
         for model in totrain:
             model = model.to(self.device)
-            model.optimizer = torch.optim.Adam(model.parameters(), lr=5e-5)
+            model.optimizer = torch.optim.Adam(model.parameters(), lr=5e-4)
             dataloaders = {
                 "train": self.train_loader,
                 "validation": self.validation_loader
@@ -88,6 +88,8 @@ class HillClimber(object):
 
                     if phase == "train":
                         self.history[model.uuid]["trainsteps"] += [b / (running_count+epochs) + start for b in batch]
+                    else:
+                        print(epoch_acc.item())
             model = model.to("cpu")
     
     def generate(self):
