@@ -938,7 +938,7 @@ class TDRegEquiCNN(torch.nn.Module):
     def generate(self):
         candidates = [self.offspring(-1, self.gs[0])]
         for d in range(1,len(self.gs[0])):
-            if self.gs[-1][d] > 0:
+            if self.gs[-1][d] >= 0:
                 g = list(self.gs[0])
                 g[d] -= 1
                 candidates.append(self.offspring(len(self.gs)-1, tuple(g)))
