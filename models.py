@@ -881,7 +881,10 @@ class TDRegEquiCNN(torch.nn.Module):
             )
         )
         if not init:
-            pass
+            parentg = parent.gs[0][1]
+            selfg = self.gs[0][1]
+            parentweight = parent.blocks[0]._modules["0"].weight.data
+            self.blocks[0]._modules["0"].weight = torch.nn.Parameter(torch.concat([parentweight.clone() for _ in range(2**(parentg-selfg))], dim=0))
         
         for i in range(1, len(self.gs)):
             #print(i, self.gs[i], int(self.channels[i-1]/2**self.gs[i][1]), int(self.channels[i]/2**self.gs[i][1]))
@@ -896,12 +899,19 @@ class TDRegEquiCNN(torch.nn.Module):
             if not init and self.gs[i] == parent.gs[i]:
                 self.blocks[i] = copy.deepcopy(parent.blocks[i])
             elif not init:
-                #parentg = parent.gs[i][1]
-                #selfg = self.gs[i][1]
-                #order = [int('{:0{width}b}'.format(n, width=2**parentg)[::-1], 2) for n in range(parentg)]
-                #parentweight = parent.blocks[i]._modules["0"].weight.data
-                #self.blocks[i]._modules["0"].weight = torch.nn.Parameter(torch.stack([parentweight.clone()[:,:,order] for _ in range(2**(parentg-selfg))], dim=1))
-                pass
+                parentg = parent.gs[i][1]
+                selfg = self.gs[i][1]
+                #print(self.blocks[i]._modules["0"].weight.shape, parent.blocks[i]._modules["0"].weight.shape)
+                parentorder = [int('{:0{width}b}'.format(n, width=parentg)[::-1], 2) for n in range(2**parentg)]
+                #print([int('{:0{width}b}'.format(n, width=selfg)[::-1], 2) for n in range(2**selfg)])
+                #print([(2**(parentg-selfg)*i,(i+1)*2**(parentg-selfg)) for i in [int('{:0{width}b}'.format(n, width=selfg)[::-1], 2) for n in range(2**selfg)]])
+                order = [parentorder[2**(parentg-selfg)*i:(i+1)*2**(parentg-selfg)] for i in [int('{:0{width}b}'.format(n, width=selfg)[::-1], 2) for n in range(2**selfg)]]
+                #print(order)
+                parentweight = parent.blocks[i]._modules["0"].weight.data
+                #TODO: swap dims?
+                self.blocks[i]._modules["0"].weight = torch.nn.Parameter(torch.concat([torch.concat([parentweight.clone()[:,:,order[i]] for i in range(len(order))], dim=0) for _ in range(2**(parentg-selfg))], dim=1))
+                #print(self.blocks[i]._modules["0"].weight.shape)
+                #pass
 
             if i < len(self.gs)-1:
                 if self.gs[i+1] != self.gs[i]:
