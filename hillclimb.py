@@ -88,8 +88,8 @@ class HillClimber(object):
 
                     if phase == "train":
                         self.history[model.uuid]["trainsteps"] += [b / (running_count+epochs) + start for b in batch]
-                    else:
-                        print(epoch_acc.item())
+                    #else:
+                    #    print(epoch_acc.item())
             model = model.to("cpu")
     
     def generate(self):

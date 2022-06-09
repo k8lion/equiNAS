@@ -724,6 +724,9 @@ class LiftingConv2d(torch.nn.Module):
         self.out_channels = out_channels
         self.in_channels = in_channels
 
+        #self.order = [int('{:0{width}b}'.format(n, width=self.group[1])[::-1], 2) for n in range(2**self.group[1])]
+        self.order = range(2**self.group[1])
+
         self.weight = torch.nn.Parameter(torch.normal(mean=0.0, std=1 / (out_channels * in_channels)**(
                 1/2), size=(out_channels, in_channels, kernel_size, kernel_size)), requires_grad=True)
 
@@ -736,7 +739,7 @@ class LiftingConv2d(torch.nn.Module):
     def build_filter(self) -> torch.Tensor:
 
         _filter = torch.stack([rotate_n(self.weight.data, i, 2**self.group[1])
-                            for i in range(2**self.group[1])], dim=-4)
+                            for i in self.order], dim=-4)
 
         if self.bias is not None:
             _bias = torch.stack([self.bias.data for _ in range(2**self.group[1])], dim=1)
@@ -830,14 +833,13 @@ class Reshaper(torch.nn.Module):
         self.in_channels = in_channels
         self.in_groupsize = in_groupsize
         self.out_groupsize = out_groupsize
+        self.in_order = [int('{:0{width}b}'.format(n, width=int(np.log2(in_groupsize)))[::-1], 2) for n in range(in_groupsize)]
+        self.out_order = [int('{:0{width}b}'.format(n, width=int(np.log2(out_groupsize)))[::-1], 2) for n in range(out_groupsize)]
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        #print(x.shape, self.in_channels, self.out_channels, self.in_groupsize, self.out_groupsize)
         assert x.shape[1] == self.in_channels
         assert x.shape[2] == self.in_groupsize
-        #factor = int(self.out_groupsize / self.in_groupsize)
-        #x = tensor x[:,:,i::factor,:,:] 
-        return x.view(-1, self.out_channels, self.out_groupsize, x.shape[-2], x.shape[-1])
+        return x[:,:,self.in_order].view(-1, self.out_channels, self.out_groupsize, x.shape[-2], x.shape[-1])[:,:,self.out_order]
 
 class TDRegEquiCNN(torch.nn.Module):
     
@@ -852,6 +854,7 @@ class TDRegEquiCNN(torch.nn.Module):
             self.parent = None
         self.gs = gs
         self.channels = [24, 48, 48, 96, 96, 64]
+        #self.channels = [64, 128, 128, 256, 256, 64]
         self.kernels = [7, 5, 5, 5, 5, 5]
         self.paddings = [1, 2, 2, 2, 2, 1]
         self.blocks = torch.nn.ModuleList([])
@@ -859,9 +862,9 @@ class TDRegEquiCNN(torch.nn.Module):
         self.loss_function = torch.nn.CrossEntropyLoss()
         self.score = -1
         self.optimizer = torch.optim.Adam(self.parameters(), lr=5e-5)
-        for (n,p) in self.named_parameters():
-            if p.requires_grad:
-                print(n, p.shape)
+        #for (n,p) in self.named_parameters():
+            #if p.requires_grad:
+                #print(n, p.shape)
 
     def architect(self, parent = None):
         #print(self.gs)
@@ -873,16 +876,18 @@ class TDRegEquiCNN(torch.nn.Module):
             return 
         self.blocks.append(torch.nn.Sequential(
                 LiftingConv2d(self.gs[0], 1, int(self.channels[0]/2**self.gs[0][1]), self.kernels[0], self.paddings[0], bias=True),
-                #torch.nn.BatchNorm3d(int(self.channels[0]/2**self.gs[0][1])),
+                torch.nn.BatchNorm3d(int(self.channels[0]/2**self.gs[0][1])),
                 torch.nn.ReLU(inplace=True)
             )
         )
+        if not init:
+            pass
         
         for i in range(1, len(self.gs)):
-            print(i, self.gs[i], int(self.channels[i-1]/2**self.gs[i][1]), int(self.channels[i]/2**self.gs[i][1]))
+            #print(i, self.gs[i], int(self.channels[i-1]/2**self.gs[i][1]), int(self.channels[i]/2**self.gs[i][1]))
             self.blocks.append(torch.nn.Sequential(
                 GroupConv2d(self.gs[i], int(self.channels[i-1]/2**self.gs[i][1]), int(self.channels[i]/2**self.gs[i][1]), self.kernels[i], self.paddings[i], bias=True),
-                #torch.nn.BatchNorm3d(int(self.channels[i]/2**self.gs[i][1])),
+                torch.nn.BatchNorm3d(int(self.channels[i]/2**self.gs[i][1])),
                 torch.nn.ReLU(inplace=True)
                 )
             )
@@ -891,7 +896,12 @@ class TDRegEquiCNN(torch.nn.Module):
             if not init and self.gs[i] == parent.gs[i]:
                 self.blocks[i] = copy.deepcopy(parent.blocks[i])
             elif not init:
-                pass #TODO copy expanded weights
+                #parentg = parent.gs[i][1]
+                #selfg = self.gs[i][1]
+                #order = [int('{:0{width}b}'.format(n, width=2**parentg)[::-1], 2) for n in range(parentg)]
+                #parentweight = parent.blocks[i]._modules["0"].weight.data
+                #self.blocks[i]._modules["0"].weight = torch.nn.Parameter(torch.stack([parentweight.clone()[:,:,order] for _ in range(2**(parentg-selfg))], dim=1))
+                pass
 
             if i < len(self.gs)-1:
                 if self.gs[i+1] != self.gs[i]:
@@ -899,10 +909,10 @@ class TDRegEquiCNN(torch.nn.Module):
 
         if init:
             self.blocks.append(torch.nn.MaxPool3d((2**self.gs[-1][1],5,5), (1,1,1), padding=(0,0,0)))
-            print(int(self.channels[-1]/2**self.gs[-1][1]))
+            #print(int(self.channels[-1]/2**self.gs[-1][1]))
             self.full1 = torch.nn.Sequential(
                 torch.nn.Linear(int(self.channels[-1]/2**self.gs[-1][1]), 64),
-                #torch.nn.BatchNorm1d(64),
+                torch.nn.BatchNorm1d(64),
                 torch.nn.ELU(inplace=True),
             )
             self.full2 = torch.nn.Linear(64, 10)
@@ -915,18 +925,13 @@ class TDRegEquiCNN(torch.nn.Module):
                 self.blocks[-1] = torch.nn.MaxPool3d((2**self.gs[-1][1],5,5), (1,1,1), padding=(0,0,0))
                 self.full1 = torch.nn.Sequential(
                     torch.nn.Linear(int(self.channels[-1]/2**self.gs[-1][1]), 64),
-                    #torch.nn.BatchNorm1d(64),
+                    torch.nn.BatchNorm1d(64),
                     torch.nn.ELU(inplace=True),
                 )
 
     def forward(self, x: torch.Tensor):
-        print(x.shape)
-        for (i,block) in enumerate(self.blocks):
-            #print(x.shape)
-            #if hasattr(block, "_modules") and "0" in block._modules:
-            #    print(block._modules["0"].in_channels)
+        for block in self.blocks:
             x = block(x)
-            print(x.shape)
         x = self.full1(x.reshape(x.shape[0], -1))
         return self.full2(x)
 
