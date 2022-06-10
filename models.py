@@ -839,7 +839,12 @@ class Reshaper(torch.nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         assert x.shape[1] == self.in_channels
         assert x.shape[2] == self.in_groupsize
-        return x[:,:,self.in_order].view(-1, self.out_channels, self.out_groupsize, x.shape[-2], x.shape[-1])[:,:,self.out_order]
+        out = x[:,:,self.in_order].view(-1, self.out_channels, self.out_groupsize, x.shape[-2], x.shape[-1])[:,:,self.out_order]
+        assert out.shape[1] == self.out_channels
+        assert out.shape[2] == self.out_groupsize
+        #if self.out_groupsize == 1:
+            #print(out.shape)
+        return out
 
 class TDRegEquiCNN(torch.nn.Module):
     
@@ -900,18 +905,17 @@ class TDRegEquiCNN(torch.nn.Module):
                 self.blocks[i] = copy.deepcopy(parent.blocks[i])
             elif not init:
                 parentg = parent.gs[i][1]
-                selfg = self.gs[i][1]
-                #print(self.blocks[i]._modules["0"].weight.shape, parent.blocks[i]._modules["0"].weight.shape)
+                selfg = self.gs[i][1]                    
                 parentorder = [int('{:0{width}b}'.format(n, width=parentg)[::-1], 2) for n in range(2**parentg)]
-                #print([int('{:0{width}b}'.format(n, width=selfg)[::-1], 2) for n in range(2**selfg)])
-                #print([(2**(parentg-selfg)*i,(i+1)*2**(parentg-selfg)) for i in [int('{:0{width}b}'.format(n, width=selfg)[::-1], 2) for n in range(2**selfg)]])
                 order = [parentorder[2**(parentg-selfg)*i:(i+1)*2**(parentg-selfg)] for i in [int('{:0{width}b}'.format(n, width=selfg)[::-1], 2) for n in range(2**selfg)]]
-                #print(order)
+                if selfg == 0:
+                    order = order[0]
                 parentweight = parent.blocks[i]._modules["0"].weight.data
                 #TODO: swap dims?
-                self.blocks[i]._modules["0"].weight = torch.nn.Parameter(torch.cat([torch.cat([parentweight.clone()[:,:,order[i]] for i in range(len(order))], dim=0) for _ in range(2**(parentg-selfg))], dim=1))
-                #print(self.blocks[i]._modules["0"].weight.shape)
-                #pass
+                weight = torch.cat([torch.cat([parentweight.clone()[:,:,order[i]] for i in range(len(order))], dim=0) for _ in range(2**(parentg-selfg))], dim=1)
+                if selfg == 0:
+                    weight = torch.unsqueeze(weight, dim = 2)
+                self.blocks[i]._modules["0"].weight = torch.nn.Parameter(weight)
 
             if i < len(self.gs)-1:
                 if self.gs[i+1] != self.gs[i]:
@@ -948,9 +952,10 @@ class TDRegEquiCNN(torch.nn.Module):
     def generate(self):
         candidates = [self.offspring(-1, self.gs[0])]
         for d in range(1,len(self.gs[0])):
-            if self.gs[-1][d] >= 0:
+            #if self.gs[-1][d] >= 0:
+            for i in range(1, self.gs[-1][d]+1):
                 g = list(self.gs[0])
-                g[d] -= 1
+                g[d] -= i
                 candidates.append(self.offspring(len(self.gs)-1, tuple(g)))
         for i in range(1, len(self.gs)):
             if self.gs[i][0] < self.gs[i-1][0] or self.gs[i][1] < self.gs[i-1][1]:

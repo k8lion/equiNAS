@@ -28,6 +28,7 @@ class HillClimber(object):
         else:
             totrain = self.options
         for model in totrain:
+            print(model.gs)
             model = model.to(self.device)
             model.optimizer = torch.optim.Adam(model.parameters(), lr=5e-4)
             dataloaders = {
