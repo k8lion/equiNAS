@@ -872,7 +872,7 @@ class TDRegEquiCNN(torch.nn.Module):
                 #print(n, p.shape)
 
     def architect(self, parent = None):
-        #print(self.gs)
+        #TODO test morphism
         init = (parent is None)
         if not init and self.gs == parent.gs:
             self.blocks = copy.deepcopy(parent.blocks)
@@ -889,7 +889,7 @@ class TDRegEquiCNN(torch.nn.Module):
             parentg = parent.gs[0][1]
             selfg = self.gs[0][1]
             parentweight = parent.blocks[0]._modules["0"].weight.data
-            self.blocks[0]._modules["0"].weight = torch.nn.Parameter(torch.cat([parentweight.clone() for _ in range(2**(parentg-selfg))], dim=0))
+            self.blocks[0]._modules["0"].weight = torch.nn.Parameter(torch.cat([rotate_n(parentweight.clone(), i, 2**parentg) for i in range(2**(parentg-selfg))], dim=0))
         
         for i in range(1, len(self.gs)):
             #print(i, self.gs[i], int(self.channels[i-1]/2**self.gs[i][1]), int(self.channels[i]/2**self.gs[i][1]))
@@ -912,7 +912,7 @@ class TDRegEquiCNN(torch.nn.Module):
                     order = order[0]
                 parentweight = parent.blocks[i]._modules["0"].weight.data
                 #TODO: swap dims?
-                weight = torch.cat([torch.cat([parentweight.clone()[:,:,order[i]] for i in range(len(order))], dim=0) for _ in range(2**(parentg-selfg))], dim=1)
+                weight = torch.cat([rotate_n(torch.cat([parentweight.clone()[:,:,order[i]] for i in range(len(order))], dim=0), j, 2**parentg) for j in range(2**(parentg-selfg))], dim=1)
                 if selfg == 0:
                     weight = torch.unsqueeze(weight, dim = 2)
                 self.blocks[i]._modules["0"].weight = torch.nn.Parameter(weight)
