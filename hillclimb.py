@@ -12,6 +12,7 @@ import copy
 class HillClimber(object):
     def __init__(self, reset = True, allkids = False, reg = False, filename = "history.pkl"):
         self.filename = './out/logshc_'+datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")+'.pkl'
+        print(self.filename)
         self.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
         self.train_loader, self.validation_loader, self.test_loader = utilities.get_dataloaders(path_to_dir="..")
         if reg:
@@ -29,7 +30,7 @@ class HillClimber(object):
             totrain = self.options
         for model in totrain:
             model = model.to(self.device)
-            model.optimizer = torch.optim.Adam(model.parameters(), lr=5e-4)
+            model.optimizer = torch.optim.SGD(model.parameters(), lr=5e-4)
             dataloaders = {
                 "train": self.train_loader,
                 "validation": self.validation_loader
@@ -91,13 +92,63 @@ class HillClimber(object):
                     #else:
                     #    print(epoch_acc.item())
             model = model.to("cpu")
+
+    def validate(self, model):
+        model = model.to(self.device)
+        dataloaders = {
+            "validation": self.validation_loader
+        }
+        phase = "validation"
+        model.eval()
+
+        running_corrects = 0
+        running_count = 0
+
+        for inputs, labels in dataloaders[phase]:
+            inputs = inputs.to(self.device)
+            labels = labels.to(self.device)
+            outputs = model(inputs)
+
+            _, preds = torch.max(outputs, 1)
+            running_corrects += torch.sum(preds == labels.data)
+            running_count += inputs.size(0)
+            
+        acc = running_corrects.float() / running_count
+
+        return acc.item()
+
+    def test(self, model1, model2):
+        model1 = model1.to(self.device)
+        model2 = model2.to(self.device)
+        dataloaders = {
+            "validation": self.validation_loader
+        }
+        phase = "validation"
+        model1.eval()
+        model2.eval()
+
+        for inputs, labels in dataloaders[phase]:
+            inputs = inputs.to(self.device)
+            labels = labels.to(self.device)
+            outputs1 = model1(inputs)
+            outputs2 = model2(inputs)
+
+            assert outputs1 == outputs2
     
     def generate(self):
         if self.allkids:
             children = []
-            children += self.model.generate()
+            #children += self.model.generate()
+            print("parent:", self.model.gs, self.validate(self.model))
+            for child in self.model.generate():
+                print("child:", child.gs, self.validate(child))
+                children.append(child)
             for model in self.options:
-                children += model.generate()
+                #children += model.generate()
+                print("parent:", model.gs, self.validate(model))
+                for child in model.generate():
+                    print("child:", child.gs, self.validate(child))
+                    children.append(child)
             self.options = children
         else:
             self.options = self.model.generate()
@@ -112,7 +163,7 @@ class HillClimber(object):
                 if str(child.gs) not in bests or child.score > bests[str(child.gs)]["score"]:
                     bests[str(child.gs)] = {"uuid": child.uuid, "score": child.score}
             uuids = [bests[g]["uuid"] for g in bests.keys()]
-            print(len(self.options), len(uuids), end = "")
+            print(len(self.options), len(uuids), end = " ")
             for child in self.options:
                 if child.uuid not in uuids:
                     self.options.remove(child)

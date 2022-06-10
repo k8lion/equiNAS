@@ -866,7 +866,7 @@ class TDRegEquiCNN(torch.nn.Module):
         self.architect(parent)
         self.loss_function = torch.nn.CrossEntropyLoss()
         self.score = -1
-        self.optimizer = torch.optim.Adam(self.parameters(), lr=5e-5)
+        self.optimizer = torch.optim.SGD(self.parameters(), lr=5e-5)
         #for (n,p) in self.named_parameters():
             #if p.requires_grad:
                 #print(n, p.shape)
@@ -878,6 +878,7 @@ class TDRegEquiCNN(torch.nn.Module):
             self.blocks = copy.deepcopy(parent.blocks)
             self.full1 = copy.deepcopy(parent.full1)
             self.full2 = copy.deepcopy(parent.full2)
+            #self = copy.deepcopy(parent)
             return 
         self.blocks.append(torch.nn.Sequential(
                 LiftingConv2d(self.gs[0], 1, int(self.channels[0]/2**self.gs[0][1]), self.kernels[0], self.paddings[0], bias=True),
