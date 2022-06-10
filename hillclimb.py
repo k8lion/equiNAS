@@ -28,7 +28,6 @@ class HillClimber(object):
         else:
             totrain = self.options
         for model in totrain:
-            print(model.gs)
             model = model.to(self.device)
             model.optimizer = torch.optim.Adam(model.parameters(), lr=5e-4)
             dataloaders = {
@@ -104,7 +103,7 @@ class HillClimber(object):
             self.options = self.model.generate()
 
     def select(self):
-        for child in self.options:
+        for child in sorted(self.options, key=attrgetter('score'), reverse=True):
             print(child.gs, sum(p.numel() for p in child.parameters() if p.requires_grad), child.score)
         self.model = max(self.options, key=attrgetter("score"))
         if self.allkids:
