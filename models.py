@@ -555,6 +555,7 @@ class EquiCNN(torch.nn.Module):
 
 
 
+
 class TDEquiCNN(torch.nn.Module):
     
     def __init__(self, reset = False, gs = [(0,0) for _ in range(6)], parent = None):
@@ -702,13 +703,37 @@ def rotate_n(x: torch.Tensor, r: int, n: int) -> torch.Tensor:
         roty = rot(x, 2*r*np.pi/n, type(x))
     return roty
 
-def rotatestack_n(y: torch.Tensor, r: int, n: int) -> torch.Tensor:
+def rotatestack_n(y: torch.Tensor, r: int, n: int, order = None) -> torch.Tensor:
+    # `y` is a function over pn, i.e. over the pixel positions and over the elements of the group C_n.
+    # This method implements the action of a rotation `r` on `y`, assuming that the last two dimensions 
+    # (`dim=-2` and `dim=-1`) of `y` are the spatial dimensions while `dim=-3` has size `n` and is the 
+    # C_n dimension. All other dimensions are considered batch dimensions
+    if order is None:
+        order = list(range(n))
     assert len(y.shape) >= 3
     assert y.shape[-3] == n
+    assert len(order) == n
 
-    roty = rotate_n(y, r, n)
-    roty = torch.stack([torch.select(roty, -3, (n-r+i)%n) for i in range(n)], dim=-3)
+    roty = rotate_n(y, r, n) #first rotate y
+    roty = torch.stack([torch.select(roty, -3, (n-r+i)%n) for i in order], dim=-3) #then reorder the group elements
     return roty
+
+def adapt(parentweight: torch.Tensor, parentg, childg, inchannels, outchannels):
+    parentorder = [int('{:0{width}b}'.format(n, width=parentg)[::-1], 2) for n in range(2**parentg)]
+    order = [parentorder[2**(parentg-childg)*i:(i+1)*2**(parentg-childg)] for i in [int('{:0{width}b}'.format(n, width=childg)[::-1], 2) for n in range(2**childg)]]
+    if childg == 0:
+        order = order[0]
+    splito = int(outchannels/2**(parentg-childg))
+    outchannelorder = sum([list(range(i,outchannels,splito)) for i in range(splito)], [])
+    spliti = int(inchannels/2**(parentg-childg))
+    inchannelorder = sum([list(range(i,inchannels,spliti)) for i in range(spliti)], [])
+    #TODO: swap dims?
+    weight = torch.cat([rotate_n(torch.cat([parentweight[:,:,order[i]] for i in range(len(order))], dim=0), j, 2**parentg) for j in range(2**(parentg-childg))], dim=1)[outchannelorder]
+    print(weight.shape)
+    if childg == 0:
+        weight = torch.unsqueeze(weight, dim = 2)
+    return weight[:, inchannelorder]
+
 
 class LiftingConv2d(torch.nn.Module):
 
@@ -735,6 +760,19 @@ class LiftingConv2d(torch.nn.Module):
                 torch.zeros(out_channels), requires_grad=True)
         else:
             self.bias = None
+
+    def test_filter_x(self, x: torch.Tensor) -> torch.Tensor:
+
+        _filter, _bias = self.build_filter()
+
+        assert _bias.shape == (self.out_channels, 2**self.group[1])
+        assert _filter.shape == (
+                self.out_channels, 2**self.group[1], self.in_channels, self.kernel_size, self.kernel_size)
+
+        _filter = _filter.reshape(
+                self.out_channels * 2**self.group[1], self.in_channels, self.kernel_size, self.kernel_size)
+
+        return _filter, x
 
     def build_filter(self) -> torch.Tensor:
 
@@ -791,9 +829,13 @@ class GroupConv2d(torch.nn.Module):
             self.bias = None
       
   
-    def build_filter(self) ->torch.Tensor:
+    def build_filter(self) -> torch.Tensor:
         
+        print("weight", self.weight.shape)
+
         _filter = torch.stack([rotatestack_n(self.weight.data, i, 2**self.group[1]) for i in range(2**self.group[1])], dim = -5)
+
+        print("filter", _filter.shape)
 
         if self.bias is not None:
             _bias = torch.stack([self.bias.data for _ in range(2**self.group[1])], dim = 1)
@@ -801,6 +843,21 @@ class GroupConv2d(torch.nn.Module):
             _bias = None
 
         return _filter, _bias
+
+    def test_filter_x(self, x: torch.Tensor) -> torch.Tensor:
+
+        _filter, _bias = self.build_filter()
+
+        assert _bias.shape == (self.out_channels, 2**self.group[1])
+        assert _filter.shape == (self.out_channels, 2**self.group[1], self.in_channels, 2**self.group[1], self.kernel_size, self.kernel_size)
+
+        _filter = _filter.reshape(self.out_channels * 2**self.group[1], self.in_channels * 2**self.group[1], self.kernel_size, self.kernel_size)
+        _bias = _bias.reshape(self.out_channels * 2**self.group[1])
+
+        _x = x.clone().view(x.shape[0], self.in_channels*2**self.group[1], x.shape[-2], x.shape[-1])
+
+        return _filter, _x
+
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
 
@@ -904,18 +961,9 @@ class TDRegEquiCNN(torch.nn.Module):
                 self.blocks[i].add_module(name="pool", module = torch.nn.MaxPool3d((1,3,3), (1,2,2), padding=(0,1,1)))
             if not init and self.gs[i] == parent.gs[i]:
                 self.blocks[i] = copy.deepcopy(parent.blocks[i])
-            elif not init:
-                parentg = parent.gs[i][1]
-                selfg = self.gs[i][1]                    
-                parentorder = [int('{:0{width}b}'.format(n, width=parentg)[::-1], 2) for n in range(2**parentg)]
-                order = [parentorder[2**(parentg-selfg)*i:(i+1)*2**(parentg-selfg)] for i in [int('{:0{width}b}'.format(n, width=selfg)[::-1], 2) for n in range(2**selfg)]]
-                if selfg == 0:
-                    order = order[0]
-                parentweight = parent.blocks[i]._modules["0"].weight.data
-                #TODO: swap dims?
-                weight = torch.cat([rotate_n(torch.cat([parentweight.clone()[:,:,order[i]] for i in range(len(order))], dim=0), j, 2**parentg) for j in range(2**(parentg-selfg))], dim=1)
-                if selfg == 0:
-                    weight = torch.unsqueeze(weight, dim = 2)
+            elif not init:            
+                weight = adapt(parent.blocks[i]._modules["0"].weight.data.clone(), parent.gs[i][1], self.gs[i][1], 
+                               self.blocks[i]._modules["0"].weight.shape[1], self.blocks[i]._modules["0"].weight.shape[0])
                 self.blocks[i]._modules["0"].weight = torch.nn.Parameter(weight)
 
             if i < len(self.gs)-1:
