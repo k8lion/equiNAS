@@ -831,11 +831,11 @@ class GroupConv2d(torch.nn.Module):
   
     def build_filter(self) -> torch.Tensor:
         
-        print("weight", self.weight.shape)
+        #print("weight", self.weight.shape)
 
         _filter = torch.stack([rotatestack_n(self.weight.data, i, 2**self.group[1]) for i in range(2**self.group[1])], dim = -5)
 
-        print("filter", _filter.shape)
+        #print("filter", _filter.shape)
 
         if self.bias is not None:
             _bias = torch.stack([self.bias.data for _ in range(2**self.group[1])], dim = 1)

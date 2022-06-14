@@ -62,7 +62,7 @@ def get_dataloaders(path_to_dir = "~"):
     if shuffle_dataset :
         np.random.seed(random_seed)
         np.random.shuffle(indices)
-    val_indices, train_indices = indices[split:], indices[:split]
+    train_indices, val_indices = indices[split:], indices[:split]
 
     # Creating PT data samplers and loaders:
     train_sampler = SubsetRandomSampler(train_indices)
