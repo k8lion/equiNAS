@@ -130,10 +130,26 @@ class HillClimber(object):
         for inputs, labels in dataloaders[phase]:
             inputs = inputs.to(self.device)
             labels = labels.to(self.device)
-            outputs1 = model1(inputs)
-            outputs2 = model2(inputs)
+            x1 = inputs.clone()
+            x2 = inputs.clone()
+            for i in range(len(model1.blocks)):
+                x1 = model1.blocks[i](x1)
+                x2 = model2.blocks[i](x2)
+                if i < len(model1.gs) and x1.shape == x2.shape and \
+                    list(model1.blocks[i]._modules.keys()) == list(model2.blocks[i]._modules.keys()) \
+                        and model1.gs[:i] == model2.gs[:i]:
+                    if not torch.allclose(x1, x2, atol=1e-5, rtol=1e-5):
+                        print(model1.gs, model2.gs, i, model1.blocks[i]._modules.keys(), model2.blocks[i]._modules.keys(), sum(x1-x2).abs().sum().item())
+            break
 
-            assert outputs1 == outputs2
+        if model1.gs == model2.gs:
+            for inputs, labels in dataloaders[phase]:
+                inputs = inputs.to(self.device)
+                labels = labels.to(self.device)
+                outputs1 = model1(inputs)
+                outputs2 = model2(inputs)
+
+                assert torch.allclose(outputs1, outputs2, atol=1e-5, rtol=1e-5)
     
     def generate(self):
         if self.allkids:
@@ -142,12 +158,14 @@ class HillClimber(object):
             print("parent:", self.model.gs, self.validate(self.model))
             for child in self.model.generate():
                 print("child:", child.gs, self.validate(child))
+                self.test(self.model, child)
                 children.append(child)
             for model in self.options:
                 #children += model.generate()
                 print("parent:", model.gs, self.validate(model))
                 for child in model.generate():
                     print("child:", child.gs, self.validate(child))
+                    self.test(model, child)
                     children.append(child)
             self.options = children
         else:

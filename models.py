@@ -729,7 +729,7 @@ def adapt(parentweight: torch.Tensor, parentg, childg, inchannels, outchannels):
     inchannelorder = sum([list(range(i,inchannels,spliti)) for i in range(spliti)], [])
     #TODO: swap dims?
     weight = torch.cat([rotate_n(torch.cat([parentweight[:,:,order[i]] for i in range(len(order))], dim=0), j, 2**parentg) for j in range(2**(parentg-childg))], dim=1)[outchannelorder]
-    print(weight.shape)
+    #print(weight.shape)
     if childg == 0:
         weight = torch.unsqueeze(weight, dim = 2)
     return weight[:, inchannelorder]
@@ -939,7 +939,7 @@ class TDRegEquiCNN(torch.nn.Module):
             return 
         self.blocks.append(torch.nn.Sequential(
                 LiftingConv2d(self.gs[0], 1, int(self.channels[0]/2**self.gs[0][1]), self.kernels[0], self.paddings[0], bias=True),
-                torch.nn.BatchNorm3d(int(self.channels[0]/2**self.gs[0][1])),
+                #torch.nn.BatchNorm3d(int(self.channels[0]/2**self.gs[0][1])),
                 torch.nn.ReLU(inplace=True)
             )
         )
@@ -953,7 +953,7 @@ class TDRegEquiCNN(torch.nn.Module):
             #print(i, self.gs[i], int(self.channels[i-1]/2**self.gs[i][1]), int(self.channels[i]/2**self.gs[i][1]))
             self.blocks.append(torch.nn.Sequential(
                 GroupConv2d(self.gs[i], int(self.channels[i-1]/2**self.gs[i][1]), int(self.channels[i]/2**self.gs[i][1]), self.kernels[i], self.paddings[i], bias=True),
-                torch.nn.BatchNorm3d(int(self.channels[i]/2**self.gs[i][1])),
+                #torch.nn.BatchNorm3d(int(self.channels[i]/2**self.gs[i][1])),
                 torch.nn.ReLU(inplace=True)
                 )
             )
@@ -964,7 +964,7 @@ class TDRegEquiCNN(torch.nn.Module):
             elif not init:            
                 weight = adapt(parent.blocks[i]._modules["0"].weight.data.clone(), parent.gs[i][1], self.gs[i][1], 
                                self.blocks[i]._modules["0"].weight.shape[1], self.blocks[i]._modules["0"].weight.shape[0])
-                self.blocks[i]._modules["0"].weight = torch.nn.Parameter(weight)
+                self.blocks[i]._modules["0"].weight.data = weight
 
             if i < len(self.gs)-1:
                 if self.gs[i+1] != self.gs[i]:
@@ -975,7 +975,7 @@ class TDRegEquiCNN(torch.nn.Module):
             #print(int(self.channels[-1]/2**self.gs[-1][1]))
             self.full1 = torch.nn.Sequential(
                 torch.nn.Linear(int(self.channels[-1]/2**self.gs[-1][1]), 64),
-                torch.nn.BatchNorm1d(64),
+                #torch.nn.BatchNorm1d(64),
                 torch.nn.ELU(inplace=True),
             )
             self.full2 = torch.nn.Linear(64, 10)
@@ -988,9 +988,10 @@ class TDRegEquiCNN(torch.nn.Module):
                 self.blocks[-1] = torch.nn.MaxPool3d((2**self.gs[-1][1],5,5), (1,1,1), padding=(0,0,0))
                 self.full1 = torch.nn.Sequential(
                     torch.nn.Linear(int(self.channels[-1]/2**self.gs[-1][1]), 64),
-                    torch.nn.BatchNorm1d(64),
+                    #torch.nn.BatchNorm1d(64),
                     torch.nn.ELU(inplace=True),
                 )
+                self.full1._modules["0"].weight.data = torch.repeat_interleave(self.full1._modules["0"].weight, 2**(parent.gs[0][1]-self.gs[0][1]), dim=1)/2**(parent.gs[0][1]-self.gs[0][1])
 
     def forward(self, x: torch.Tensor):
         for block in self.blocks:
@@ -1005,10 +1006,14 @@ class TDRegEquiCNN(torch.nn.Module):
             for i in range(1, self.gs[-1][d]+1):
                 g = list(self.gs[0])
                 g[d] -= i
-                candidates.append(self.offspring(len(self.gs)-1, tuple(g)))
+                child = self.offspring(len(self.gs)-1, tuple(g))
+                if all([child.gs != sibling.gs for sibling in candidates]):
+                    candidates.append(child)
         for i in range(1, len(self.gs)):
             if self.gs[i][0] < self.gs[i-1][0] or self.gs[i][1] < self.gs[i-1][1]:
-                candidates.append(self.offspring(i-1, self.gs[i]))
+                child = self.offspring(i-1, self.gs[i])
+                if all([child.gs != sibling.gs for sibling in candidates]):
+                    candidates.append(child)
         return candidates
 
     def offspring(self, i, G):
@@ -1016,4 +1021,13 @@ class TDRegEquiCNN(torch.nn.Module):
         if i >= 0:
             gs[i] = G
         child = TDRegEquiCNN(gs = gs, parent=self)
+        # if i < 0:
+        #     for i in range(len(self.blocks)):
+        #         for key in child.blocks[i]._modules:
+        #             if hasattr(child.blocks[i]._modules[key], "weight"):
+        #                 print(i, key, torch.allclose(child.blocks[i]._modules[key].weight, self.blocks[i]._modules[key].weight, atol=1e-5, rtol=1e-5))
+        #     for key in child.full1._modules:
+        #         if hasattr(child.full1._modules[key], "weight"):
+        #             print("full1", key, torch.allclose(child.full1._modules[key].weight, self.full1._modules[key].weight, atol=1e-5, rtol=1e-5))
+        #     print("full2", key, torch.allclose(child.full2.weight, self.full2.weight, atol=1e-5, rtol=1e-5))
         return child
