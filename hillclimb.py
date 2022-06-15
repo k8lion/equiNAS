@@ -222,7 +222,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Run hillclimber algorithm')
     parser.add_argument('--epochs', "-e", type=int, default="5", help='number of epochs per child')
     parser.add_argument('--iterations', "-i", type=int, default="20", help='number of generations')
-    parser.add_argument('--lr ', "-l", type=float, default="5e-4", help='learning rate')
+    parser.add_argument('--lr', "-l", type=float, default="5e-4", help='learning rate')
     parser.add_argument('--allkids', action='store_true', default=False, help='expand children tree')
     parser.add_argument('--baselines', action='store_true', default=False, help='measure baselines')
     parser.add_argument('--reg', action='store_true', default=False, help='reg group convs')
