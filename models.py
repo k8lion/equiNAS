@@ -939,8 +939,8 @@ class TDRegEquiCNN(torch.nn.Module):
             return 
         self.blocks.append(torch.nn.Sequential(
                 LiftingConv2d(self.gs[0], 1, int(self.channels[0]/2**self.gs[0][1]), self.kernels[0], self.paddings[0], bias=True),
-                #torch.nn.BatchNorm3d(int(self.channels[0]/2**self.gs[0][1])),
-                #torch.nn.ReLU(inplace=True)
+                torch.nn.BatchNorm3d(int(self.channels[0]/2**self.gs[0][1])),
+                torch.nn.ReLU(inplace=True)
             )
         )
         if not init:
@@ -956,8 +956,8 @@ class TDRegEquiCNN(torch.nn.Module):
             #print(i, self.gs[i], int(self.channels[i-1]/2**self.gs[i][1]), int(self.channels[i]/2**self.gs[i][1]))
             self.blocks.append(torch.nn.Sequential(
                 GroupConv2d(self.gs[i], int(self.channels[i-1]/2**self.gs[i][1]), int(self.channels[i]/2**self.gs[i][1]), self.kernels[i], self.paddings[i], bias=True),
-                #torch.nn.BatchNorm3d(int(self.channels[i]/2**self.gs[i][1])),
-                #torch.nn.ReLU(inplace=True)
+                torch.nn.BatchNorm3d(int(self.channels[i]/2**self.gs[i][1])),
+                torch.nn.ReLU(inplace=True)
                 )
             )
             if i == 1 or i == 3:
@@ -978,8 +978,8 @@ class TDRegEquiCNN(torch.nn.Module):
             #print(int(self.channels[-1]/2**self.gs[-1][1]))
             self.full1 = torch.nn.Sequential(
                 torch.nn.Linear(int(self.channels[-1]/2**self.gs[-1][1]), 64),
-                #torch.nn.BatchNorm1d(64),
-                #torch.nn.ELU(inplace=True),
+                torch.nn.BatchNorm1d(64),
+                torch.nn.ELU(inplace=True),
             )
             self.full2 = torch.nn.Linear(64, 10)
         else:
@@ -991,8 +991,8 @@ class TDRegEquiCNN(torch.nn.Module):
                 self.blocks[-1] = torch.nn.AvgPool3d((2**self.gs[-1][1],5,5), (1,1,1), padding=(0,0,0))
                 self.full1 = torch.nn.Sequential(
                     torch.nn.Linear(int(self.channels[-1]/2**self.gs[-1][1]), 64),
-                    #torch.nn.BatchNorm1d(64),
-                    #torch.nn.ELU(inplace=True),
+                    torch.nn.BatchNorm1d(64),
+                    torch.nn.ELU(inplace=True),
                 )
                 self.full1._modules["0"].weight.data = torch.repeat_interleave(parent.full1._modules["0"].weight.data, 2**(parent.gs[-1][1]-self.gs[-1][1]), dim=1)/2**(parent.gs[-1][1]-self.gs[-1][1])
                 if parent.full1._modules["0"].bias is not None:
