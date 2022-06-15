@@ -202,17 +202,19 @@ class HillClimber(object):
             self.select()
             self.save()
 
-    def baselines(self, epochs = 40, lr = 5e-4):
-        allgs = [[(0,i) for _ in range(6)] for i in range(4)]
-        allgs += [[(0,i) for _ in range(5)]+[(0,0)] for i in range(1,4)]
-        allgs += [[(0,i) for _ in range(5)]+[(0,1)] for i in range(2,4)]
-        allgs += [[(0,i) for _ in range(4)]+[(0,0),(0,0)] for i in range(1,4)]
-        allgs += [[(0,i) for _ in range(4)]+[(0,1),(0,0)] for i in range(2,4)]
-        allgs += [[(0,i) for _ in range(4)]+[(0,1),(0,1)] for i in range(2,4)]
+    def baselines(self, iterations = -1, epochs = 40, lr = 5e-4):
+        upper = 3
+        allgs = [[(0,i) for _ in range(6)] for i in range(upper)]
+        allgs += [[(0,i) for _ in range(5)]+[(0,0)] for i in range(1,upper)]
+        allgs += [[(0,i) for _ in range(5)]+[(0,1)] for i in range(2,upper)]
+        allgs += [[(0,i) for _ in range(4)]+[(0,0),(0,0)] for i in range(1,upper)]
+        allgs += [[(0,i) for _ in range(4)]+[(0,1),(0,0)] for i in range(2,upper)]
+        allgs += [[(0,i) for _ in range(4)]+[(0,1),(0,1)] for i in range(2,upper)]
         for gs in allgs:
             self.options.append(models.EquiCNN(reset=False, gs = gs))
-        self.train(epochs = epochs, start = 0, lr = lr)
-        self.save()
+        for iter in range(iterations):
+            self.train(epochs = epochs, start = 0, lr = lr)
+            self.save()
 
             
             
@@ -228,6 +230,6 @@ if __name__ == "__main__":
     print(args)
     hillclimb = HillClimber(allkids=args.allkids, reg=args.reg)
     if args.baselines:
-        hillclimb.baselines(epochs=args.epochs)
+        hillclimb.baselines(iterations=args.iterations, epochs=args.epochs)
     else:
         hillclimb.hillclimb(iterations=args.iterations, epochs=args.epochs, lr=args.lr)
