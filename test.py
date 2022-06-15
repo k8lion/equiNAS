@@ -32,24 +32,24 @@ class TestTDRegEquiCNN(unittest.TestCase):
 
 
     def test_offspring(self):
-        tochange = 5
+        tochange = 3
         model = models.TDRegEquiCNN(gs = [(0,2) for _ in range(tochange+1)]+[(0,1) for _ in range(5-tochange)])
-        for i in range(len(model.blocks)):
-            if "0" in model.blocks[i]._modules.keys():
-                model.blocks[i]._modules["0"].weight = torch.nn.Parameter(torch.zeros_like(model.blocks[i]._modules["0"].weight))
-                print(i, model.blocks[i]._modules["0"].weight.shape)
-                if i > 0:
-                    for j in range(model.blocks[i]._modules["0"].weight.shape[2]):
-                        model.blocks[i]._modules["0"].weight.data[:,:,j,2,2] += 1
-                else:
-                    for j in range(model.blocks[i]._modules["0"].weight.shape[1]):
-                        model.blocks[i]._modules["0"].weight.data[:,j,3,3] += 1 
-                if i > 4:
-                    for j in range(model.blocks[i]._modules["0"].weight.shape[2]):
-                        model.blocks[i]._modules["0"].weight.data[:,:,j,2,2] += j
+        # for i in range(len(model.blocks)):
+        #     if "0" in model.blocks[i]._modules.keys():
+        #         model.blocks[i]._modules["0"].weight = torch.nn.Parameter(torch.zeros_like(model.blocks[i]._modules["0"].weight))
+        #         print(i, model.blocks[i]._modules["0"].weight.shape)
+        #         if i > 0:
+        #             for j in range(model.blocks[i]._modules["0"].weight.shape[2]):
+        #                 model.blocks[i]._modules["0"].weight.data[:,:,j,2,2] += 1
+        #         else:
+        #             for j in range(model.blocks[i]._modules["0"].weight.shape[1]):
+        #                 model.blocks[i]._modules["0"].weight.data[:,j,3,3] += 1 
+        #         if i > 4:
+        #             for j in range(model.blocks[i]._modules["0"].weight.shape[2]):
+        #                 model.blocks[i]._modules["0"].weight.data[:,:,j,2,2] += j
         child = model.offspring(tochange, (0,1))
-        print(model.gs)
-        print(child.gs)
+        #print(model.gs)
+        #print(child.gs)
         xmodel = torch.ones(2, 1, 29, 29)
         xchild = xmodel.clone()
         for i in range(len(model.blocks)):
@@ -61,7 +61,7 @@ class TestTDRegEquiCNN(unittest.TestCase):
                 #print("child:", child.blocks[i]._modules["0"].weight.shape, child_filter.shape, child_x.shape, child.blocks[i]._modules["0"].weight[:,0,:,0,0], child_filter[:,0,0,0], child_filter[0,:,0,0])
             xmodel = model.blocks[i](xmodel)
             xchild = child.blocks[i](xchild)
-            print("x shapes", xmodel.shape, xchild.shape)
+            #print("x shapes", xmodel.shape, xchild.shape)
             if xmodel.shape != xchild.shape:
                 out_channels = xchild.shape[1]
                 in_groupsize = xmodel.shape[2]
@@ -79,17 +79,14 @@ class TestTDRegEquiCNN(unittest.TestCase):
                 #print("x sample", xmodel_rs[0,0,0], xchild[0,0,0])
                 #print("diff:", (xmodel_rs-xchild).abs().max())
             #print(i, )
-            if i < 5:
-                xmodel = xmodel * 0 + 1
-                xchild = xchild * 0 + 1
-            else:
-                print(xmodel[0,:,:,0,0])
-                print(xchild[0,:,:,0,0])
-        print(xmodel.reshape(xmodel.shape[0], -1))
-        print(xchild.reshape(xchild.shape[0], -1))
+            #if i < 0:
+            #    xmodel = xmodel * 0 + 1
+            #    xchild = xchild * 0 + 1
+        print(xmodel.reshape(xmodel.shape[0], -1)[0,:])
+        print(xchild.reshape(xchild.shape[0], -1)[0,:])
         xmodel = model.full1(xmodel.reshape(xmodel.shape[0], -1))
         xchild = child.full1(xchild.reshape(xchild.shape[0], -1))
-        self.assertTrue(torch.allclose(xmodel, xchild))
+        self.assertTrue(torch.allclose(xmodel, xchild, rtol = 1e-4, atol = 1e-4))
         xmodel = model.full2(xmodel)
         xchild = child.full2(xchild)
         self.assertTrue(torch.allclose(xmodel, xchild))

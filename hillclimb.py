@@ -23,14 +23,14 @@ class HillClimber(object):
         self.allkids = allkids
         self.history = {}
 
-    def train(self, epochs = 1, start = 0):
+    def train(self, epochs = 1, start = 0, lr = 5e-4):
         if len(self.options)==0:
             totrain = [self.model]
         else:
             totrain = self.options
         for model in totrain:
             model = model.to(self.device)
-            model.optimizer = torch.optim.SGD(model.parameters(), lr=5e-4)
+            model.optimizer = torch.optim.SGD(model.parameters(), lr=lr)
             dataloaders = {
                 "train": self.train_loader,
                 "validation": self.validation_loader
@@ -193,16 +193,16 @@ class HillClimber(object):
         with open(self.filename, 'wb') as f:
             pickle.dump(self.history, f)
 
-    def hillclimb(self, iterations = -1, epochs = 5):
+    def hillclimb(self, iterations = -1, epochs = 5, lr = 5e-4):
         self.train(epochs = epochs, start = 0)
         for iter in range(iterations):
             self.generate()
             print("Iteration ", iter)
-            self.train(epochs = epochs, start = iter+1)
+            self.train(epochs = epochs, start = iter+1, lr = lr)
             self.select()
             self.save()
 
-    def baselines(self, epochs = 40):
+    def baselines(self, epochs = 40, lr = 5e-4):
         allgs = [[(0,i) for _ in range(6)] for i in range(4)]
         allgs += [[(0,i) for _ in range(5)]+[(0,0)] for i in range(1,4)]
         allgs += [[(0,i) for _ in range(5)]+[(0,1)] for i in range(2,4)]
@@ -211,7 +211,7 @@ class HillClimber(object):
         allgs += [[(0,i) for _ in range(4)]+[(0,1),(0,1)] for i in range(2,4)]
         for gs in allgs:
             self.options.append(models.EquiCNN(reset=False, gs = gs))
-        self.train(epochs = epochs, start = 0)
+        self.train(epochs = epochs, start = 0, lr = lr)
         self.save()
 
             
@@ -220,6 +220,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Run hillclimber algorithm')
     parser.add_argument('--epochs', "-e", type=int, default="5", help='number of epochs per child')
     parser.add_argument('--iterations', "-i", type=int, default="20", help='number of generations')
+    parser.add_argument('--lr ', "-l", type=float, default="5e-4", help='learning rate')
     parser.add_argument('--allkids', action='store_true', default=False, help='expand children tree')
     parser.add_argument('--baselines', action='store_true', default=False, help='measure baselines')
     parser.add_argument('--reg', action='store_true', default=False, help='reg group convs')
@@ -229,4 +230,4 @@ if __name__ == "__main__":
     if args.baselines:
         hillclimb.baselines(epochs=args.epochs)
     else:
-        hillclimb.hillclimb(iterations=args.iterations, epochs=args.epochs)
+        hillclimb.hillclimb(iterations=args.iterations, epochs=args.epochs, lr=args.lr)

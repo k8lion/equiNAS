@@ -940,25 +940,28 @@ class TDRegEquiCNN(torch.nn.Module):
         self.blocks.append(torch.nn.Sequential(
                 LiftingConv2d(self.gs[0], 1, int(self.channels[0]/2**self.gs[0][1]), self.kernels[0], self.paddings[0], bias=True),
                 #torch.nn.BatchNorm3d(int(self.channels[0]/2**self.gs[0][1])),
-                torch.nn.ReLU(inplace=True)
+                #torch.nn.ReLU(inplace=True)
             )
         )
         if not init:
             parentg = parent.gs[0][1]
             selfg = self.gs[0][1]
             parentweight = parent.blocks[0]._modules["0"].weight.data
-            self.blocks[0]._modules["0"].weight = torch.nn.Parameter(torch.cat([rotate_n(parentweight.clone(), i, 2**parentg) for i in range(2**(parentg-selfg))], dim=0))
+            self.blocks[0]._modules["0"].weight.data = torch.cat([rotate_n(parentweight.clone(), i, 2**parentg) for i in range(2**(parentg-selfg))], dim=0)
+            if parentg == selfg:
+                self.blocks[0]._modules["0"].bias.data = parent.blocks[0]._modules["0"].bias.data.clone()
+            #TODO: else
         
         for i in range(1, len(self.gs)):
             #print(i, self.gs[i], int(self.channels[i-1]/2**self.gs[i][1]), int(self.channels[i]/2**self.gs[i][1]))
             self.blocks.append(torch.nn.Sequential(
                 GroupConv2d(self.gs[i], int(self.channels[i-1]/2**self.gs[i][1]), int(self.channels[i]/2**self.gs[i][1]), self.kernels[i], self.paddings[i], bias=True),
                 #torch.nn.BatchNorm3d(int(self.channels[i]/2**self.gs[i][1])),
-                torch.nn.ReLU(inplace=True)
+                #torch.nn.ReLU(inplace=True)
                 )
             )
             if i == 1 or i == 3:
-                self.blocks[i].add_module(name="pool", module = torch.nn.MaxPool3d((1,3,3), (1,2,2), padding=(0,1,1)))
+                self.blocks[i].add_module(name="pool", module = torch.nn.AvgPool3d((1,3,3), (1,2,2), padding=(0,1,1)))
             if not init and self.gs[i] == parent.gs[i]:
                 self.blocks[i] = copy.deepcopy(parent.blocks[i])
             elif not init:            
@@ -971,12 +974,12 @@ class TDRegEquiCNN(torch.nn.Module):
                     self.blocks[i].add_module(name="reshaper", module = Reshaper(in_channels=int(self.channels[i]/2**self.gs[i][1]), out_channels=int(self.channels[i]/2**self.gs[i+1][1]), in_groupsize=2**self.gs[i][1], out_groupsize=2**self.gs[i+1][1]))
 
         if init:
-            self.blocks.append(torch.nn.MaxPool3d((2**self.gs[-1][1],5,5), (1,1,1), padding=(0,0,0)))
+            self.blocks.append(torch.nn.AvgPool3d((2**self.gs[-1][1],5,5), (1,1,1), padding=(0,0,0)))
             #print(int(self.channels[-1]/2**self.gs[-1][1]))
             self.full1 = torch.nn.Sequential(
                 torch.nn.Linear(int(self.channels[-1]/2**self.gs[-1][1]), 64),
                 #torch.nn.BatchNorm1d(64),
-                torch.nn.ELU(inplace=True),
+                #torch.nn.ELU(inplace=True),
             )
             self.full2 = torch.nn.Linear(64, 10)
         else:
@@ -985,13 +988,16 @@ class TDRegEquiCNN(torch.nn.Module):
             self.full1 = copy.deepcopy(parent.full1)
             self.full2 = copy.deepcopy(parent.full2)
             if self.gs[-1] != parent.gs[-1]:
-                self.blocks[-1] = torch.nn.MaxPool3d((2**self.gs[-1][1],5,5), (1,1,1), padding=(0,0,0))
+                self.blocks[-1] = torch.nn.AvgPool3d((2**self.gs[-1][1],5,5), (1,1,1), padding=(0,0,0))
                 self.full1 = torch.nn.Sequential(
                     torch.nn.Linear(int(self.channels[-1]/2**self.gs[-1][1]), 64),
                     #torch.nn.BatchNorm1d(64),
-                    torch.nn.ELU(inplace=True),
+                    #torch.nn.ELU(inplace=True),
                 )
-                self.full1._modules["0"].weight.data = torch.repeat_interleave(self.full1._modules["0"].weight, 2**(parent.gs[0][1]-self.gs[0][1]), dim=1)/2**(parent.gs[0][1]-self.gs[0][1])
+                self.full1._modules["0"].weight.data = torch.repeat_interleave(parent.full1._modules["0"].weight.data, 2**(parent.gs[-1][1]-self.gs[-1][1]), dim=1)/2**(parent.gs[-1][1]-self.gs[-1][1])
+                if parent.full1._modules["0"].bias is not None:
+                    self.full1._modules["0"].bias.data = parent.full1._modules["0"].bias.data.clone()
+
 
     def forward(self, x: torch.Tensor):
         for block in self.blocks:
