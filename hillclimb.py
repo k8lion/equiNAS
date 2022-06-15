@@ -213,7 +213,7 @@ class HillClimber(object):
         for gs in allgs:
             self.options.append(models.EquiCNN(reset=False, gs = gs))
         for iter in range(iterations):
-            self.train(epochs = epochs, start = 0, lr = lr)
+            self.train(epochs = epochs, start = iter+1, lr = lr)
             self.save()
 
             
