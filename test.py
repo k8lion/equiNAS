@@ -32,21 +32,25 @@ class TestTDRegEquiCNN(unittest.TestCase):
 
 
     def test_offspring(self):
-        tochange = 3
+        torch.set_printoptions(sci_mode=False)
+        tochange = 4
         model = models.TDRegEquiCNN(gs = [(0,2) for _ in range(tochange+1)]+[(0,1) for _ in range(5-tochange)])
-        # for i in range(len(model.blocks)):
-        #     if "0" in model.blocks[i]._modules.keys():
-        #         model.blocks[i]._modules["0"].weight = torch.nn.Parameter(torch.zeros_like(model.blocks[i]._modules["0"].weight))
-        #         print(i, model.blocks[i]._modules["0"].weight.shape)
-        #         if i > 0:
-        #             for j in range(model.blocks[i]._modules["0"].weight.shape[2]):
-        #                 model.blocks[i]._modules["0"].weight.data[:,:,j,2,2] += 1
-        #         else:
-        #             for j in range(model.blocks[i]._modules["0"].weight.shape[1]):
-        #                 model.blocks[i]._modules["0"].weight.data[:,j,3,3] += 1 
-        #         if i > 4:
-        #             for j in range(model.blocks[i]._modules["0"].weight.shape[2]):
-        #                 model.blocks[i]._modules["0"].weight.data[:,:,j,2,2] += j
+        for i in range(len(model.blocks)):
+            if "0" in model.blocks[i]._modules.keys():
+                # model.blocks[i]._modules["0"].weight = torch.nn.Parameter(torch.zeros_like(model.blocks[i]._modules["0"].weight))
+                # print(i, model.blocks[i]._modules["0"].weight.shape)
+                # if i > 0:
+                #     for j in range(model.blocks[i]._modules["0"].weight.shape[2]):
+                #         model.blocks[i]._modules["0"].weight.data[:,:,j,2,2] += 1
+                # else:
+                #     for j in range(model.blocks[i]._modules["0"].weight.shape[1]):
+                #         model.blocks[i]._modules["0"].weight.data[:,j,3,3] += 1 
+                if i == tochange:
+                    model.blocks[i]._modules["0"].weight = torch.nn.Parameter(torch.zeros_like(model.blocks[i]._modules["0"].weight))
+                    for j in range(model.blocks[i]._modules["0"].weight.shape[2]):
+                        for k in range(model.blocks[i]._modules["0"].weight.shape[0]):
+                            for l in range(model.blocks[i]._modules["0"].weight.shape[1]):
+                                model.blocks[i]._modules["0"].weight.data[k,l,j,:,:] += j + k*100 + l*10
         child = model.offspring(tochange, (0,1))
         #print(model.gs)
         #print(child.gs)
@@ -54,11 +58,20 @@ class TestTDRegEquiCNN(unittest.TestCase):
         xchild = xmodel.clone()
         for i in range(len(model.blocks)):
             #print("modules", i, model.blocks[i]._modules.keys(), child.blocks[i]._modules.keys())
-            if "0" in model.blocks[i]._modules.keys() and model.blocks[i]._modules["0"].weight.shape != child.blocks[i]._modules["0"].weight.shape:
-                child_filter, child_x = child.blocks[i]._modules["0"].test_filter_x(xchild)
-                model_filter, model_x = model.blocks[i]._modules["0"].test_filter_x(xmodel)
-                #print("model:", model.blocks[i]._modules["0"].weight.shape, model_filter.shape, model_x.shape, model.blocks[i]._modules["0"].weight[:,0,:,0,0], model_filter[:,0,0,0], model_filter[0,:,0,0])
-                #print("child:", child.blocks[i]._modules["0"].weight.shape, child_filter.shape, child_x.shape, child.blocks[i]._modules["0"].weight[:,0,:,0,0], child_filter[:,0,0,0], child_filter[0,:,0,0])
+            if "0" in model.blocks[i]._modules.keys() and i == 5: #model.blocks[i]._modules["0"].weight.shape != child.blocks[i]._modules["0"].weight.shape:
+                child_filter, child_x, child_bias = child.blocks[i]._modules["0"].test_filter_x(xchild)
+                model_filter, model_x, model_bias = model.blocks[i]._modules["0"].test_filter_x(xmodel)
+                print("model:", model.blocks[i]._modules["0"].weight.shape, model_filter.shape, model.blocks[i]._modules["0"].weight[:,0,:,0,0], model_filter[:,0,0,0], model_filter[0:4,0:8,0,0])
+                print("child:", child.blocks[i]._modules["0"].weight.shape, child_filter.shape, child.blocks[i]._modules["0"].weight[:,0,:,0,0], child_filter[:,0,0,0], child_filter[0:4,0:8,0,0])
+                print("model_x:", model_x.shape, model_x[0,0,0,:])
+                print("child_x:", child_x.shape, child_x[0,0,0,:])
+                print("model_bias:", model_bias.shape, model_bias)
+                print("child_bias:", child_bias.shape, child_bias)
+                self.assertTrue(torch.allclose(xmodel, xchild, rtol = 1e-4, atol = 1e-4))
+                self.assertTrue(torch.allclose(model_filter, child_filter, rtol = 1e-4, atol = 1e-4))
+                self.assertTrue(torch.allclose(model_x, child_x, rtol = 1e-4, atol = 1e-4))
+                self.assertTrue(torch.allclose(model_bias, child_bias, rtol = 1e-4, atol = 1e-4))
+                self.assertTrue(torch.allclose(model.blocks[i](xmodel), child.blocks[i](xchild), rtol = 1e-4, atol = 1e-4))
             xmodel = model.blocks[i](xmodel)
             xchild = child.blocks[i](xchild)
             #print("x shapes", xmodel.shape, xchild.shape)
@@ -72,16 +85,19 @@ class TestTDRegEquiCNN(unittest.TestCase):
             else:
                 xmodel_rs = xmodel
             if not torch.allclose(xmodel_rs, xchild):
-                mockxmodel = torch.zeros_like(xmodel)
-                mockxchild = torch.zeros_like(xchild)
+                #mockxmodel = torch.zeros_like(xmodel)
+                #mockxchild = torch.zeros_like(xchild)
                 if "0" in model.blocks[i]._modules.keys():
                     print("weight shapes", model.blocks[i]._modules["0"].weight.shape, child.blocks[i]._modules["0"].weight.shape)
                 #print("x sample", xmodel_rs[0,0,0], xchild[0,0,0])
                 #print("diff:", (xmodel_rs-xchild).abs().max())
-            #print(i, )
-            #if i < 0:
-            #    xmodel = xmodel * 0 + 1
-            #    xchild = xchild * 0 + 1
+            if i == 3:
+                xmodel = xmodel * 0 + 1
+                xchild = xchild * 0 + 1
+            elif i >= 4:
+                print(i, (xmodel-xchild).abs().sum())
+                print(i, "xmodel:", xmodel.shape, xmodel[0,4:8,1,0:4,1])
+                print(i, "xchild:", xchild.shape, xchild[0,4:8,1,0:4,1])
         print(xmodel.reshape(xmodel.shape[0], -1)[0,:])
         print(xchild.reshape(xchild.shape[0], -1)[0,:])
         xmodel = model.full1(xmodel.reshape(xmodel.shape[0], -1))
