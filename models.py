@@ -211,9 +211,7 @@ class GroupConv2d(torch.nn.Module):
         filter = filter.reshape(out_channels, groupsize(group), in_channels, groupsize(group), self.kernel_size, self.kernel_size)
 
         child = GroupConv2d(group, in_channels, out_channels, self.kernel_size, self.padding, self.bias is not None)
-        print(child.weight.shape)
         child.weight.data = filter[:, 0]
-        print(child.weight.shape)
         if bias is not None:
             bias = bias.clone().reshape(self.out_channels * groupsize(self.group)).reshape(out_channels, groupsize(group))
             child.bias.data = bias[:, 0]
@@ -348,7 +346,7 @@ class TDRegEquiCNN(torch.nn.Module):
             #print(i, self.gs[i], int(self.channels[i-1]/groupsize(self.gs[i])), int(self.channels[i]/groupsize(self.gs[i])))
             self.blocks.append(torch.nn.Sequential(
                 GroupConv2d(self.gs[i], int(self.channels[i-1]/groupsize(self.gs[i])), int(self.channels[i]/groupsize(self.gs[i])), self.kernels[i], self.paddings[i], bias=True),
-                #torch.nn.BatchNorm3d(int(self.channels[i]/groupsize(self.gs[i]))),
+                torch.nn.BatchNorm3d(int(self.channels[i]/groupsize(self.gs[i]))),
                 torch.nn.ReLU(inplace=True)
                 )
             )
