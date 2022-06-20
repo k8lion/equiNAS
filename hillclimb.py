@@ -15,6 +15,7 @@ class HillClimber(object):
         print(self.filename)
         self.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
         self.train_loader, self.validation_loader, self.test_loader = utilities.get_dataloaders(path_to_dir="..")
+        self.reg = reg
         if reg:
             self.model = models.TDRegEquiCNN(gs=[(0,2) for _ in range(6)])
         else:
@@ -211,7 +212,11 @@ class HillClimber(object):
         allgs += [[(0,i) for _ in range(4)]+[(0,1),(0,0)] for i in range(2,upper)]
         allgs += [[(0,i) for _ in range(4)]+[(0,1),(0,1)] for i in range(2,upper)]
         for gs in allgs:
-            self.options.append(models.EquiCNN(reset=False, gs = gs))
+            if self.reg:
+                model = models.TDRegEquiCNN(gs = gs)
+            else:
+                model = models.EquiCNN(reset=False, gs = gs)
+            self.options.append(model)
         for iter in range(iterations):
             self.train(epochs = epochs, start = iter+1, lr = lr)
             self.save()
