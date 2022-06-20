@@ -3,6 +3,8 @@ import torch.nn.functional as F
 import numpy as np
 import copy
 import uuid
+import escnn
+from escnn import gspaces
 
 
 def rotmat2d(theta):
@@ -70,6 +72,22 @@ def adapt(parentweight: torch.Tensor, parentg, childg, inchannels, outchannels):
         weight = torch.unsqueeze(weight, dim = 2)
     return weight[:, inchannelorder]
 
+def replicate(parent: torch.nn.Module, childg, inchannels, outchannels):
+
+    filter, bias = parent.build_filter()
+    #reorder?
+    filter = filter.clone().reshape(parent.out_channels * groupsize(parent.group), parent.in_channels * groupsize(parent.group), parent.kernel_size, parent.kernel_size)
+    filter = filter.reshape(outchannels, groupsize(childg), inchannels * childg, parent.kernel_size, parent.kernel_size)
+
+    child = parent.initchild(childg, inchannels, outchannels)
+
+    child.weight = filter[:, 0]
+    if bias is not None:
+        bias = bias.clone().reshape(parent.out_channels * groupsize(parent.group)).reshape(outchannels, groupsize(childg))
+        child.bias = bias[:, 0]
+
+    return child
+
 def groupsize(g: tuple):
     return 2**sum(g)
 
@@ -104,6 +122,21 @@ class LiftingConv2d(torch.nn.Module):
         else:
             self.bias = None
 
+    def replicate(self, group:tuple, out_channels: int):
+        filter, bias = self.build_filter()
+        #reorder?
+        filter = filter.clone().reshape(self.out_channels * groupsize(self.group), self.in_channels, self.kernel_size, self.kernel_size)
+        filter = filter.reshape(out_channels, groupsize(group), self.in_channels, self.kernel_size, self.kernel_size)
+
+        child = LiftingConv2d(group, self.in_channels, out_channels, self.kernel_size, self.padding, self.bias is not None)
+
+        child.weight.data = filter[:, 0]
+        if bias is not None:
+            bias = bias.clone().reshape(self.out_channels * groupsize(self.group)).reshape(out_channels, groupsize(group))
+            child.bias.data = bias[:, 0]
+
+        return child
+  
     def test_filter_x(self, x: torch.Tensor) -> torch.Tensor:
 
         _filter, _bias = self.build_filter()
@@ -170,7 +203,22 @@ class GroupConv2d(torch.nn.Module):
             self.bias = torch.nn.Parameter(torch.zeros(out_channels), requires_grad=True)
         else:
             self.bias = None
-      
+    
+    def replicate(self, group:tuple, in_channels: int, out_channels: int):
+        filter, bias = self.build_filter()
+        #reorder?
+        filter = filter.clone().reshape(self.out_channels * groupsize(self.group), self.in_channels * groupsize(self.group), self.kernel_size, self.kernel_size)
+        filter = filter.reshape(out_channels, groupsize(group), in_channels, groupsize(group), self.kernel_size, self.kernel_size)
+
+        child = GroupConv2d(group, in_channels, out_channels, self.kernel_size, self.padding, self.bias is not None)
+        print(child.weight.shape)
+        child.weight.data = filter[:, 0]
+        print(child.weight.shape)
+        if bias is not None:
+            bias = bias.clone().reshape(self.out_channels * groupsize(self.group)).reshape(out_channels, groupsize(group))
+            child.bias.data = bias[:, 0]
+
+        return child
   
     def build_filter(self) -> torch.Tensor:
         
@@ -233,8 +281,10 @@ class Reshaper(torch.nn.Module):
         self.in_channels = in_channels
         self.in_groupsize = in_groupsize
         self.out_groupsize = out_groupsize
-        self.in_order = [int('{:0{width}b}'.format(n, width=int(np.log2(in_groupsize)))[::-1], 2) for n in range(in_groupsize)]
-        self.out_order = [int('{:0{width}b}'.format(n, width=int(np.log2(out_groupsize)))[::-1], 2) for n in range(out_groupsize)]
+        #self.in_order = [int('{:0{width}b}'.format(n, width=int(np.log2(in_groupsize)))[::-1], 2) for n in range(in_groupsize)]
+        #self.out_order = [int('{:0{width}b}'.format(n, width=int(np.log2(out_groupsize)))[::-1], 2) for n in range(out_groupsize)]
+        self.in_order = range(in_groupsize)
+        self.out_order = range(out_groupsize)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         assert x.shape[1] == self.in_channels
@@ -287,11 +337,12 @@ class TDRegEquiCNN(torch.nn.Module):
             )
         )
         if not init:
-            parentweight = parent.blocks[0]._modules["0"].weight.data
-            self.blocks[0]._modules["0"].weight.data = torch.cat([rotate_n(parentweight.clone(), i, groupsize(parent.gs[0])) for i in range(groupdifference(parent.gs[0], self.gs[0]))], dim=0)
-            if self.gs[0] == parent.gs[0]:
-                self.blocks[0]._modules["0"].bias.data = parent.blocks[0]._modules["0"].bias.data.clone()
-            #TODO: else
+            self.blocks[0]._modules["0"] = parent.blocks[0]._modules["0"].replicate(self.gs[0], int(self.channels[0]/groupsize(self.gs[0])))
+            # parentweight = parent.blocks[0]._modules["0"].weight.data
+            # self.blocks[0]._modules["0"].weight.data = torch.cat([rotate_n(parentweight.clone(), i, groupsize(parent.gs[0])) for i in range(groupdifference(parent.gs[0], self.gs[0]))], dim=0)
+            # if self.gs[0] == parent.gs[0]:
+            #     self.blocks[0]._modules["0"].bias.data = parent.blocks[0]._modules["0"].bias.data.clone()
+            # #TODO: else
         
         for i in range(1, len(self.gs)):
             #print(i, self.gs[i], int(self.channels[i-1]/groupsize(self.gs[i])), int(self.channels[i]/groupsize(self.gs[i])))
@@ -303,14 +354,16 @@ class TDRegEquiCNN(torch.nn.Module):
             )
             if i == 1 or i == 3:
                 self.blocks[i].add_module(name="pool", module = torch.nn.AvgPool3d((1,3,3), (1,2,2), padding=(0,1,1)))
+
             if not init and self.gs[i] == parent.gs[i]:
                 self.blocks[i] = copy.deepcopy(parent.blocks[i])
-            elif not init:            
-                weight = adapt(parent.blocks[i]._modules["0"].weight.data.clone(), parent.gs[i], self.gs[i], 
-                               self.blocks[i]._modules["0"].weight.shape[1], self.blocks[i]._modules["0"].weight.shape[0])
-                self.blocks[i]._modules["0"].weight.data = weight
-                #TODO: repeat_interleave?
-                self.blocks[i]._modules["0"].bias.data = parent.blocks[i]._modules["0"].bias.data.repeat(groupdifference(parent.gs[i], self.gs[i]))
+            elif not init:   
+                self.blocks[i]._modules["0"] = parent.blocks[i]._modules["0"].replicate(self.gs[i], int(self.channels[i-1]/groupsize(self.gs[i])), int(self.channels[i]/groupsize(self.gs[i])))
+                # weight = adapt(parent.blocks[i]._modules["0"].weight.data.clone(), parent.gs[i], self.gs[i], 
+                #                self.blocks[i]._modules["0"].weight.shape[1], self.blocks[i]._modules["0"].weight.shape[0])
+                # self.blocks[i]._modules["0"].weight.data = weight
+                # #TODO: repeat_interleave?
+                # self.blocks[i]._modules["0"].bias.data = parent.blocks[i]._modules["0"].bias.data.repeat(groupdifference(parent.gs[i], self.gs[i]))
 
             if i < len(self.gs)-1:
                 if self.gs[i+1] != self.gs[i]:
@@ -379,4 +432,255 @@ class TDRegEquiCNN(torch.nn.Module):
         #         if hasattr(child.full1._modules[key], "weight"):
         #             print("full1", key, torch.allclose(child.full1._modules[key].weight, self.full1._modules[key].weight, atol=1e-5, rtol=1e-5))
         #     print("full2", key, torch.allclose(child.full2.weight, self.full2.weight, atol=1e-5, rtol=1e-5))
+        return child
+
+
+def first(od):
+    for item in od.values():
+        return item
+
+def sgid(index, previous_index = None):
+    if previous_index is not None:
+        if previous_index[0] == 0 and index[0] == 0:
+            return 2**index[1]
+        if previous_index[1] == 0 and index[1] == 0:
+            return index[0]
+    if index[0] == 0:
+        return (None, 2**index[1])
+    return (0, 2**index[1])
+    
+
+class EquiCNN(torch.nn.Module):
+    
+    def __init__(self, reset = False, gs = [(0,0) for _ in range(6)], parent = None):
+        
+        super(EquiCNN, self).__init__()
+
+        self.uuid = uuid.uuid4()
+        if parent is not None:
+            self.parent = parent.uuid
+        else:
+            self.parent = None
+        self.superspace = gspaces.flipRot2dOnR2(N=8)
+        self.gspaces = np.transpose(np.column_stack(([gspaces.trivialOnR2(), gspaces.rot2dOnR2(N=2), gspaces.rot2dOnR2(N=4), gspaces.rot2dOnR2(N=8)], [gspaces.flip2dOnR2(), gspaces.flipRot2dOnR2(N=2), gspaces.flipRot2dOnR2(N=4), gspaces.flipRot2dOnR2(N=8)])))
+        self.gs = gs
+        self.channels = [24, 48, 48, 96, 96, 64]
+        self.kernels = [7, 5, 5, 5, 5, 5]
+        self.paddings = [1, 2, 2, 2, 2, 1]
+        self.blocks = torch.nn.ModuleList([])
+        self.architect(parent)
+        self.reset = reset #TODO: if true, reinit changed layer, else network morphism 
+        self.loss_function = torch.nn.CrossEntropyLoss()
+        self.score = -1
+        self.optimizer = torch.optim.Adam(self.parameters(), lr=5e-5)
+
+    def architect(self, parent = None):
+        init = (parent is None)
+        if not init and self.gs == parent.gs:
+            self.input_type = parent.input_type
+            self.blocks = torch.nn.ModuleList([escnn.nn.SequentialModule(block._modules) if hasattr(block, "_modules") and len(block._modules) > 0 else copy.deepcopy(block) for block in parent.blocks])
+            self.superspace = parent.superspace
+            self.full1 = copy.deepcopy(parent.full1)
+            self.full2 = copy.deepcopy(parent.full2)
+            for i in range(len(self.gs)):
+                self.blocks[i]._modules['0'].weights = copy.deepcopy(parent.blocks[i]._modules['0'].weights)
+            return
+        G, _, _ = self.superspace.restrict(sgid(self.gs[0])) 
+        in_type = escnn.nn.FieldType(G, [G.trivial_repr])
+        self.input_type = in_type
+        for i in range(len(self.gs)):
+            out_type = escnn.nn.FieldType(G, int(self.channels[i]/np.sqrt(G.fibergroup.order()))*[G.regular_repr])
+            #if init or self.gs[i] != parent.gs[i]:
+            #if init or (in_type != parent.blocks[i].in_type or out_type != first(parent.blocks[i]._modules).out_type):
+            self.blocks.append(escnn.nn.SequentialModule(
+                escnn.nn.R2Conv(in_type, out_type, kernel_size=self.kernels[i], padding=self.paddings[i], bias=False),
+                escnn.nn.InnerBatchNorm(out_type),
+                escnn.nn.ReLU(out_type, inplace=True)
+            ))
+            if i == 1 or i == 3:
+                self.blocks[i].add_module(name="pool", module=escnn.nn.PointwiseAvgPoolAntialiased(out_type, sigma=0.66, stride=2))                    
+            if not (init or (in_type != parent.blocks[i].in_type or out_type != first(parent.blocks[i]._modules).out_type)):
+                self.blocks[i]._modules['0'].weights = copy.deepcopy(parent.blocks[i]._modules['0'].weights)
+
+
+            if i < len(self.gs)-1:
+                if self.gs[i] != self.gs[i+1] and "restrict" not in self.blocks[i]._modules.keys():
+                    sg = sgid(self.gs[i+1], self.gs[i])
+                    restrict = escnn.nn.RestrictionModule(self.blocks[i].out_type, sg)
+                    self.blocks[i].add_module(name="restrict", module=restrict)
+                    G, _, _ = copy.deepcopy(G).restrict(sg)
+                    disentangle = escnn.nn.DisentangleModule(restrict.out_type)
+                    self.blocks[i].add_module(name="disentangle", module=disentangle)
+                    out_type = disentangle.out_type
+                if self.gs[i] == self.gs[i+1] and "restrict" in self.blocks[i]._modules.keys():
+                    del self.blocks[i]._modules["restrict"]
+                    del self.blocks[i]._modules["disentangle"]
+            in_type = out_type
+        if init:
+            self.blocks.append(escnn.nn.PointwiseAvgPoolAntialiased(out_type, sigma=0.66, stride=1, padding=0))
+            self.blocks.append(escnn.nn.GroupPooling(out_type))
+            self.full1 = torch.nn.Sequential(
+                torch.nn.Linear(self.blocks[-1].out_type.size, 64),
+                torch.nn.BatchNorm1d(64),
+                torch.nn.ELU(inplace=True),
+            )
+            self.full2 = torch.nn.Linear(64, 10)
+        else:
+            self.blocks += [copy.deepcopy(block) for block in parent.blocks[-2:]]
+        
+            self.full1 = copy.deepcopy(parent.full1)
+            self.full2 = copy.deepcopy(parent.full2)
+            if out_type != parent.blocks[len(self.gs)].out_type:
+                self.blocks[len(self.gs)] = escnn.nn.PointwiseAvgPoolAntialiased(out_type, sigma=0.66, stride=1, padding=0)
+                self.blocks[len(self.gs)+1] = escnn.nn.GroupPooling(out_type)
+                self.full1 = torch.nn.Sequential(
+                    torch.nn.Linear(self.blocks[-1].out_type.size, 64),
+                    torch.nn.BatchNorm1d(64),
+                    torch.nn.ELU(inplace=True),
+                )
+
+    def forward(self, input: torch.Tensor):
+        x = escnn.nn.GeometricTensor(input, self.input_type)
+        for (i,block) in enumerate(self.blocks):
+            x = block(x)
+        x = x.tensor
+        x = self.full1(x.reshape(x.shape[0], -1))
+        return self.full2(x)
+
+    def generate(self):
+        candidates = [self.offspring(-1, self.gs[0])]
+        for d in range(1,len(self.gs[0])):
+            if self.gs[0][d] < self.gspaces.shape[d]-1:
+                g = list(self.gs[0])
+                g[d] += 1
+                candidates.append(self.offspring(0, tuple(g)))
+        for i in range(1, len(self.gs)):
+            if self.gs[i][0] < self.gs[i-1][0] or self.gs[i][1] < self.gs[i-1][1]:
+                candidates.append(self.offspring(i, self.gs[i-1]))
+        return candidates
+
+    def offspring(self, i, G):
+        gs = [g for g in self.gs]
+        if i >= 0:
+            gs[i] = G
+        child = EquiCNN(reset = self.reset, gs = gs, parent=self)
+        return child
+
+
+
+class TDEquiCNN(torch.nn.Module):
+    
+    def __init__(self, reset = False, gs = [(0,0) for _ in range(6)], parent = None):
+        
+        super(TDEquiCNN, self).__init__()
+
+        self.uuid = uuid.uuid4()
+        if parent is not None:
+            self.parent = parent.uuid
+        else:
+            self.parent = None
+        self.superspace = gspaces.flipRot2dOnR2(N=8)
+        self.gspaces = np.transpose(np.column_stack(([gspaces.trivialOnR2(), gspaces.rot2dOnR2(N=2), gspaces.rot2dOnR2(N=4), gspaces.rot2dOnR2(N=8)], [gspaces.flip2dOnR2(), gspaces.flipRot2dOnR2(N=2), gspaces.flipRot2dOnR2(N=4), gspaces.flipRot2dOnR2(N=8)])))
+        self.gs = gs
+        #self.channels = [24, 48, 48, 96, 96, 64]
+        self.channels = [8, 8, 8, 8, 8, 64]
+        self.kernels = [7, 5, 5, 5, 5, 5]
+        self.paddings = [1, 2, 2, 2, 2, 1]
+        self.blocks = torch.nn.ModuleList([])
+        self.architect(parent)
+        self.reset = reset #TODO: if true, reinit changed layer, else network morphism 
+        self.loss_function = torch.nn.CrossEntropyLoss()
+        self.score = -1
+        self.optimizer = torch.optim.Adam(self.parameters(), lr=5e-5)
+
+    def architect(self, parent = None):
+        init = (parent is None)
+        if not init and self.gs == parent.gs:
+            self.input_type = parent.input_type
+            self.blocks = torch.nn.ModuleList([escnn.nn.SequentialModule(block._modules) if hasattr(block, "_modules") and len(block._modules) > 0 else copy.deepcopy(block) for block in parent.blocks])
+            self.superspace = parent.superspace
+            self.full1 = copy.deepcopy(parent.full1)
+            self.full2 = copy.deepcopy(parent.full2)
+            for i in range(len(self.gs)):
+                self.blocks[i]._modules['0'].weights = copy.deepcopy(parent.blocks[i]._modules['0'].weights)
+            return
+        G, _, _ = self.superspace.restrict(sgid(self.gs[0])) 
+        in_type = escnn.nn.FieldType(G, [G.trivial_repr])
+        self.input_type = in_type
+        for i in range(len(self.gs)):
+            out_type = escnn.nn.FieldType(G, int(self.channels[i])*[G.regular_repr]) #/np.sqrt(G.fibergroup.order())
+            #if init or self.gs[i] != parent.gs[i]:
+            #if init or (in_type != parent.blocks[i].in_type or out_type != first(parent.blocks[i]._modules).out_type):
+            self.blocks.append(escnn.nn.SequentialModule(
+                escnn.nn.R2Conv(in_type, out_type, kernel_size=self.kernels[i], padding=self.paddings[i], bias=False),
+                escnn.nn.InnerBatchNorm(out_type),
+                escnn.nn.ReLU(out_type, inplace=True)
+            ))
+            if i == 1 or i == 3:
+                self.blocks[i].add_module(name="pool", module=escnn.nn.PointwiseAvgPoolAntialiased(out_type, sigma=0.66, stride=2))                    
+            if not (init or (in_type != parent.blocks[i].in_type or out_type != first(parent.blocks[i]._modules).out_type)):
+                self.blocks[i]._modules['0'].weights = copy.deepcopy(parent.blocks[i]._modules['0'].weights)
+
+
+            if i < len(self.gs)-1:
+                if self.gs[i] != self.gs[i+1] and "restrict" not in self.blocks[i]._modules.keys():
+                    sg = sgid(self.gs[i+1], self.gs[i])
+                    restrict = escnn.nn.RestrictionModule(self.blocks[i].out_type, sg)
+                    self.blocks[i].add_module(name="restrict", module=restrict)
+                    G, _, _ = copy.deepcopy(G).restrict(sg)
+                    disentangle = escnn.nn.DisentangleModule(restrict.out_type)
+                    self.blocks[i].add_module(name="disentangle", module=disentangle)
+                    out_type = disentangle.out_type
+                if self.gs[i] == self.gs[i+1] and "restrict" in self.blocks[i]._modules.keys():
+                    del self.blocks[i]._modules["restrict"]
+                    del self.blocks[i]._modules["disentangle"]
+            in_type = out_type
+        if init:
+            self.blocks.append(escnn.nn.PointwiseAvgPoolAntialiased(out_type, sigma=0.66, stride=1, padding=0))
+            self.blocks.append(escnn.nn.GroupPooling(out_type))
+            self.full1 = torch.nn.Sequential(
+                torch.nn.Linear(self.blocks[-1].out_type.size, 64),
+                torch.nn.BatchNorm1d(64),
+                torch.nn.ELU(inplace=True),
+            )
+            self.full2 = torch.nn.Linear(64, 10)
+        else:
+            self.blocks += [copy.deepcopy(block) for block in parent.blocks[-2:]]
+        
+            self.full1 = copy.deepcopy(parent.full1)
+            self.full2 = copy.deepcopy(parent.full2)
+            if out_type != parent.blocks[len(self.gs)].out_type:
+                self.blocks[len(self.gs)] = escnn.nn.PointwiseAvgPoolAntialiased(out_type, sigma=0.66, stride=1, padding=0)
+                self.blocks[len(self.gs)+1] = escnn.nn.GroupPooling(out_type)
+                self.full1 = torch.nn.Sequential(
+                    torch.nn.Linear(self.blocks[-1].out_type.size, 64),
+                    torch.nn.BatchNorm1d(64),
+                    torch.nn.ELU(inplace=True),
+                )
+
+    def forward(self, input: torch.Tensor):
+        x = escnn.nn.GeometricTensor(input, self.input_type)
+        for (i,block) in enumerate(self.blocks):
+            x = block(x)
+        x = x.tensor
+        x = self.full1(x.reshape(x.shape[0], -1))
+        return self.full2(x)
+
+    def generate(self):
+        candidates = [self.offspring(-1, self.gs[0])]
+        for d in range(1,len(self.gs[0])):
+            if self.gs[0][d] < self.gspaces.shape[d]-1:
+                g = list(self.gs[0])
+                g[d] += 1
+                candidates.append(self.offspring(0, tuple(g)))
+        for i in range(1, len(self.gs)):
+            if self.gs[i][0] < self.gs[i-1][0] or self.gs[i][1] < self.gs[i-1][1]:
+                candidates.append(self.offspring(i, self.gs[i-1]))
+        return candidates
+
+    def offspring(self, i, G):
+        gs = [g for g in self.gs]
+        if i >= 0:
+            gs[i] = G
+        child = TDEquiCNN(reset = self.reset, gs = gs, parent=self)
         return child

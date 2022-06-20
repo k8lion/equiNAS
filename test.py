@@ -96,8 +96,8 @@ class TestTDRegEquiCNN(unittest.TestCase):
                 xchild = xchild * 0 + 1
             elif i >= 4:
                 print(i, (xmodel-xchild).abs().sum())
-                print(i, "xmodel:", xmodel.shape, xmodel[0,4:8,1,0:4,1])
-                print(i, "xchild:", xchild.shape, xchild[0,4:8,1,0:4,1])
+                print(i, "xmodel:", xmodel.shape)
+                print(i, "xchild:", xchild.shape)
         print(xmodel.reshape(xmodel.shape[0], -1)[0,:])
         print(xchild.reshape(xchild.shape[0], -1)[0,:])
         xmodel = model.full1(xmodel.reshape(xmodel.shape[0], -1))
