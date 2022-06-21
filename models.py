@@ -72,22 +72,6 @@ def adapt(parentweight: torch.Tensor, parentg, childg, inchannels, outchannels):
         weight = torch.unsqueeze(weight, dim = 2)
     return weight[:, inchannelorder]
 
-def replicate(parent: torch.nn.Module, childg, inchannels, outchannels):
-
-    filter, bias = parent.build_filter()
-    #reorder?
-    filter = filter.clone().reshape(parent.out_channels * groupsize(parent.group), parent.in_channels * groupsize(parent.group), parent.kernel_size, parent.kernel_size)
-    filter = filter.reshape(outchannels, groupsize(childg), inchannels * childg, parent.kernel_size, parent.kernel_size)
-
-    child = parent.initchild(childg, inchannels, outchannels)
-
-    child.weight = filter[:, 0]
-    if bias is not None:
-        bias = bias.clone().reshape(parent.out_channels * groupsize(parent.group)).reshape(outchannels, groupsize(childg))
-        child.bias = bias[:, 0]
-
-    return child
-
 def groupsize(g: tuple):
     return 2**sum(g)
 
@@ -289,10 +273,10 @@ class Reshaper(torch.nn.Module):
         self.out_groupsize = out_groupsize
         if ordered:
             self.in_order = [int('{:0{width}b}'.format(n, width=int(np.log2(in_groupsize)))[::-1], 2) for n in range(in_groupsize)]
-            #self.out_order = [int('{:0{width}b}'.format(n, width=int(np.log2(out_groupsize)))[::-1], 2) for n in range(out_groupsize)]
+            self.out_order = [int('{:0{width}b}'.format(n, width=int(np.log2(out_groupsize)))[::-1], 2) for n in range(out_groupsize)]
         else:
             self.in_order = range(in_groupsize)
-        self.out_order = range(out_groupsize)
+            self.out_order = range(out_groupsize)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         assert x.shape[1] == self.in_channels
@@ -332,12 +316,12 @@ class TDRegEquiCNN(torch.nn.Module):
 
     def architect(self, parent = None):
         #TODO test morphism
+        reshaper = None
         init = (parent is None)
         if not init and self.gs == parent.gs:
             self.blocks = copy.deepcopy(parent.blocks)
             self.full1 = copy.deepcopy(parent.full1)
             self.full2 = copy.deepcopy(parent.full2)
-            #self = copy.deepcopy(parent)
             return 
         self.blocks.append(torch.nn.Sequential(
                 LiftingConv2d(self.gs[0], 1, int(self.channels[0]/groupsize(self.gs[0])), self.kernels[0], self.paddings[0], bias=True),
@@ -376,7 +360,8 @@ class TDRegEquiCNN(torch.nn.Module):
 
             if i < len(self.gs)-1:
                 if self.gs[i+1] != self.gs[i]:
-                    self.blocks[i].add_module(name="reshaper", module = Reshaper(in_channels=int(self.channels[i]/groupsize(self.gs[i])), out_channels=int(self.channels[i]/groupsize(self.gs[i+1])), in_groupsize=groupsize(self.gs[i]), out_groupsize=groupsize(self.gs[i+1]), ordered=self.ordered))
+                    reshaper = Reshaper(in_channels=int(self.channels[i]/groupsize(self.gs[i])), out_channels=int(self.channels[i]/groupsize(self.gs[i+1])), in_groupsize=groupsize(self.gs[i]), out_groupsize=groupsize(self.gs[i+1]), ordered=self.ordered)
+                    self.blocks[i].add_module(name="reshaper", module = reshaper)
 
         if init:
             self.blocks.append(torch.nn.AvgPool3d((groupsize(self.gs[-1]),5,5), (1,1,1), padding=(0,0,0)))
@@ -402,6 +387,12 @@ class TDRegEquiCNN(torch.nn.Module):
                 self.full1._modules["0"].weight.data = torch.repeat_interleave(parent.full1._modules["0"].weight.data, groupdifference(parent.gs[-1], self.gs[-1]), dim=1)/groupdifference(parent.gs[-1], self.gs[-1])
                 if parent.full1._modules["0"].bias is not None:
                     self.full1._modules["0"].bias.data = parent.full1._modules["0"].bias.data.clone()
+        
+        #if reshaper is not None:
+        #    print(self.full1._modules["0"].weight.data.shape)
+        #    print(reshaper.in_order)
+        #    print(reshaper.out_order)
+        #    #self.full1._modules["0"].weight.data = self.full1._modules["0"].weight.data[:,reshaper.out_order]
 
 
     def forward(self, x: torch.Tensor):
@@ -444,6 +435,11 @@ class TDRegEquiCNN(torch.nn.Module):
         return child
 
 
+
+
+
+
+
 def first(od):
     for item in od.values():
         return item
@@ -457,7 +453,6 @@ def sgid(index, previous_index = None):
     if index[0] == 0:
         return (None, 2**index[1])
     return (0, 2**index[1])
-    
 
 class EquiCNN(torch.nn.Module):
     
