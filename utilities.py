@@ -50,8 +50,12 @@ def get_dataloaders(path_to_dir = "~"):
         resize2,
         totensor,
     ])
+    test_transform = Compose([
+        pad,
+        totensor,
+    ])
 
-    mnist_train = MnistRotDataset(mode='train', transform=train_transform, path_to_dir=path_to_dir)
+    mnist_train = MnistRotDataset(mode='train', transform=test_transform, path_to_dir=path_to_dir)
 
     shuffle_dataset = True
     random_seed= 42
@@ -74,10 +78,6 @@ def get_dataloaders(path_to_dir = "~"):
     validation_loader = DataLoader(mnist_train, batch_size=64,
                                                     sampler=valid_sampler)
 
-    test_transform = Compose([
-        pad,
-        totensor,
-    ])
     mnist_test = MnistRotDataset(mode='test', transform=test_transform, path_to_dir=path_to_dir)
     test_loader = DataLoader(mnist_test, batch_size=64)
 
