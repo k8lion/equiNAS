@@ -106,21 +106,25 @@ class LiftingConv2d(torch.nn.Module):
         else:
             self.bias = None
 
-    def replicate(self, group:tuple, out_channels: int, ordered: bool = False):
+    def replicate(self, group:tuple, ordered: bool = False):
         filter, bias = self.build_filter()
+        out_channels = int(self.out_channels*groupsize(self.group)/groupsize(group))
         
         if ordered:
-            order = [int('{:0{width}b}'.format(n, width=int(np.log2(groupsize(self.group))))[::-1], 2) for n in range(groupsize(self.group))]
-            filter = filter[:, order]
+            order1 = [int('{:0{width}b}'.format(n, width=int(np.log2(groupsize(self.group))))[::-1], 2) for n in range(groupsize(self.group))]
+            order2 = [int('{:0{width}b}'.format(n, width=int(np.log2(groupsize(group))))[::-1], 2) for n in range(groupsize(group))]
+        else:
+            order1 = range(groupsize(self.group))
+            order2 = range(groupsize(group))
 
-        filter = filter.clone().reshape(self.out_channels * groupsize(self.group), self.in_channels, self.kernel_size, self.kernel_size)
-        filter = filter.reshape(out_channels, groupsize(group), self.in_channels, self.kernel_size, self.kernel_size)
+        filter = filter.clone()[:,order1].reshape(self.out_channels * groupsize(self.group), self.in_channels, self.kernel_size, self.kernel_size)
+        filter = filter.reshape(out_channels, groupsize(group), self.in_channels, self.kernel_size, self.kernel_size)[:,order2]
 
         child = LiftingConv2d(group, self.in_channels, out_channels, self.kernel_size, self.padding, self.bias is not None)
 
         child.weight.data = filter[:, 0]
         if bias is not None:
-            bias = bias.clone().reshape(self.out_channels * groupsize(self.group)).reshape(out_channels, groupsize(group))
+            bias = bias.clone()[:,order1].reshape(self.out_channels * groupsize(self.group)).reshape(out_channels, groupsize(group))[:,order2]
             child.bias.data = bias[:, 0]
 
         return child
@@ -192,31 +196,32 @@ class GroupConv2d(torch.nn.Module):
         else:
             self.bias = None
     
-    def replicate(self, group:tuple, in_channels: int, out_channels: int, ordered: bool = False):
+    def replicate(self, group:tuple, ordered: bool = False):
         filter, bias = self.build_filter()
+        in_channels = int(self.in_channels*groupsize(self.group)/groupsize(group))
+        out_channels = int(self.out_channels*groupsize(self.group)/groupsize(group))
 
         if ordered:
-            order = [int('{:0{width}b}'.format(n, width=int(np.log2(groupsize(self.group))))[::-1], 2) for n in range(groupsize(self.group))]
-            filter = filter[:, order]
+            order1 = [int('{:0{width}b}'.format(n, width=int(np.log2(groupsize(self.group))))[::-1], 2) for n in range(groupsize(self.group))]
+            order2 = [int('{:0{width}b}'.format(n, width=int(np.log2(groupsize(group))))[::-1], 2) for n in range(groupsize(group))]
+        else:
+            order1 = range(groupsize(self.group))
+            order2 = range(groupsize(group))
 
-        filter = filter.clone().reshape(self.out_channels * groupsize(self.group), self.in_channels * groupsize(self.group), self.kernel_size, self.kernel_size)
-        filter = filter.reshape(out_channels, groupsize(group), in_channels, groupsize(group), self.kernel_size, self.kernel_size)
+        filter = filter.clone()[:, order1][:,:,:,order1].reshape(self.out_channels * groupsize(self.group), self.in_channels * groupsize(self.group), self.kernel_size, self.kernel_size)
+        filter = filter.reshape(out_channels, groupsize(group), in_channels, groupsize(group), self.kernel_size, self.kernel_size)[:, order2][:,:,:, order2]
 
         child = GroupConv2d(group, in_channels, out_channels, self.kernel_size, self.padding, self.bias is not None)
         child.weight.data = filter[:, 0]
         if bias is not None:
-            bias = bias.clone().reshape(self.out_channels * groupsize(self.group)).reshape(out_channels, groupsize(group))
+            bias = bias.clone()[:,order1].reshape(self.out_channels * groupsize(self.group)).reshape(out_channels, groupsize(group))[:,order2]
             child.bias.data = bias[:, 0]
 
         return child
   
     def build_filter(self) -> torch.Tensor:
         
-        #print("weight", self.weight.shape)
-
         _filter = torch.stack([rotatestack_n(self.weight.data, i, groupsize(self.group)) for i in range(groupsize(self.group))], dim = -5)
-
-        #print("filter", _filter.shape)
 
         if self.bias is not None:
             _bias = torch.stack([self.bias.data for _ in range(groupsize(self.group))], dim = 1)
@@ -330,7 +335,7 @@ class TDRegEquiCNN(torch.nn.Module):
             )
         )
         if not init:
-            self.blocks[0]._modules["0"] = parent.blocks[0]._modules["0"].replicate(self.gs[0], int(self.channels[0]/groupsize(self.gs[0])), ordered = self.ordered)
+            self.blocks[0]._modules["0"] = parent.blocks[0]._modules["0"].replicate(self.gs[0], ordered = self.ordered)
             # parentweight = parent.blocks[0]._modules["0"].weight.data
             # self.blocks[0]._modules["0"].weight.data = torch.cat([rotate_n(parentweight.clone(), i, groupsize(parent.gs[0])) for i in range(groupdifference(parent.gs[0], self.gs[0]))], dim=0)
             # if self.gs[0] == parent.gs[0]:
@@ -351,7 +356,7 @@ class TDRegEquiCNN(torch.nn.Module):
             if not init and self.gs[i] == parent.gs[i]:
                 self.blocks[i] = copy.deepcopy(parent.blocks[i])
             elif not init:   
-                self.blocks[i]._modules["0"] = parent.blocks[i]._modules["0"].replicate(self.gs[i], int(self.channels[i-1]/groupsize(self.gs[i])), int(self.channels[i]/groupsize(self.gs[i])), ordered = self.ordered)
+                self.blocks[i]._modules["0"] = parent.blocks[i]._modules["0"].replicate(self.gs[i], ordered = self.ordered)
                 # weight = adapt(parent.blocks[i]._modules["0"].weight.data.clone(), parent.gs[i], self.gs[i], 
                 #                self.blocks[i]._modules["0"].weight.shape[1], self.blocks[i]._modules["0"].weight.shape[0])
                 # self.blocks[i]._modules["0"].weight.data = weight
@@ -368,7 +373,7 @@ class TDRegEquiCNN(torch.nn.Module):
             #print(int(self.channels[-1]/groupsize(self.gs[-1])))
             self.full1 = torch.nn.Sequential(
                 torch.nn.Linear(int(self.channels[-1]/groupsize(self.gs[-1])), 64),
-                torch.nn.BatchNorm1d(64),
+                #torch.nn.BatchNorm1d(64),
                 torch.nn.ELU(inplace=True),
             )
             self.full2 = torch.nn.Linear(64, 10)
@@ -381,12 +386,13 @@ class TDRegEquiCNN(torch.nn.Module):
                 self.blocks[-1] = torch.nn.AvgPool3d((groupsize(self.gs[-1]),5,5), (1,1,1), padding=(0,0,0))
                 self.full1 = torch.nn.Sequential(
                     torch.nn.Linear(int(self.channels[-1]/groupsize(self.gs[-1])), 64),
-                    torch.nn.BatchNorm1d(64),
+                    #torch.nn.BatchNorm1d(64),
                     torch.nn.ELU(inplace=True),
                 )
                 self.full1._modules["0"].weight.data = torch.repeat_interleave(parent.full1._modules["0"].weight.data, groupdifference(parent.gs[-1], self.gs[-1]), dim=1)/groupdifference(parent.gs[-1], self.gs[-1])
                 if parent.full1._modules["0"].bias is not None:
                     self.full1._modules["0"].bias.data = parent.full1._modules["0"].bias.data.clone()
+                self.full1._modules["1"] = parent.full1._modules["1"].clone()
         
         #if reshaper is not None:
         #    print(self.full1._modules["0"].weight.data.shape)
