@@ -237,6 +237,6 @@ if __name__ == "__main__":
     print(args)
     hillclimb = HillClimber(allkids=args.allkids, reg=args.reg, ordered=args.ordered)
     if args.baselines:
-        hillclimb.baselines(iterations=args.iterations, epochs=args.epochs)
+        hillclimb.baselines(iterations=args.iterations, epochs=args.epochs, lr=args.lr)
     else:
         hillclimb.hillclimb(iterations=args.iterations, epochs=args.epochs, lr=args.lr)
