@@ -341,6 +341,10 @@ class TDRegEquiCNN(torch.nn.Module):
             # if self.gs[0] == parent.gs[0]:
             #     self.blocks[0]._modules["0"].bias.data = parent.blocks[0]._modules["0"].bias.data.clone()
             # #TODO: else
+        if self.gs[1] != self.gs[0]:
+            reshaper = Reshaper(in_channels=int(self.channels[0]/groupsize(self.gs[0])), out_channels=int(self.channels[0]/groupsize(self.gs[1])), in_groupsize=groupsize(self.gs[0]), out_groupsize=groupsize(self.gs[1]), ordered=self.ordered)
+            self.blocks[0].add_module(name="reshaper", module = reshaper)
+
         
         for i in range(1, len(self.gs)):
             #print(i, self.gs[i], int(self.channels[i-1]/groupsize(self.gs[i])), int(self.channels[i]/groupsize(self.gs[i])))
@@ -384,7 +388,8 @@ class TDRegEquiCNN(torch.nn.Module):
             self.full2 = copy.deepcopy(parent.full2)
             if self.gs[-1] != parent.gs[-1]:
                 self.blocks[-1] = torch.nn.AvgPool3d((groupsize(self.gs[-1]),5,5), (1,1,1), padding=(0,0,0))
-                self.full1._modules["0"] = torch.nn.Linear(int(self.channels[-1]/groupsize(self.gs[-1])), 64),
+                self.full1._modules["0"] = torch.nn.Linear(int(self.channels[-1]/groupsize(self.gs[-1])), 64)
+                print(parent.full1._modules["0"])
                 self.full1._modules["0"].weight.data = torch.repeat_interleave(parent.full1._modules["0"].weight.data, groupdifference(parent.gs[-1], self.gs[-1]), dim=1)/groupdifference(parent.gs[-1], self.gs[-1])
                 if parent.full1._modules["0"].bias is not None:
                     self.full1._modules["0"].bias.data = parent.full1._modules["0"].bias.data.clone()
