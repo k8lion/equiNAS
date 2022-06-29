@@ -295,7 +295,7 @@ class Reshaper(torch.nn.Module):
 
 class TDRegEquiCNN(torch.nn.Module):
     
-    def __init__(self, gs = [(0,0) for _ in range(6)], parent = None, ordered = False):
+    def __init__(self, gs = [(0,0) for _ in range(6)], parent = None, ordered = False, lr = 0.1):
         
         super(TDRegEquiCNN, self).__init__()
 
@@ -314,7 +314,7 @@ class TDRegEquiCNN(torch.nn.Module):
         self.architect(parent)
         self.loss_function = torch.nn.CrossEntropyLoss()
         self.score = -1
-        self.optimizer = torch.optim.SGD(self.parameters(), lr=5e-5)
+        self.optimizer = torch.optim.SGD(self.parameters(), lr=lr)
         #for (n,p) in self.named_parameters():
             #if p.requires_grad:
                 #print(n, p.shape)

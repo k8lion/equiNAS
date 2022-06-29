@@ -10,15 +10,19 @@ import copy
 
 
 class HillClimber(object):
-    def __init__(self, reset = True, allkids = False, reg = False, ordered = False, filename = "history.pkl"):
-        self.filename = './out/logshc_'+datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")+'.pkl'
+    def __init__(self, reset = True, allkids = False, reg = False, ordered = False, baselines = False, lr = 0.1):
+        if baselines:
+            exp = "bs"
+        else:
+            exp = "hc"
+        self.filename = './out/logs'+exp+'_'+datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")+'.pkl'
         print(self.filename)
         self.ordered = ordered
         self.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
         self.train_loader, self.validation_loader, self.test_loader = utilities.get_dataloaders(path_to_dir="..")
         self.reg = reg
         if reg:
-            self.model = models.TDRegEquiCNN(gs=[(0,2) for _ in range(6)], ordered = self.ordered)
+            self.model = models.TDRegEquiCNN(gs=[(0,2) for _ in range(6)], ordered = self.ordered, lr = lr)
         else:
             self.model = models.EquiCNN(reset)
         self.options = []
@@ -32,7 +36,7 @@ class HillClimber(object):
             totrain = self.options
         for model in totrain:
             model = model.to(self.device)
-            model.optimizer = torch.optim.SGD(model.parameters(), lr=lr)
+            #model.optimizer = torch.optim.SGD(model.parameters(), lr=lr)
             dataloaders = {
                 "train": self.train_loader,
                 "validation": self.validation_loader
@@ -235,7 +239,7 @@ if __name__ == "__main__":
     parser.add_argument('--ordered', action='store_true', default=False, help='ordered bases')
     args = parser.parse_args()
     print(args)
-    hillclimb = HillClimber(allkids=args.allkids, reg=args.reg, ordered=args.ordered)
+    hillclimb = HillClimber(allkids=args.allkids, reg=args.reg, ordered=args.ordered, baselines=args.baselines, lr=args.lr)
     if args.baselines:
         hillclimb.baselines(iterations=args.iterations, epochs=args.epochs, lr=args.lr)
     else:

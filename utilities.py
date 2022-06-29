@@ -58,7 +58,7 @@ def get_dataloaders(path_to_dir = "~"):
     mnist_train = MnistRotDataset(mode='train', transform=test_transform, path_to_dir=path_to_dir)
 
     shuffle_dataset = True
-    random_seed= 42
+    random_seed = 42
     validation_split = .2
     dataset_size = mnist_train.num_samples
     indices = list(range(dataset_size))
