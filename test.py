@@ -30,89 +30,132 @@ class TestTDRegEquiCNN(unittest.TestCase):
     #     xchild = xmodel.clone()
 
 
-    def test_replicate(self):
-        parentgroup = (0,2)
-        childgroup = (0,1)
-        conversion = int(models.groupsize(parentgroup)/models.groupsize(childgroup))
-        parentinchannels = 5
-        parentoutchannels = 7
-        kernelsize = 3 
-        parentlayer = models.GroupConv2d(parentgroup, parentinchannels, parentoutchannels, kernelsize, 0, bias=True)
-        reshapein = models.Reshaper(parentinchannels, parentinchannels*conversion, models.groupsize(parentgroup) ,models.groupsize(childgroup), True)
-        reshapeout = models.Reshaper(parentoutchannels, parentoutchannels*conversion, models.groupsize(parentgroup), models.groupsize(childgroup), True)
-        childlayer = parentlayer.replicate(childgroup, True)
-        x = torch.randn(2, parentinchannels, models.groupsize(parentgroup), 9, 9)
-        self.assertTrue(torch.allclose(reshapeout(parentlayer(x.clone())), childlayer(reshapein(x.clone())), rtol = 1e-4, atol = 1e-6))
-
-
-    def test_offspring(self):
-        torch.set_printoptions(sci_mode=False)
-        tochange = 4
-        model = models.TDRegEquiCNN(gs = [(0,2) for _ in range(tochange+1)]+[(0,1) for _ in range(5-tochange)], ordered = True)
-        # for i in range(len(model.blocks)):
-        #     if "0" in model.blocks[i]._modules.keys():
-        #         # model.blocks[i]._modules["0"].weight = torch.nn.Parameter(torch.zeros_like(model.blocks[i]._modules["0"].weight))
-        #         # print(i, model.blocks[i]._modules["0"].weight.shape)
-        #         # if i > 0:
-        #         #     for j in range(model.blocks[i]._modules["0"].weight.shape[2]):
-        #         #         model.blocks[i]._modules["0"].weight.data[:,:,j,2,2] += 1
-        #         # else:
-        #         #     for j in range(model.blocks[i]._modules["0"].weight.shape[1]):
-        #         #         model.blocks[i]._modules["0"].weight.data[:,j,3,3] += 1 
-        #         if i == tochange:
-        #             model.blocks[i]._modules["0"].weight = torch.nn.Parameter(torch.zeros_like(model.blocks[i]._modules["0"].weight))
-        #             for j in range(model.blocks[i]._modules["0"].weight.shape[2]):
-        #                 for k in range(model.blocks[i]._modules["0"].weight.shape[0]):
-        #                     for l in range(model.blocks[i]._modules["0"].weight.shape[1]):
-        #                         model.blocks[i]._modules["0"].weight.data[k,l,j,:,:] += j + k*100 + l*10
-        child = model.offspring(tochange, (0,1))
-        #print(model.gs)
-        #print(child.gs)
-        xmodel = torch.randn(16, 1, 29, 29)
-        xchild = xmodel.clone()
-        for i in range(len(model.blocks)):
-            #print("modules", i, model.blocks[i]._modules.keys(), child.blocks[i]._modules.keys())
-            if "0" in model.blocks[i]._modules.keys() and i > 0 and i != tochange: #model.blocks[i]._modules["0"].weight.shape != child.blocks[i]._modules["0"].weight.shape:
-                child_filter, child_x, child_bias = child.blocks[i]._modules["0"].test_filter_x(xchild)
-                model_filter, model_x, model_bias = model.blocks[i]._modules["0"].test_filter_x(xmodel)
-                print("model_filter:", model_filter[0:4,0:8,0,0])
-                print("child_filter:", child_filter[0:4,0:8,0,0])
-                print("model_x:", model_x.shape, model_x[0,0,0,:])
-                print("child_x:", child_x.shape, child_x[0,0,0,:])
-                print("xmodel:", xmodel.shape, xmodel[1,1,1,:])
-                print("xchild:", xchild.shape, xchild[1,1,1,:])
-                print(i)
-                self.assertTrue(torch.allclose(xmodel, xchild, rtol = 1e-4, atol = 1e-4))
-                self.assertTrue(torch.allclose(model_filter, child_filter, rtol = 1e-4, atol = 1e-4))
-                self.assertTrue(torch.allclose(model_x, child_x, rtol = 1e-4, atol = 1e-4))
-                self.assertTrue(torch.allclose(model_bias, child_bias, rtol = 1e-4, atol = 1e-4))
-                #self.assertTrue(torch.allclose(model.blocks[i](xmodel), child.blocks[i](xchild), rtol = 1e-4, atol = 1e-4))
-            xmodel = model.blocks[i](xmodel)
-            xchild = child.blocks[i](xchild)
-            if xmodel.shape != xchild.shape:
-                out_channels = xchild.shape[1]
-                in_groupsize = xmodel.shape[2]
-                out_groupsize = xchild.shape[2]
-                in_order = [int('{:0{width}b}'.format(n, width=int(np.log2(in_groupsize)))[::-1], 2) for n in range(in_groupsize)]
-                out_order = [int('{:0{width}b}'.format(n, width=int(np.log2(out_groupsize)))[::-1], 2) for n in range(out_groupsize)]
-                xmodel_rs = xmodel[:,:,in_order].view(-1, out_channels, out_groupsize, xmodel.shape[-2], xmodel.shape[-1])[:,:,out_order]
+    def test_replicate_unit(self):
+        for parentgroup in [(0,1), (0,2)]:
+            if parentgroup == (0,1):
+                childgroups = [(0,0)]
             else:
-                xmodel_rs = xmodel
-            if not torch.allclose(xmodel_rs, xchild):
-                if "0" in model.blocks[i]._modules.keys():
-                    print("weight shapes", model.blocks[i]._modules["0"].weight.shape, child.blocks[i]._modules["0"].weight.shape)
-        print(xmodel.reshape(xmodel.shape[0], -1)[0:4,0:4])
-        print(xchild.reshape(xchild.shape[0], -1)[0:4,0:4])
-        print(model.full1._modules["0"](xmodel.reshape(xmodel.shape[0], -1))[0:4,0:4])
-        print(child.full1._modules["0"](xchild.reshape(xchild.shape[0], -1))[0:4,0:4])
-        xmodel = model.full1(xmodel.reshape(xmodel.shape[0], -1))
-        xchild = child.full1(xchild.reshape(xchild.shape[0], -1))
-        print(xmodel[1,:])
-        print(xchild[1,:])
-        self.assertTrue(torch.allclose(xmodel, xchild, rtol = 1e-4, atol = 1e-6))
-        xmodel = model.full2(xmodel)
-        xchild = child.full2(xchild)
-        self.assertTrue(torch.allclose(xmodel, xchild, rtol = 1e-4, atol = 1e-6))
+                childgroups = [(0,0), (0,1)]
+            for childgroup in childgroups:
+                conversion = int(models.groupsize(parentgroup)/models.groupsize(childgroup))
+                parentinchannels = 5
+                parentoutchannels = 7
+                kernelsize = 3 
+                parentlayer = models.GroupConv2d(parentgroup, parentinchannels, parentoutchannels, kernelsize, 0, bias=True)
+                reshapein = models.Reshaper(parentinchannels, parentinchannels*conversion, models.groupsize(parentgroup) ,models.groupsize(childgroup), True)
+                reshapeout = models.Reshaper(parentoutchannels, parentoutchannels*conversion, models.groupsize(parentgroup), models.groupsize(childgroup), True)
+                childlayer = parentlayer.replicate(childgroup, True)
+                x = torch.randn(8, parentinchannels, models.groupsize(parentgroup), 9, 9)
+                self.assertTrue(torch.allclose(reshapeout(parentlayer(x.clone())), childlayer(reshapein(x.clone())), rtol = 1e-4, atol = 1e-6))
+        
+    def test_replicate_from_models(self):
+        torch.set_printoptions(sci_mode=False)
+        for tochange in range(6):
+            parent = models.TDRegEquiCNN(gs = [(0,2) for _ in range(tochange+1)]+[(0,1) for _ in range(5-tochange)], ordered = True)
+            child = parent.offspring(tochange, (0,1))
+            print(tochange, parent.gs, child.gs)
+            parentlayer = parent.blocks[tochange]._modules["0"]
+            childlayer = child.blocks[tochange]._modules["0"]
+            if tochange == 5:
+                reshapein = child.blocks[tochange-1]._modules["reshaper"]
+                x = torch.randn(2, parentlayer.in_channels, models.groupsize(parent.gs[tochange]), 7, 7)
+                parentx = parent.blocks[-1](parent.blocks[-2](x.clone()))
+                childx = child.blocks[-1](child.blocks[-2](reshapein(x.clone())))
+                print(parent.full1(parentx.reshape(parentx.shape[0], -1))[0,:], child.full1(childx.reshape(childx.shape[0], -1))[0,:])
+                self.assertTrue(torch.allclose(parent.full1(parentx.reshape(parentx.shape[0], -1)), child.full1(childx.reshape(childx.shape[0], -1)), rtol = 1e-2, atol = 1e-2))
+                continue
+            reshapeout = parent.blocks[tochange]._modules["reshaper"]
+            if tochange == 0:
+                x = torch.randn(8, 1, 29, 29)
+                self.assertTrue(torch.allclose(reshapeout(parentlayer(x.clone())), childlayer(x.clone()), rtol = 1e-4, atol = 1e-4))
+                continue
+            reshapein = child.blocks[tochange-1]._modules["reshaper"]
+            x = torch.randn(8, parentlayer.in_channels, models.groupsize(parent.gs[tochange]), 9, 9)
+            if not torch.allclose(reshapeout(parentlayer(x.clone())), childlayer(reshapein(x.clone())), rtol = 1e-4, atol = 1e-4):
+                print(reshapeout(parentlayer(x.clone()))[0,0:6,:,0,0])
+                print(childlayer(reshapein(x.clone()))[0,0:6,:,0,0])
+            self.assertTrue(torch.allclose(reshapeout(parentlayer(x.clone())), childlayer(reshapein(x.clone())), rtol = 1e-4, atol = 1e-4))
+        
+
+
+    def test_replicate_complete(self):
+        for tochange in range(6):
+            print(tochange)
+            parent = models.TDRegEquiCNN(gs = [(0,2) for _ in range(tochange+1)]+[(0,1) for _ in range(5-tochange)], ordered = True)
+            child = parent.offspring(tochange, (0,1))
+            x = torch.randn(8, 1, 29, 29)
+            self.assertTrue(torch.allclose(parent(x.clone()), child(x.clone()), rtol = 1e-1, atol = 1e-1))
+        
+
+
+    # def test_offspring(self):
+    #     torch.set_printoptions(sci_mode=False)
+    #     tochange = 4
+    #     model = models.TDRegEquiCNN(gs = [(0,2) for _ in range(tochange+1)]+[(0,1) for _ in range(5-tochange)], ordered = True)
+    #     # for i in range(len(model.blocks)):
+    #     #     if "0" in model.blocks[i]._modules.keys():
+    #     #         # model.blocks[i]._modules["0"].weight = torch.nn.Parameter(torch.zeros_like(model.blocks[i]._modules["0"].weight))
+    #     #         # print(i, model.blocks[i]._modules["0"].weight.shape)
+    #     #         # if i > 0:
+    #     #         #     for j in range(model.blocks[i]._modules["0"].weight.shape[2]):
+    #     #         #         model.blocks[i]._modules["0"].weight.data[:,:,j,2,2] += 1
+    #     #         # else:
+    #     #         #     for j in range(model.blocks[i]._modules["0"].weight.shape[1]):
+    #     #         #         model.blocks[i]._modules["0"].weight.data[:,j,3,3] += 1 
+    #     #         if i == tochange:
+    #     #             model.blocks[i]._modules["0"].weight = torch.nn.Parameter(torch.zeros_like(model.blocks[i]._modules["0"].weight))
+    #     #             for j in range(model.blocks[i]._modules["0"].weight.shape[2]):
+    #     #                 for k in range(model.blocks[i]._modules["0"].weight.shape[0]):
+    #     #                     for l in range(model.blocks[i]._modules["0"].weight.shape[1]):
+    #     #                         model.blocks[i]._modules["0"].weight.data[k,l,j,:,:] += j + k*100 + l*10
+    #     child = model.offspring(tochange, (0,1))
+    #     #print(model.gs)
+    #     #print(child.gs)
+    #     xmodel = torch.randn(16, 1, 29, 29)
+    #     xchild = xmodel.clone()
+    #     for i in range(len(model.blocks)):
+    #         #print("modules", i, model.blocks[i]._modules.keys(), child.blocks[i]._modules.keys())
+    #         if "0" in model.blocks[i]._modules.keys() and i > 0 and i != tochange: #model.blocks[i]._modules["0"].weight.shape != child.blocks[i]._modules["0"].weight.shape:
+    #             child_filter, child_x, child_bias = child.blocks[i]._modules["0"].test_filter_x(xchild)
+    #             model_filter, model_x, model_bias = model.blocks[i]._modules["0"].test_filter_x(xmodel)
+    #             print("model_filter:", model_filter[0:4,0:8,0,0])
+    #             print("child_filter:", child_filter[0:4,0:8,0,0])
+    #             print("model_x:", model_x.shape, model_x[0,0,0,:])
+    #             print("child_x:", child_x.shape, child_x[0,0,0,:])
+    #             print("xmodel:", xmodel.shape, xmodel[1,1,1,:])
+    #             print("xchild:", xchild.shape, xchild[1,1,1,:])
+    #             print(i)
+    #             self.assertTrue(torch.allclose(xmodel, xchild, rtol = 1e-4, atol = 1e-4))
+    #             self.assertTrue(torch.allclose(model_filter, child_filter, rtol = 1e-4, atol = 1e-4))
+    #             self.assertTrue(torch.allclose(model_x, child_x, rtol = 1e-4, atol = 1e-4))
+    #             self.assertTrue(torch.allclose(model_bias, child_bias, rtol = 1e-4, atol = 1e-4))
+    #             #self.assertTrue(torch.allclose(model.blocks[i](xmodel), child.blocks[i](xchild), rtol = 1e-4, atol = 1e-4))
+    #         xmodel = model.blocks[i](xmodel)
+    #         xchild = child.blocks[i](xchild)
+    #         if xmodel.shape != xchild.shape:
+    #             out_channels = xchild.shape[1]
+    #             in_groupsize = xmodel.shape[2]
+    #             out_groupsize = xchild.shape[2]
+    #             in_order = [int('{:0{width}b}'.format(n, width=int(np.log2(in_groupsize)))[::-1], 2) for n in range(in_groupsize)]
+    #             out_order = [int('{:0{width}b}'.format(n, width=int(np.log2(out_groupsize)))[::-1], 2) for n in range(out_groupsize)]
+    #             xmodel_rs = xmodel[:,:,in_order].view(-1, out_channels, out_groupsize, xmodel.shape[-2], xmodel.shape[-1])[:,:,out_order]
+    #         else:
+    #             xmodel_rs = xmodel
+    #         if not torch.allclose(xmodel_rs, xchild):
+    #             if "0" in model.blocks[i]._modules.keys():
+    #                 print("weight shapes", model.blocks[i]._modules["0"].weight.shape, child.blocks[i]._modules["0"].weight.shape)
+    #     print(xmodel.reshape(xmodel.shape[0], -1)[0:4,0:4])
+    #     print(xchild.reshape(xchild.shape[0], -1)[0:4,0:4])
+    #     print(model.full1._modules["0"](xmodel.reshape(xmodel.shape[0], -1))[0:4,0:4])
+    #     print(child.full1._modules["0"](xchild.reshape(xchild.shape[0], -1))[0:4,0:4])
+    #     xmodel = model.full1(xmodel.reshape(xmodel.shape[0], -1))
+    #     xchild = child.full1(xchild.reshape(xchild.shape[0], -1))
+    #     print(xmodel[1,:])
+    #     print(xchild[1,:])
+    #     self.assertTrue(torch.allclose(xmodel, xchild, rtol = 1e-4, atol = 1e-6))
+    #     xmodel = model.full2(xmodel)
+    #     xchild = child.full2(xchild)
+    #     self.assertTrue(torch.allclose(xmodel, xchild, rtol = 1e-4, atol = 1e-6))
 
     # def test_equivariance(self):
     #     in_channels = 5
