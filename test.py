@@ -75,8 +75,6 @@ class TestTDRegEquiCNN(unittest.TestCase):
                 print(reshapeout(parentlayer(x.clone()))[0,0:6,:,0,0])
                 print(childlayer(reshapein(x.clone()))[0,0:6,:,0,0])
             self.assertTrue(torch.allclose(reshapeout(parentlayer(x.clone())), childlayer(reshapein(x.clone())), rtol = 1e-4, atol = 1e-4))
-        
-
 
     def test_replicate_complete(self):
         for tochange in range(6):
@@ -86,6 +84,23 @@ class TestTDRegEquiCNN(unittest.TestCase):
             x = torch.randn(8, 1, 29, 29)
             self.assertTrue(torch.allclose(parent(x.clone()), child(x.clone()), rtol = 1e-1, atol = 1e-1))
         
+    def test_replicate_independent_objects(self):
+        for tochange in range(6):
+            print(tochange)
+            parent = models.TDRegEquiCNN(gs = [(0,2) for _ in range(tochange+1)]+[(0,1) for _ in range(5-tochange)], ordered = True)
+            child = parent.offspring(tochange, (0,1))
+            x = torch.randn(8, 1, 29, 29)
+            before = parent(x.clone())
+            child.train()
+            y = child(x.clone())
+            loss = child.loss_function(y, torch.rand_like(y))
+            loss.backward()
+            child.optimizer.step()
+            after = parent(x.clone())
+            self.assertTrue(not torch.allclose(before, after, rtol = 1e-4, atol = 1e-6))
+
+        
+
 
 
     # def test_offspring(self):

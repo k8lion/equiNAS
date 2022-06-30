@@ -10,19 +10,22 @@ import copy
 
 
 class HillClimber(object):
-    def __init__(self, reset = True, allkids = False, reg = False, ordered = False, baselines = False, lr = 0.1):
+    def __init__(self, reset = True, allkids = False, reg = False, skip = False, baselines = False, lr = 0.1):
         if baselines:
             exp = "bs"
         else:
             exp = "hc"
         self.filename = './out/logs'+exp+'_'+datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")+'.pkl'
         print(self.filename)
-        self.ordered = ordered
+        self.ordered = True
         self.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
         self.train_loader, self.validation_loader, self.test_loader = utilities.get_dataloaders(path_to_dir="..")
         self.reg = reg
         if reg:
-            self.model = models.TDRegEquiCNN(gs=[(0,2) for _ in range(6)], ordered = self.ordered, lr = lr)
+            if skip:
+                self.model = models.SkipEquiCNN(gs=[(0,2) for _ in range(6)], ordered = self.ordered, lr = lr)
+            else:
+                self.model = models.TDRegEquiCNN(gs=[(0,2) for _ in range(6)], ordered = self.ordered, lr = lr)
         else:
             self.model = models.EquiCNN(reset)
         self.options = []
@@ -133,21 +136,6 @@ class HillClimber(object):
         model1.eval()
         model2.eval()
 
-        # for inputs, labels in dataloaders[phase]:
-        #     inputs = inputs.to(self.device)
-        #     labels = labels.to(self.device)
-        #     x1 = inputs.clone()
-        #     x2 = inputs.clone()
-        #     for i in range(len(model1.blocks)):
-        #         x1 = model1.blocks[i](x1)
-        #         x2 = model2.blocks[i](x2)
-        #         if i < len(model1.gs) and x1.shape == x2.shape and \
-        #             list(model1.blocks[i]._modules.keys()) == list(model2.blocks[i]._modules.keys()) \
-        #                 and model1.gs[:i] == model2.gs[:i]:
-        #             if not torch.allclose(x1, x2, atol=1e-5, rtol=1e-5):
-        #                 print(model1.gs, model2.gs, i, model1.blocks[i]._modules.keys(), model2.blocks[i]._modules.keys(), sum(x1-x2).abs().sum().item())
-        #     break
-
         if model1.gs == model2.gs:
             for inputs, labels in dataloaders[phase]:
                 inputs = inputs.to(self.device)
@@ -156,6 +144,9 @@ class HillClimber(object):
                 outputs2 = model2(inputs)
 
                 assert torch.allclose(outputs1, outputs2, atol=1e-5, rtol=1e-5)
+    
+    def saveargs(self, args):
+        self.history["args"] = args
     
     def generate(self):
         if self.allkids:
@@ -230,16 +221,17 @@ class HillClimber(object):
             
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Run hillclimber algorithm')
-    parser.add_argument('--epochs', "-e", type=int, default="5", help='number of epochs per child')
+    parser.add_argument('--epochs', "-e", type=int, default="1", help='number of epochs per child')
     parser.add_argument('--iterations', "-i", type=int, default="50", help='number of generations')
     parser.add_argument('--lr', "-l", type=float, default="5e-4", help='learning rate')
     parser.add_argument('--allkids', action='store_true', default=False, help='expand children tree')
     parser.add_argument('--baselines', action='store_true', default=False, help='measure baselines')
     parser.add_argument('--reg', action='store_true', default=False, help='reg group convs')
-    parser.add_argument('--ordered', action='store_true', default=False, help='ordered bases')
+    parser.add_argument('--skip', action='store_true', default=False, help='use model with skips')
     args = parser.parse_args()
     print(args)
-    hillclimb = HillClimber(allkids=args.allkids, reg=args.reg, ordered=args.ordered, baselines=args.baselines, lr=args.lr)
+    hillclimb = HillClimber(allkids=args.allkids, reg=args.reg, skip=args.skip, baselines=args.baselines, lr=args.lr)
+    hillclimb.saveargs(vars(args))
     if args.baselines:
         hillclimb.baselines(iterations=args.iterations, epochs=args.epochs, lr=args.lr)
     else:
