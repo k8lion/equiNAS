@@ -1,5 +1,6 @@
 import torch
 import torch.nn.functional as F
+import torchvision.transforms.functional as tvF
 import numpy as np
 import copy
 import uuid
@@ -29,12 +30,16 @@ def rotate_4(x: torch.Tensor, r: int) -> torch.Tensor:
 def rotate_n(x: torch.Tensor, r: int, n: int) -> torch.Tensor:
     if r == 0:
         roty = x
-    elif n == 2:
-        roty = rotate_4(x, 2*r)
-    elif n == 4:
-        roty = rotate_4(x, r)
+    elif r/n == 1/2:
+        roty = rotate_4(x, 2)
+    elif r/n == 1/4:
+        roty = rotate_4(x, 1)
+    elif r/n == 3/4:
+        roty = rotate_4(x, 3)
     else:
-        roty = rot(x, 2*r*np.pi/n, type(x))
+        #roty = rot(x, 2*r*np.pi/n, type(x))
+        shape = x.shape
+        roty = tvF.rotate(x.reshape(x.size(1), -1, x.size(-2), x.size(-1)), 360*r/n).reshape(shape)
     return roty
 
 def rotatestack_n(y: torch.Tensor, r: int, n: int, order = None) -> torch.Tensor:
@@ -48,8 +53,7 @@ def rotatestack_n(y: torch.Tensor, r: int, n: int, order = None) -> torch.Tensor
     assert y.shape[-3] == n
     assert len(order) == n
 
-    roty = rotate_n(y, r, n) #first rotate y
-    #print(r, n, [(n-r+i)%n for i in order])
+    roty = rotate_n(y, r, n) #rotate the data
     roty = torch.stack([torch.select(roty, -3, (n-r+i)%n) for i in order], dim=-3) #then reorder the group elements
     return roty
 
@@ -63,11 +67,7 @@ def adapt(parentweight: torch.Tensor, parentg, childg, inchannels, outchannels):
     outchannelorder = sum([list(range(i,outchannels,splito)) for i in range(splito)], [])
     spliti = int(inchannels/groupdifference(parentg, childg))
     inchannelorder = sum([list(range(i,inchannels,spliti)) for i in range(spliti)], [])
-    #TODO: swap dims?
     weight = torch.cat([rotate_n(torch.cat([parentweight[:,:,order[i]] for i in range(len(order))], dim=0), j, groupsize(parentg)) for j in range(groupdifference(parentg, childg))], dim=1)[outchannelorder]
-    #weight = torch.cat([rotate_n(torch.cat([parentweight[:,:,order[i]] for i in range(len(order))], dim=0), 0, groupsize(parentg)) for j in range(groupdifference(parentg, childg))], dim=1)
-    #weight = parentweight.repeat((groupdifference(parentg, childg),1,1,1,1)).reshape(outchannels, inchannels, -1, parentweight.shape[3], parentweight.shape[4])
-    #print(weight.shape)
     if childg == 0:
         weight = torch.unsqueeze(weight, dim = 2)
     return weight[:, inchannelorder]
@@ -389,7 +389,7 @@ class TDRegEquiCNN(torch.nn.Module):
         for d in range(1,len(self.gs[0])):
             #if self.gs[-1][d] >= 0:
             for i in range(1, self.gs[-1][d]+1):
-                g = list(self.gs[0])
+                g = list(self.gs[-1])
                 g[d] -= i
                 child = self.offspring(len(self.gs)-1, tuple(g))
                 if all([child.gs != sibling.gs for sibling in candidates]):
@@ -538,7 +538,7 @@ class SkipEquiCNN(torch.nn.Module):
         candidates = [self.offspring(-1, self.gs[0])]
         for d in range(1,len(self.gs[0])):
             for i in range(1, self.gs[-1][d]+1):
-                g = list(self.gs[0])
+                g = list(self.gs[-1])
                 g[d] -= i
                 child = self.offspring(len(self.gs)-1, tuple(g))
                 if all([child.gs != sibling.gs for sibling in candidates]):
@@ -556,6 +556,9 @@ class SkipEquiCNN(torch.nn.Module):
             gs[i] = G
         child = SkipEquiCNN(gs = gs, parent=self, ordered = self.ordered)
         return child
+
+
+
 
 
 

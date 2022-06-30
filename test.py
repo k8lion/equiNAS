@@ -8,27 +8,10 @@ import torch
 import numpy as np
 
 class TestTDRegEquiCNN(unittest.TestCase):
-    def setUp(self):
-        #self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        self.model = models.TDRegEquiCNN()
-        #self.model = self.model.to(self.device)
-        #self.model.optimizer = torch.optim.SGD(self.model.parameters(), lr=5e-4)
-        #self.train_loader, _, _ = utilities.get_dataloaders(path_to_dir="../")
-    
-    # def test_adapt(self):
-    #     tochange = 5
-    #     model = models.TDRegEquiCNN(gs = [(0,2) for _ in range(tochange+1)]+[(0,1) for _ in range(5-tochange)])
-    #     # parent.blocks = torch.nn.ModuleList([models.LiftingConv2d((0,2), 1, 3, 3, 0, bias=True),
-    #     #                                     models.GroupConv2d((0,2), 3, 4, 3, 0, bias=True),
-    #     #                                     models.Reshaper(4,8,4,2),
-    #     #                                     models.GroupConv2d((0,1), 8, 6, 3, 0, bias=True)])
-    #     # parent.full1 = torch.nn.Linear(108, 64)
-    #     # parent.full2 = torch.nn.Linear(64, 10)
-    #     child = model.offspring(tochange, (0,1))
 
-    #     xmodel = torch.randn(2, 1, 29, 29)
-    #     xchild = xmodel.clone()
-
+    def test_rot(self):
+        x = torch.randn(8, 4, 2, 29, 29)
+        self.assertTrue(torch.allclose(models.rotate_n(models.rotate_n(x.clone(), 3, 8), 1, 8)[:,:,:,13:16,13:16], models.rotate_n(x.clone(), 1, 2)[:,:,:,13:16,13:16], rtol = 1e-2, atol = 1e-4))
 
     def test_replicate_unit(self):
         for parentgroup in [(0,1), (0,2)]:

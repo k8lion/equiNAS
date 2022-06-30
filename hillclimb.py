@@ -23,7 +23,7 @@ class HillClimber(object):
         self.reg = reg
         if reg:
             if skip:
-                self.model = models.SkipEquiCNN(gs=[(0,2) for _ in range(6)], ordered = self.ordered, lr = lr)
+                self.model = models.SkipEquiCNN(gs=[(0,4) for _ in range(6)], ordered = self.ordered, lr = lr)
             else:
                 self.model = models.TDRegEquiCNN(gs=[(0,2) for _ in range(6)], ordered = self.ordered, lr = lr)
         else:
