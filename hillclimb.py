@@ -28,6 +28,7 @@ class HillClimber(object):
                 self.model = models.TDRegEquiCNN(gs=[(0,2) for _ in range(6)], ordered = self.ordered, lr = lr)
         else:
             self.model = models.EquiCNN(reset)
+        self.skip = True
         self.options = []
         self.allkids = allkids
         self.history = {}
@@ -200,16 +201,28 @@ class HillClimber(object):
             self.save()
 
     def baselines(self, iterations = -1, epochs = 40, lr = 5e-4):
-        upper = 3
+        upper = 5
         allgs = [[(0,i) for _ in range(6)] for i in range(upper)]
-        allgs += [[(0,i) for _ in range(5)]+[(0,0)] for i in range(1,upper)]
-        allgs += [[(0,i) for _ in range(5)]+[(0,1)] for i in range(2,upper)]
-        allgs += [[(0,i) for _ in range(4)]+[(0,0),(0,0)] for i in range(1,upper)]
-        allgs += [[(0,i) for _ in range(4)]+[(0,1),(0,0)] for i in range(2,upper)]
-        allgs += [[(0,i) for _ in range(4)]+[(0,1),(0,1)] for i in range(2,upper)]
-        for gs in allgs:
+        for j in range(upper-1):
+            allgs += [[(0,i) for _ in range(5)]+[(0,j)] for i in range(1,upper) if i >= j]
+            for k in range(j+1):
+                allgs += [[(0,i) for _ in range(4)]+[(0,j)]+[(0,k)] for i in range(1,upper) if i >= j]
+                for l in range(k+1):
+                    allgs += [[(0,i) for _ in range(3)]+[(0,j)]+[(0,k)]+[(0,l)] for i in range(1,upper) if i >= j]
+                    for m in range(l+1):
+                        allgs += [[(0,i) for _ in range(2)]+[(0,j)]+[(0,k)]+[(0,l)]+[(0,m)] for i in range(1,upper) if i >= j]
+                        for n in range(m+1):
+                            allgs += [[(0,i) for _ in range(1)]+[(0,j)]+[(0,k)]+[(0,l)]+[(0,m)]+[(0,n)] for i in range(1,upper) if i >= j]
+        lastgs = []
+        for gs in sorted(allgs):
+            if gs == lastgs:
+                continue
+            lastgs = gs
             if self.reg:
-                model = models.TDRegEquiCNN(gs = gs, ordered = self.ordered)
+                if self.skip:
+                    model = models.SkipEquiCNN(gs=gs, ordered = self.ordered, lr = lr)
+                else:
+                    model = models.TDRegEquiCNN(gs=gs, ordered = self.ordered, lr = lr)
             else:
                 model = models.EquiCNN(reset=False, gs = gs)
             self.options.append(model)
