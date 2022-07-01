@@ -57,6 +57,41 @@ def rotatestack_n(y: torch.Tensor, r: int, n: int, order = None) -> torch.Tensor
     roty = torch.stack([torch.select(roty, -3, (n-r+i)%n) for i in order], dim=-3) #then reorder the group elements
     return roty
 
+def rotateflip_n(x: torch.Tensor, r: int, n: int, f: int) -> torch.Tensor:
+    if r == 0:
+        roty = x
+    elif r/n == 1/2:
+        roty = rotate_4(x, 2)
+    elif r/n == 1/4:
+        roty = rotate_4(x, 1)
+    elif r/n == 3/4:
+        roty = rotate_4(x, 3)
+    else:
+        #roty = rot(x, 2*r*np.pi/n, type(x))
+        shape = x.shape
+        roty = tvF.rotate(x.reshape(x.size(1), -1, x.size(-2), x.size(-1)), 360*r/n).reshape(shape)
+    if f == 1:
+        roty = torch.flip(roty, -1)
+    return roty
+
+def rotateflipstack_n(y: torch.Tensor, r: int, n: int, f: int, order = None) -> torch.Tensor:
+    # `y` is a function over pn, i.e. over the pixel positions and over the elements of the group C_n.
+    # This method implements the action of a rotation `r` on `y`, assuming that the last two dimensions 
+    # (`dim=-2` and `dim=-1`) of `y` are the spatial dimensions while `dim=-3` has size `n` and is the 
+    # C_n dimension in group order. All other dimensions are considered batch dimensions
+    if order is None:
+        order = list(range(2*n))
+    assert len(y.shape) >= 3
+    assert y.shape[-3] == 2*n
+    assert len(order) == 2*n
+    order0, order1 = order[:n], order[n:]
+    if f == 1:
+        order0, order1 = order1, order0
+
+    roty = rotate_n(y, r, n) #rotate the data
+    roty = torch.stack([torch.select(roty, -3, (n-r+i)%n) for i in order0]+[torch.select(roty, -3, (n-r+i)%n+n) for i in order1], dim=-3) #then reorder the group elements
+    return roty
+
 def adapt(parentweight: torch.Tensor, parentg, childg, inchannels, outchannels):
     parentorder = [int('{:0{width}b}'.format(n, width=sum(parentg))[::-1], 2) for n in range(groupsize(parentg))]
     order = [parentorder[groupdifference(parentg, childg)*i:(i+1)*groupdifference(parentg, childg)] for i in [int('{:0{width}b}'.format(n, width=sum(childg))[::-1], 2) for n in range(groupsize(childg))]]
