@@ -7,11 +7,35 @@ import utilities
 import torch
 import numpy as np
 
-class TestTDRegEquiCNN(unittest.TestCase):
+class Test(unittest.TestCase):
 
     def test_rot(self):
         x = torch.randn(8, 4, 2, 29, 29)
         self.assertTrue(torch.allclose(models.rotate_n(models.rotate_n(x.clone(), 3, 8), 1, 8)[:,:,:,13:16,13:16], models.rotate_n(x.clone(), 1, 2)[:,:,:,13:16,13:16], rtol = 1e-2, atol = 1e-4))
+
+    def test_rotflip(self):
+        y = torch.randn(1, 1, 8, 33, 33)**2
+        ry = models.rotateflip_n(y.clone(), 1, 4, 1)
+        rry = models.rotateflip_n(ry.clone(), 1, 4, 1)
+        rrry = models.rotateflip_n(rry.clone(), 1, 4, 1)
+        rrrry = models.rotateflip_n(rrry.clone(), 1, 4, 1)
+
+        self.assertTrue(torch.allclose(y, rrrry))
+        self.assertTrue(torch.allclose(y, rry))
+
+    def test_rotflipstack(self):
+        y = torch.randn(4, 6, 8, 33, 33)**2
+        ry = models.rotateflipstack_n(y.clone(), 1, 4, 1)
+        rry = models.rotateflipstack_n(ry.clone(), 1, 4, 1)
+        Ry = models.rotateflipstack_n(y.clone(), 2, 4, 0)
+        rrry = models.rotateflipstack_n(rry.clone(), 1, 4, 1)
+        Rry = models.rotateflipstack_n(y.clone(), 3, 4, 1)
+        rrrry = models.rotateflipstack_n(rrry.clone(), 1, 4, 1)
+
+        self.assertTrue(torch.allclose(y, rrrry))
+        self.assertTrue(torch.allclose(Ry, rry))
+        self.assertTrue(torch.allclose(Rry, rrry))
+
 
     def test_replicate_unit(self):
         for parentgroup in [(0,1), (0,2)]:

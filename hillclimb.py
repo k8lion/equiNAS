@@ -10,7 +10,7 @@ import copy
 
 
 class HillClimber(object):
-    def __init__(self, reset = True, allkids = False, reg = False, skip = False, baselines = False, lr = 0.1):
+    def __init__(self, reset = True, allkids = False, reg = False, skip = False, baselines = False, lr = 0.1, datapath = ".."):
         if baselines:
             exp = "bs"
         else:
@@ -19,7 +19,7 @@ class HillClimber(object):
         print(self.filename)
         self.ordered = True
         self.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
-        self.train_loader, self.validation_loader, self.test_loader = utilities.get_dataloaders(path_to_dir="..")
+        self.train_loader, self.validation_loader, self.test_loader = utilities.get_dataloaders(path_to_dir=datapath)
         self.reg = reg
         if reg:
             if skip:
@@ -217,7 +217,7 @@ class HillClimber(object):
         for gs in sorted(allgs):
             if gs == lastgs:
                 continue
-            lastgs = gs
+--            lastgs = gs
             if self.reg:
                 if self.skip:
                     model = models.SkipEquiCNN(gs=gs, ordered = self.ordered, lr = lr)
@@ -243,7 +243,7 @@ if __name__ == "__main__":
     parser.add_argument('--skip', action='store_true', default=False, help='use model with skips')
     args = parser.parse_args()
     print(args)
-    hillclimb = HillClimber(allkids=args.allkids, reg=args.reg, skip=args.skip, baselines=args.baselines, lr=args.lr)
+    hillclimb = HillClimber(allkids=args.allkids, reg=args.reg, skip=args.skip, baselines=args.baselines, lr=args.lr, datapath=datapath)
     hillclimb.saveargs(vars(args))
     if args.baselines:
         hillclimb.baselines(iterations=args.iterations, epochs=args.epochs, lr=args.lr)

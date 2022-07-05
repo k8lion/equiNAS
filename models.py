@@ -43,10 +43,6 @@ def rotate_n(x: torch.Tensor, r: int, n: int) -> torch.Tensor:
     return roty
 
 def rotatestack_n(y: torch.Tensor, r: int, n: int, order = None) -> torch.Tensor:
-    # `y` is a function over pn, i.e. over the pixel positions and over the elements of the group C_n.
-    # This method implements the action of a rotation `r` on `y`, assuming that the last two dimensions 
-    # (`dim=-2` and `dim=-1`) of `y` are the spatial dimensions while `dim=-3` has size `n` and is the 
-    # C_n dimension in group order. All other dimensions are considered batch dimensions
     if order is None:
         order = list(range(n))
     assert len(y.shape) >= 3
@@ -71,14 +67,10 @@ def rotateflip_n(x: torch.Tensor, r: int, n: int, f: int) -> torch.Tensor:
         shape = x.shape
         roty = tvF.rotate(x.reshape(x.size(1), -1, x.size(-2), x.size(-1)), 360*r/n).reshape(shape)
     if f == 1:
-        roty = torch.flip(roty, -1)
+        roty = torch.flip(roty, (-1,))
     return roty
 
 def rotateflipstack_n(y: torch.Tensor, r: int, n: int, f: int, order = None) -> torch.Tensor:
-    # `y` is a function over pn, i.e. over the pixel positions and over the elements of the group C_n.
-    # This method implements the action of a rotation `r` on `y`, assuming that the last two dimensions 
-    # (`dim=-2` and `dim=-1`) of `y` are the spatial dimensions while `dim=-3` has size `n` and is the 
-    # C_n dimension in group order. All other dimensions are considered batch dimensions
     if order is None:
         order = list(range(2*n))
     assert len(y.shape) >= 3

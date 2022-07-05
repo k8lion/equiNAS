@@ -10,6 +10,9 @@ class MnistRotDataset(Dataset):
     
     def __init__(self, mode, transform=None, path_to_dir='~'):
         assert mode in ['train', 'test']
+
+        if os.path.isfolder("/tmpdir/maile"):
+            path_to_dir = "/tmpdir/maile"
             
         if mode == "train":
             file = path_to_dir+"/data/mnist_rotation_new/mnist_all_rotation_normalized_float_train_valid.amat"
