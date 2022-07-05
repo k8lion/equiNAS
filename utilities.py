@@ -12,9 +12,9 @@ class MnistRotDataset(Dataset):
         assert mode in ['train', 'test']
             
         if mode == "train":
-            file = path_to_dir+"/data/mnist_rotation_new/mnist_all_rotation_normalized_float_train_valid.amat"
+            file = str(path_to_dir)+"/data/mnist_rotation_new/mnist_all_rotation_normalized_float_train_valid.amat"
         else:
-            file = path_to_dir+"/data/mnist_rotation_new/mnist_all_rotation_normalized_float_test.amat"
+            file = str(path_to_dir)+"/data/mnist_rotation_new/mnist_all_rotation_normalized_float_test.amat"
         
         self.transform = transform
 
