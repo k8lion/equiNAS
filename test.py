@@ -15,26 +15,25 @@ class Test(unittest.TestCase):
 
     def test_rotflip(self):
         y = torch.randn(1, 1, 8, 33, 33)**2
-        ry = models.rotateflip_n(y.clone(), 1, 4, 1)
-        rry = models.rotateflip_n(ry.clone(), 1, 4, 1)
-        rrry = models.rotateflip_n(rry.clone(), 1, 4, 1)
-        rrrry = models.rotateflip_n(rrry.clone(), 1, 4, 1)
+        ry = models.rotateflip_n(y.clone(), 1, 4, 1, 2)
+        rry = models.rotateflip_n(ry.clone(), 1, 4, 1, 2)
+        r1y = models.rotateflip_n(y.clone(), 1, 4, 0, 2)
+        r2y = models.rotateflip_n(r1y.clone(), 0, 4, 1, 2)
 
-        self.assertTrue(torch.allclose(y, rrrry))
+        self.assertTrue(torch.allclose(ry, r2y))
         self.assertTrue(torch.allclose(y, rry))
 
     def test_rotflipstack(self):
         y = torch.randn(4, 6, 8, 33, 33)**2
-        ry = models.rotateflipstack_n(y.clone(), 1, 4, 1)
-        rry = models.rotateflipstack_n(ry.clone(), 1, 4, 1)
-        Ry = models.rotateflipstack_n(y.clone(), 2, 4, 0)
-        rrry = models.rotateflipstack_n(rry.clone(), 1, 4, 1)
-        Rry = models.rotateflipstack_n(y.clone(), 3, 4, 1)
-        rrrry = models.rotateflipstack_n(rrry.clone(), 1, 4, 1)
+        ry = models.rotateflipstack_n(y.clone(), 1, 4, 1, 2)
+        rry = models.rotateflipstack_n(ry.clone(), 1, 4, 1, 2)
+        rrry = models.rotateflipstack_n(rry.clone(), 1, 4, 1, 2)
+        rrrry = models.rotateflipstack_n(rrry.clone(), 1, 4, 1, 2)
+        RFy = models.rotateflipstack_n(y.clone(), 2, 8, 0, 1)
+        R_y = models.rotatestack_n(y.clone(), 2, 8)
 
         self.assertTrue(torch.allclose(y, rrrry))
-        self.assertTrue(torch.allclose(Ry, rry))
-        self.assertTrue(torch.allclose(Rry, rrry))
+        self.assertTrue(torch.allclose(R_y, RFy))
 
 
     def test_replicate_unit(self):

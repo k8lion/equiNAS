@@ -49,39 +49,38 @@ def rotatestack_n(y: torch.Tensor, r: int, n: int, order = None) -> torch.Tensor
     assert y.shape[-3] == n
     assert len(order) == n
 
-    roty = rotate_n(y, r, n) #rotate the data
-    roty = torch.stack([torch.select(roty, -3, (n-r+i)%n) for i in order], dim=-3) #then reorder the group elements
+    roty = rotate_n(y, r, n)
+    roty = torch.stack([torch.select(roty, -3, (n-r+i)%n) for i in order], dim=-3) 
     return roty
 
-def rotateflip_n(x: torch.Tensor, r: int, n: int, f: int) -> torch.Tensor:
+def rotateflip_n(x: torch.Tensor, r: int, n_r: int, f: int, n_f: int) -> torch.Tensor:
     if r == 0:
         roty = x
-    elif r/n == 1/2:
+    elif r/n_r == 1/2:
         roty = rotate_4(x, 2)
-    elif r/n == 1/4:
+    elif r/n_r == 1/4:
         roty = rotate_4(x, 1)
-    elif r/n == 3/4:
+    elif r/n_r == 3/4:
         roty = rotate_4(x, 3)
     else:
-        #roty = rot(x, 2*r*np.pi/n, type(x))
         shape = x.shape
         roty = tvF.rotate(x.reshape(x.size(1), -1, x.size(-2), x.size(-1)), 360*r/n).reshape(shape)
-    if f == 1:
+    if n_f == 2 and f == 1:
         roty = torch.flip(roty, (-1,))
     return roty
 
-def rotateflipstack_n(y: torch.Tensor, r: int, n: int, f: int, order = None) -> torch.Tensor:
+def rotateflipstack_n(y: torch.Tensor, r: int, n_r: int, f: int, n_f: int, order = None) -> torch.Tensor:
     if order is None:
-        order = list(range(2*n))
+        order = list(range(n_f*n_r))
     assert len(y.shape) >= 3
-    assert y.shape[-3] == 2*n
-    assert len(order) == 2*n
-    order0, order1 = order[:n], order[n:]
+    assert y.shape[-3] == n_f*n_r
+    assert len(order) == n_f*n_r
+    order0, order1 = order[:n_r], order[n_r:]
     if f == 1:
         order0, order1 = order1, order0
 
-    roty = rotate_n(y, r, n) #rotate the data
-    roty = torch.stack([torch.select(roty, -3, (n-r+i)%n) for i in order0]+[torch.select(roty, -3, (n-r+i)%n+n) for i in order1], dim=-3) #then reorder the group elements
+    roty = rotateflip_n(y, r, n_r, f, n_f) 
+    roty = torch.stack([torch.select(roty, -3, (n_r-r+i)%n_r+f*n_r) for i in order0]+[torch.select(roty, -3, (n_r-r+i)%n_r+(1-f)*n_r) for i in order1], dim=-3) 
     return roty
 
 def adapt(parentweight: torch.Tensor, parentg, childg, inchannels, outchannels):
@@ -101,6 +100,9 @@ def adapt(parentweight: torch.Tensor, parentg, childg, inchannels, outchannels):
 
 def groupsize(g: tuple):
     return 2**sum(g)
+
+def subgroupsize(g: tuple, i: int):
+    return 2**g[i]
 
 def groupdifference(g1: tuple, g2: tuple):
     for i in range(len(g1)):
@@ -247,8 +249,10 @@ class GroupConv2d(torch.nn.Module):
         return child
   
     def build_filter(self) -> torch.Tensor:
-        
-        _filter = torch.stack([rotatestack_n(self.weight.data, i, groupsize(self.group)) for i in range(groupsize(self.group))], dim = -5)
+        if self.group[0] == 1:
+            _filter = torch.stack([rotateflipstack_n(self.weight.data, i, groupsize(self.group), j) for j in range(subgroupsize(self.group, 0)) for i in range(subgroupsize(self.group, 1))], dim = -5)
+        else:
+            _filter = torch.stack([rotatestack_n(self.weight.data, i, groupsize(self.group)) for i in range(subgroupsize(self.group, 1))], dim = -5)
 
         if self.bias is not None:
             _bias = torch.stack([self.bias.data for _ in range(groupsize(self.group))], dim = 1)
