@@ -10,16 +10,16 @@ import copy
 import pathlib
 
 class HillClimber(object):
-    def __init__(self, reset = True, allkids = False, reg = False, skip = False, baselines = False, lr = 0.1, datapath = ".."):
+    def __init__(self, reset = True, allkids = False, reg = False, skip = False, baselines = False, lr = 0.1, path = ".."):
         if baselines:
             exp = "bs"
         else:
             exp = "hc"
-        self.filename = './out/logs'+exp+'_'+datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")+'.pkl'
+        self.filename = str(path) +'/equiNAS/out/logs'+exp+'_'+datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")+'.pkl'
         print(self.filename)
         self.ordered = True
         self.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
-        self.train_loader, self.validation_loader, self.test_loader = utilities.get_dataloaders(path_to_dir=datapath)
+        self.train_loader, self.validation_loader, self.test_loader = utilities.get_dataloaders(path_to_dir=path)
         self.reg = reg
         if reg:
             if skip:
@@ -244,7 +244,7 @@ if __name__ == "__main__":
     parser.add_argument('--data', "-d", type=pathlib.Path, default="..", help='datapath')
     args = parser.parse_args()
     print(args)
-    hillclimb = HillClimber(allkids=args.allkids, reg=args.reg, skip=args.skip, baselines=args.baselines, lr=args.lr, datapath=args.data)
+    hillclimb = HillClimber(allkids=args.allkids, reg=args.reg, skip=args.skip, baselines=args.baselines, lr=args.lr, path=args.data)
     hillclimb.saveargs(vars(args))
     if args.baselines:
         hillclimb.baselines(iterations=args.iterations, epochs=args.epochs, lr=args.lr)
