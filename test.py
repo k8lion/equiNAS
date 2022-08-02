@@ -29,10 +29,18 @@ class Test(unittest.TestCase):
         rry = models.rotateflipstack_n(ry.clone(), 1, 4, 1, 2)
         rrry = models.rotateflipstack_n(rry.clone(), 1, 4, 1, 2)
         rrrry = models.rotateflipstack_n(rrry.clone(), 1, 4, 1, 2)
+
+        self.assertTrue(torch.allclose(y, rrrry))
+
+        rfy = models.rotateflipstack_n(y.clone(), 1, 4, 0, 2)
+        rfy = models.rotateflipstack_n(rfy.clone(), 0, 4, 1, 2)
+
+        self.assertTrue(torch.allclose(ry, rfy))
+
+        #rotflipstack without flip should work like rotstack
         RFy = models.rotateflipstack_n(y.clone(), 2, 8, 0, 1)
         R_y = models.rotatestack_n(y.clone(), 2, 8)
 
-        self.assertTrue(torch.allclose(y, rrrry))
         self.assertTrue(torch.allclose(R_y, RFy))
 
 
@@ -105,157 +113,296 @@ class Test(unittest.TestCase):
             after = parent(x.clone())
             self.assertTrue(not torch.allclose(before, after, rtol = 1e-4, atol = 1e-6))
 
-        
+    def test_lifting_equivariance(self):
+        in_channels = 1
+        out_channels = 1
+        kernel_size = 3
+        batchsize = 1
+        S = 3
+        for group in [(1,0), (0,0), (1,2), (0,2)]:
+            print(group)
+
+            layer = models.LiftingConv2d(group, in_channels=in_channels, out_channels=out_channels, kernel_size = kernel_size, padding=1, bias=True)
+            layer.eval()
+            for i in range(kernel_size):
+                for j in range(kernel_size):
+                    layer.weight.data[0,0,i,j] = (i-1)*10+j-1
+
+            x = torch.randn(batchsize, in_channels, S, S)
+            for i in range(S):
+                for j in range(S):
+                    x[0,0,i,j] = (i-1)*10+j-1
+            # the input image belongs to the space X, so we use the original action to rotate it
+            gx = models.rotateflip_n(x, 1, 2**group[1], 1, 2**group[0])
+
+            
+            # compute the output
+            psi_x = layer(x)
+            psi_gx = layer(gx)
+
+            # the output is a function in the space Y, so we need to use the new action to rotate it
+            g_psi_x = models.rotateflipstack_n(psi_x, 1, 2**group[1], 1, 2**group[0])
+
+            self.assertTrue(psi_x.shape == g_psi_x.shape)
+            self.assertTrue(psi_x.shape == (batchsize, out_channels, models.groupsize(group), S, S))
+
+            # check the model is giving meaningful outputs
+            self.assertTrue(not torch.allclose(psi_x, torch.zeros_like(psi_x), atol=1e-4, rtol=1e-4))
+
+            # check equivariance
+            if group == (1,2):
+                print(x)
+                print(gx)
+                print(psi_x)
+                print(psi_gx)
+                print(g_psi_x)
+            print(torch.allclose(psi_gx, g_psi_x, atol=1e-6, rtol=1e-6))
+
+            # check the model has the right number of parameters
+            self.assertTrue(layer.weight.numel() == in_channels * out_channels * kernel_size**2)
+            self.assertTrue(layer.bias.numel() == out_channels)
+
+    def test_groupconv_equivariance(self):
+        in_channels = 1
+        out_channels = 1
+        kernel_size = 3
+        batchsize = 1
+        S = 3
+        for group in [(1,0), (0,0), (1,2), (0,2)]:#, (1,4), (0,4)]:
+            print(group)
+
+            layer = models.GroupConv2d(group, in_channels=in_channels, out_channels=out_channels, kernel_size = kernel_size, padding=1, bias=True)
+            layer.eval()
+            for i in range(kernel_size):
+                for j in range(kernel_size):
+                    layer.weight.data[0,0,:,i,j] = (i-1)*10+j-1
+
+            x = torch.randn(batchsize, in_channels, models.groupsize(group), S, S)
+            for i in range(S):
+                for j in range(S):
+                    x[0,0,:,i,j] = (i-1)*10+j-1
+            gx = models.rotateflipstack_n(x, 1, 2**group[1], 1, 2**group[0])
+
+            # compute the output
+            psi_x = layer(x)
+            psi_gx = layer(gx)
+
+            # the output is a function in the space Y, so we need to use the new action to rotate it
+            g_psi_x = models.rotateflipstack_n(psi_x, 1, 2**group[1], 1, 2**group[0])
+
+            self.assertTrue(psi_x.shape == g_psi_x.shape)
+            self.assertTrue(psi_x.shape == (batchsize, out_channels, models.groupsize(group), S, S))
+
+            # check the model is giving meaningful outputs
+            self.assertTrue(not torch.allclose(psi_x, torch.zeros_like(psi_x), atol=1e-4, rtol=1e-4))
+
+            if group == (1,2):
+                print(x)
+                print(gx)
+                print(psi_x)
+                print(psi_gx)
+                print(g_psi_x)
+
+            # check equivariance
+            self.assertTrue(torch.allclose(psi_gx, g_psi_x, atol=1e-6, rtol=1e-6))
+
+            # check the model has the right number of parameters
+            print(layer.weight.shape)
+            self.assertTrue(layer.weight.numel() == in_channels * out_channels * models.groupsize(group) * kernel_size**2)
+            self.assertTrue(layer.bias.numel() == out_channels)
+
+    def test_mixedgroupconv(self):
+        in_channels = 3
+        out_channels = 6
+        kernel_size = 3
+        batchsize = 8
+        S = 5
+        for group in [(1,0), (0,0), (1,2), (0,2)]:
+            layer = models.MixedGroupConv2d(group, in_channels=in_channels, out_channels=out_channels, kernel_size = kernel_size, padding=int(kernel_size//2), bias=True, test=True)
+            layer.eval()
+            
+            for k in range(len(layer.alphas)):
+                layer.alphas.data[k] = -np.inf
+            layer.alphas.data[-2] = 0
+            
+            x = torch.randn(batchsize, in_channels*models.groupsize(group), S, S)
+            # for i in range(S):
+            #     for j in range(S):
+            #         x[0,0,i,j] = (i-1)*10+j-1
+            #print("x", x.reshape(torch.numel(x)).data)
+            gx = models.rotateflipstack_n(x.clone().reshape(batchsize, in_channels, models.groupsize(group), S, S), 1, 2**group[1], 0, 2**group[0]).reshape(batchsize, in_channels*models.groupsize(group), S, S)
+            #print("gx", gx.reshape(torch.numel(gx)).data)
+
+            # compute the output
+            psi_x = layer(x.clone())
+            psi_gx = layer(gx.clone())
+
+            #print("psi_x", psi_x.reshape(torch.numel(psi_x)).data)
+            #print("psi_gx", psi_gx.reshape(torch.numel(psi_gx)).data)
+
+            # the output is a function in the space Y, so we need to use the new action to rotate it
+            g_psi_x = models.rotateflipstack_n(psi_x.clone().reshape(batchsize, out_channels, models.groupsize(group), S, S), 1, 2**group[1], 0, 2**group[0]).reshape(batchsize, out_channels*models.groupsize(group), S, S)
+
+            #print("g_psi_x", g_psi_x.reshape(torch.numel(g_psi_x)).data)
+
+            self.assertTrue(psi_x.shape == g_psi_x.shape)
+            self.assertTrue(psi_x.shape == (batchsize, out_channels*models.groupsize(group), S, S))
+
+            # check the model is giving meaningful outputs
+            self.assertTrue(not torch.allclose(psi_x, torch.zeros_like(psi_x), atol=1e-4, rtol=1e-4))
+
+            # check equivariance
+            #print(psi_gx-g_psi_x)
+            self.assertTrue(torch.allclose(psi_gx, g_psi_x, atol=1e-4, rtol=1e-6))
+            
+
+    def test_offspring(self):
+        torch.set_printoptions(sci_mode=False)
+        tochange = 4
+        model = models.TDRegEquiCNN(gs = [(0,2) for _ in range(tochange+1)]+[(0,1) for _ in range(5-tochange)], ordered = True)
+        # for i in range(len(model.blocks)):
+        #     if "0" in model.blocks[i]._modules.keys():
+        #         # model.blocks[i]._modules["0"].weight = torch.nn.Parameter(torch.zeros_like(model.blocks[i]._modules["0"].weight))
+        #         # print(i, model.blocks[i]._modules["0"].weight.shape)
+        #         # if i > 0:
+        #         #     for j in range(model.blocks[i]._modules["0"].weight.shape[2]):
+        #         #         model.blocks[i]._modules["0"].weight.data[:,:,j,2,2] += 1
+        #         # else:
+        #         #     for j in range(model.blocks[i]._modules["0"].weight.shape[1]):
+        #         #         model.blocks[i]._modules["0"].weight.data[:,j,3,3] += 1 
+        #         if i == tochange:
+        #             model.blocks[i]._modules["0"].weight = torch.nn.Parameter(torch.zeros_like(model.blocks[i]._modules["0"].weight))
+        #             for j in range(model.blocks[i]._modules["0"].weight.shape[2]):
+        #                 for k in range(model.blocks[i]._modules["0"].weight.shape[0]):
+        #                     for l in range(model.blocks[i]._modules["0"].weight.shape[1]):
+        #                         model.blocks[i]._modules["0"].weight.data[k,l,j,:,:] += j + k*100 + l*10
+        child = model.offspring(tochange, (0,1))
+        #print(model.gs)
+        #print(child.gs)
+        xmodel = torch.randn(16, 1, 29, 29)
+        xchild = xmodel.clone()
+        for i in range(len(model.blocks)):
+            #print("modules", i, model.blocks[i]._modules.keys(), child.blocks[i]._modules.keys())
+            if "0" in model.blocks[i]._modules.keys() and i > 0 and i != tochange: #model.blocks[i]._modules["0"].weight.shape != child.blocks[i]._modules["0"].weight.shape:
+                child_filter, child_x, child_bias = child.blocks[i]._modules["0"].test_filter_x(xchild)
+                model_filter, model_x, model_bias = model.blocks[i]._modules["0"].test_filter_x(xmodel)
+                print("model_filter:", model_filter[0:4,0:8,0,0])
+                print("child_filter:", child_filter[0:4,0:8,0,0])
+                print("model_x:", model_x.shape, model_x[0,0,0,:])
+                print("child_x:", child_x.shape, child_x[0,0,0,:])
+                print("xmodel:", xmodel.shape, xmodel[1,1,1,:])
+                print("xchild:", xchild.shape, xchild[1,1,1,:])
+                print(i)
+                self.assertTrue(torch.allclose(xmodel, xchild, rtol = 1e-4, atol = 1e-4))
+                self.assertTrue(torch.allclose(model_filter, child_filter, rtol = 1e-4, atol = 1e-4))
+                self.assertTrue(torch.allclose(model_x, child_x, rtol = 1e-4, atol = 1e-4))
+                self.assertTrue(torch.allclose(model_bias, child_bias, rtol = 1e-4, atol = 1e-4))
+                #self.assertTrue(torch.allclose(model.blocks[i](xmodel), child.blocks[i](xchild), rtol = 1e-4, atol = 1e-4))
+            xmodel = model.blocks[i](xmodel)
+            xchild = child.blocks[i](xchild)
+            if xmodel.shape != xchild.shape:
+                out_channels = xchild.shape[1]
+                in_groupsize = xmodel.shape[2]
+                out_groupsize = xchild.shape[2]
+                in_order = [int('{:0{width}b}'.format(n, width=int(np.log2(in_groupsize)))[::-1], 2) for n in range(in_groupsize)]
+                out_order = [int('{:0{width}b}'.format(n, width=int(np.log2(out_groupsize)))[::-1], 2) for n in range(out_groupsize)]
+                xmodel_rs = xmodel[:,:,in_order].view(-1, out_channels, out_groupsize, xmodel.shape[-2], xmodel.shape[-1])[:,:,out_order]
+            else:
+                xmodel_rs = xmodel
+            if not torch.allclose(xmodel_rs, xchild):
+                if "0" in model.blocks[i]._modules.keys():
+                    print("weight shapes", model.blocks[i]._modules["0"].weight.shape, child.blocks[i]._modules["0"].weight.shape)
+        print(xmodel.reshape(xmodel.shape[0], -1)[0:4,0:4])
+        print(xchild.reshape(xchild.shape[0], -1)[0:4,0:4])
+        print(model.full1._modules["0"](xmodel.reshape(xmodel.shape[0], -1))[0:4,0:4])
+        print(child.full1._modules["0"](xchild.reshape(xchild.shape[0], -1))[0:4,0:4])
+        xmodel = model.full1(xmodel.reshape(xmodel.shape[0], -1))
+        xchild = child.full1(xchild.reshape(xchild.shape[0], -1))
+        print(xmodel[1,:])
+        print(xchild[1,:])
+        self.assertTrue(torch.allclose(xmodel, xchild, rtol = 1e-4, atol = 1e-6))
+        xmodel = model.full2(xmodel)
+        xchild = child.full2(xchild)
+        self.assertTrue(torch.allclose(xmodel, xchild, rtol = 1e-4, atol = 1e-6))
+
+    def test_equivariance(self):
+        in_channels = 5
+        out_channels = 9
+        kernel_size = 3
+        batchsize = 4
+        S = 17
+        for g in [1,2]:
+            layer = models.GroupConv2d(group=(0,g), in_channels=in_channels, out_channels=out_channels, kernel_size = kernel_size, padding=1, bias=True)
+            layer.eval()
+
+            x = torch.randn(batchsize, in_channels, 2**g, S, S)**2
+            gx = models.rotatestack_n(x, 1, 2**g)
+
+            psi_x = layer(x)
+            psi_gx = layer(gx)
+
+            g_psi_x = models.rotatestack_n(psi_x, 1, 2**g)
+
+            assert psi_x.shape == g_psi_x.shape
+            assert psi_x.shape == (batchsize, out_channels, 2**g, S, S)
+
+            assert not torch.allclose(psi_x, torch.zeros_like(psi_x), atol=1e-4, rtol=1e-4)
+
+            assert torch.allclose(psi_gx, g_psi_x, atol=1e-5, rtol=1e-5)
+
+            assert layer.weight.numel() == in_channels * out_channels * 2**g * kernel_size**2
+            assert layer.bias.numel() == out_channels
 
 
+            layer = models.LiftingConv2d((0,g), in_channels=in_channels, out_channels=out_channels, kernel_size = kernel_size, padding=1, bias=True)
+            layer.eval()
 
-    # def test_offspring(self):
-    #     torch.set_printoptions(sci_mode=False)
-    #     tochange = 4
-    #     model = models.TDRegEquiCNN(gs = [(0,2) for _ in range(tochange+1)]+[(0,1) for _ in range(5-tochange)], ordered = True)
-    #     # for i in range(len(model.blocks)):
-    #     #     if "0" in model.blocks[i]._modules.keys():
-    #     #         # model.blocks[i]._modules["0"].weight = torch.nn.Parameter(torch.zeros_like(model.blocks[i]._modules["0"].weight))
-    #     #         # print(i, model.blocks[i]._modules["0"].weight.shape)
-    #     #         # if i > 0:
-    #     #         #     for j in range(model.blocks[i]._modules["0"].weight.shape[2]):
-    #     #         #         model.blocks[i]._modules["0"].weight.data[:,:,j,2,2] += 1
-    #     #         # else:
-    #     #         #     for j in range(model.blocks[i]._modules["0"].weight.shape[1]):
-    #     #         #         model.blocks[i]._modules["0"].weight.data[:,j,3,3] += 1 
-    #     #         if i == tochange:
-    #     #             model.blocks[i]._modules["0"].weight = torch.nn.Parameter(torch.zeros_like(model.blocks[i]._modules["0"].weight))
-    #     #             for j in range(model.blocks[i]._modules["0"].weight.shape[2]):
-    #     #                 for k in range(model.blocks[i]._modules["0"].weight.shape[0]):
-    #     #                     for l in range(model.blocks[i]._modules["0"].weight.shape[1]):
-    #     #                         model.blocks[i]._modules["0"].weight.data[k,l,j,:,:] += j + k*100 + l*10
-    #     child = model.offspring(tochange, (0,1))
-    #     #print(model.gs)
-    #     #print(child.gs)
-    #     xmodel = torch.randn(16, 1, 29, 29)
-    #     xchild = xmodel.clone()
-    #     for i in range(len(model.blocks)):
-    #         #print("modules", i, model.blocks[i]._modules.keys(), child.blocks[i]._modules.keys())
-    #         if "0" in model.blocks[i]._modules.keys() and i > 0 and i != tochange: #model.blocks[i]._modules["0"].weight.shape != child.blocks[i]._modules["0"].weight.shape:
-    #             child_filter, child_x, child_bias = child.blocks[i]._modules["0"].test_filter_x(xchild)
-    #             model_filter, model_x, model_bias = model.blocks[i]._modules["0"].test_filter_x(xmodel)
-    #             print("model_filter:", model_filter[0:4,0:8,0,0])
-    #             print("child_filter:", child_filter[0:4,0:8,0,0])
-    #             print("model_x:", model_x.shape, model_x[0,0,0,:])
-    #             print("child_x:", child_x.shape, child_x[0,0,0,:])
-    #             print("xmodel:", xmodel.shape, xmodel[1,1,1,:])
-    #             print("xchild:", xchild.shape, xchild[1,1,1,:])
-    #             print(i)
-    #             self.assertTrue(torch.allclose(xmodel, xchild, rtol = 1e-4, atol = 1e-4))
-    #             self.assertTrue(torch.allclose(model_filter, child_filter, rtol = 1e-4, atol = 1e-4))
-    #             self.assertTrue(torch.allclose(model_x, child_x, rtol = 1e-4, atol = 1e-4))
-    #             self.assertTrue(torch.allclose(model_bias, child_bias, rtol = 1e-4, atol = 1e-4))
-    #             #self.assertTrue(torch.allclose(model.blocks[i](xmodel), child.blocks[i](xchild), rtol = 1e-4, atol = 1e-4))
-    #         xmodel = model.blocks[i](xmodel)
-    #         xchild = child.blocks[i](xchild)
-    #         if xmodel.shape != xchild.shape:
-    #             out_channels = xchild.shape[1]
-    #             in_groupsize = xmodel.shape[2]
-    #             out_groupsize = xchild.shape[2]
-    #             in_order = [int('{:0{width}b}'.format(n, width=int(np.log2(in_groupsize)))[::-1], 2) for n in range(in_groupsize)]
-    #             out_order = [int('{:0{width}b}'.format(n, width=int(np.log2(out_groupsize)))[::-1], 2) for n in range(out_groupsize)]
-    #             xmodel_rs = xmodel[:,:,in_order].view(-1, out_channels, out_groupsize, xmodel.shape[-2], xmodel.shape[-1])[:,:,out_order]
-    #         else:
-    #             xmodel_rs = xmodel
-    #         if not torch.allclose(xmodel_rs, xchild):
-    #             if "0" in model.blocks[i]._modules.keys():
-    #                 print("weight shapes", model.blocks[i]._modules["0"].weight.shape, child.blocks[i]._modules["0"].weight.shape)
-    #     print(xmodel.reshape(xmodel.shape[0], -1)[0:4,0:4])
-    #     print(xchild.reshape(xchild.shape[0], -1)[0:4,0:4])
-    #     print(model.full1._modules["0"](xmodel.reshape(xmodel.shape[0], -1))[0:4,0:4])
-    #     print(child.full1._modules["0"](xchild.reshape(xchild.shape[0], -1))[0:4,0:4])
-    #     xmodel = model.full1(xmodel.reshape(xmodel.shape[0], -1))
-    #     xchild = child.full1(xchild.reshape(xchild.shape[0], -1))
-    #     print(xmodel[1,:])
-    #     print(xchild[1,:])
-    #     self.assertTrue(torch.allclose(xmodel, xchild, rtol = 1e-4, atol = 1e-6))
-    #     xmodel = model.full2(xmodel)
-    #     xchild = child.full2(xchild)
-    #     self.assertTrue(torch.allclose(xmodel, xchild, rtol = 1e-4, atol = 1e-6))
+            x = torch.randn(batchsize, in_channels, S, S)
+            gx = models.rotate_n(x, 1, 2**g)
 
-    # def test_equivariance(self):
-    #     in_channels = 5
-    #     out_channels = 9
-    #     kernel_size = 3
-    #     batchsize = 4
-    #     S = 17
-    #     for g in [1,2]:
-    #         layer = models.GroupConv2d(group=(0,g), in_channels=in_channels, out_channels=out_channels, kernel_size = kernel_size, padding=1, bias=True)
-    #         layer.eval()
+            psi_x = layer(x)
+            psi_gx = layer(gx)
 
-    #         x = torch.randn(batchsize, in_channels, 2**g, S, S)**2
-    #         gx = models.rotatestack_n(x, 1, 2**g)
+            g_psi_x = models.rotatestack_n(psi_x, 1, 2**g)
 
-    #         psi_x = layer(x)
-    #         psi_gx = layer(gx)
+            assert psi_x.shape == g_psi_x.shape
+            assert psi_x.shape == (batchsize, out_channels, 2**g, S, S)
 
-    #         g_psi_x = models.rotatestack_n(psi_x, 1, 2**g)
+            assert not torch.allclose(psi_x, torch.zeros_like(psi_x), atol=1e-4, rtol=1e-4)
 
-    #         assert psi_x.shape == g_psi_x.shape
-    #         assert psi_x.shape == (batchsize, out_channels, 2**g, S, S)
+            assert torch.allclose(psi_gx, g_psi_x, atol=1e-6, rtol=1e-6)
 
-    #         assert not torch.allclose(psi_x, torch.zeros_like(psi_x), atol=1e-4, rtol=1e-4)
-
-    #         assert torch.allclose(psi_gx, g_psi_x, atol=1e-5, rtol=1e-5)
-
-    #         assert layer.weight.numel() == in_channels * out_channels * 2**g * kernel_size**2
-    #         assert layer.bias.numel() == out_channels
+            assert layer.weight.numel() == in_channels * out_channels * kernel_size**2
+            assert layer.bias.numel() == out_channels
 
 
-    #         layer = models.LiftingConv2d((0,g), in_channels=in_channels, out_channels=out_channels, kernel_size = kernel_size, padding=1, bias=True)
-    #         layer.eval()
+    def test_train(self):
+        self.model.train()
+        for inputs, labels in self.train_loader:
+            inputs = inputs.to(self.device)
+            labels = labels.to(self.device)
+            outputs = self.model(inputs)
+            loss = self.model.loss_function(outputs, labels)
+            self.model.optimizer.zero_grad()
+            loss.backward()
+            self.model.optimizer.step()
 
-    #         x = torch.randn(batchsize, in_channels, S, S)
-    #         gx = models.rotate_n(x, 1, 2**g)
+    def test_eval(self):
+        self.model.eval()
+        for inputs, labels in self.train_loader:
+            inputs = inputs.to(self.device)
+            labels = labels.to(self.device)
+            outputs = self.model(inputs)
+            loss = self.model.loss_function(outputs, labels)
+            self.assertTrue(loss.item() <= 0)
 
-    #         psi_x = layer(x)
-    #         psi_gx = layer(gx)
+    def test_generate(self):
+        allgs = [[(0,2) for _ in range(i)]+[(0,1) for _ in range(6-i)] for i in range(6)] + \
+                [[(0,2) for _ in range(i)]+[(0,0) for _ in range(6-i)] for i in range(6)]
 
-    #         g_psi_x = models.rotatestack_n(psi_x, 1, 2**g)
-
-    #         assert psi_x.shape == g_psi_x.shape
-    #         assert psi_x.shape == (batchsize, out_channels, 2**g, S, S)
-
-    #         assert not torch.allclose(psi_x, torch.zeros_like(psi_x), atol=1e-4, rtol=1e-4)
-
-    #         assert torch.allclose(psi_gx, g_psi_x, atol=1e-6, rtol=1e-6)
-
-    #         assert layer.weight.numel() == in_channels * out_channels * kernel_size**2
-    #         assert layer.bias.numel() == out_channels
-
-
-    # def test_train(self):
-    #     self.model.train()
-    #     for inputs, labels in self.train_loader:
-    #         inputs = inputs.to(self.device)
-    #         labels = labels.to(self.device)
-    #         outputs = self.model(inputs)
-    #         loss = self.model.loss_function(outputs, labels)
-    #         self.model.optimizer.zero_grad()
-    #         loss.backward()
-    #         self.model.optimizer.step()
-
-    # def test_eval(self):
-    #     self.model.eval()
-    #     for inputs, labels in self.train_loader:
-    #         inputs = inputs.to(self.device)
-    #         labels = labels.to(self.device)
-    #         outputs = self.model(inputs)
-    #         loss = self.model.loss_function(outputs, labels)
-    #         self.assertTrue(loss.item() <= 0)
-
-    # def test_generate(self):
-    #     allgs = [[(0,2) for _ in range(i)]+[(0,1) for _ in range(6-i)] for i in range(6)] + \
-    #             [[(0,2) for _ in range(i)]+[(0,0) for _ in range(6-i)] for i in range(6)]
-
-    #     for gs in allgs:
-    #         model = models.TDRegEquiCNN(gs=gs)
-    #         children = model.generate()
+        for gs in allgs:
+            model = models.TDRegEquiCNN(gs=gs)
+            children = model.generate()
     
 
 
