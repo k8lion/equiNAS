@@ -648,13 +648,31 @@ class MixedLiftingConv2d(torch.nn.Module):
         for i in range(group[0]+1):
             for j in range(group[1]+1):
                 g = (i,j)
-                in_c = in_channels
+                in_c = int(self.in_channels/groupsize(g))
                 out_c = int(self.out_channels/groupsize(g))
                 self.weights.append(torch.nn.Parameter(torch.normal(mean = 0.0, std = 1 / (out_c * in_c)**(1/2), 
-                    size=(out_c, in_c, kernel_size, kernel_size)), requires_grad=True))
+                    size=(out_c, in_c, groupsize(g), kernel_size, kernel_size)), requires_grad=True))
                 self.groups.append(g)
                 if bias:
                     self.bias.append(torch.nn.Parameter(torch.zeros(out_c), requires_grad=True))
+        skip_weights = torch.zeros(size=(out_c, in_c, kernel_size, kernel_size))
+        if self.in_channels == self.out_channels:
+            for c in range(self.in_channels):
+                skip_weights[c,c,kernel_size//2,kernel_size//2] = 1
+        else:
+            self.alphas.data[-1] = -np.inf
+        skip_weights = torch.nn.Parameter(skip_weights, requires_grad=True)
+        self.weights.append(skip_weights)
+        if bias:
+            self.bias.append(torch.nn.Parameter(torch.zeros(out_c), requires_grad=True))
+        self.groups.append((-1,-1))
+        print("alphas", self.alphas.shape, self.alphas)
+        self.test = False
+
+    def learnable_weights(self):
+        for name, param in self.named_parameters():
+            if name != "alphas" and not name.endswith("."+str(len(self.weights)-1)):
+                yield param
 
     def build_filter(self) -> torch.Tensor:
         alphas = torch.round(torch.softmax(self.alphas, dim=0))
@@ -665,25 +683,26 @@ class MixedLiftingConv2d(torch.nn.Module):
             bias = None
         for (i,g) in enumerate(self.groups):
             if g[0] == 1:
-                n_r = subgroupsize(self.group, 1)
-                _filter = torch.stack([rotateflip_n(self.weights[i].data, k%n_r, n_r, k//n_r, 2)
-                            for k in self.order], dim=-4)
+                _filter = torch.stack([rotateflipstack_n(self.weights[i].data, k, subgroupsize(g, 1), 0, subgroupsize(g, 0), test = self.test) for j in range(subgroupsize(g, 0)) for k in range(subgroupsize(g, 1))], dim = -5)
             else:
-                _filter = torch.stack([rotate_n(self.weights[i].data, k, groupsize(g))
-                            for k in self.order], dim=-4)
-            filter += alphas[i]*_filter.reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
+                _filter = torch.stack([rotatestack_n(self.weights[i].data, k, groupsize(g)) for k in range(subgroupsize(g, 1))], dim = -5)
+            if self.test:
+                for gm in range(_filter.shape[1]):
+                    _filter[:,gm] += 10*gm
+            filter += torch.round(alphas[i])*_filter.reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
             if self.bias is not None:
-                bias += alphas[i]*torch.stack([self.bias[i].data for _ in range(groupsize(g))], dim = 1).reshape(self.out_channels)
+                bias += torch.round(alphas[i])*torch.stack([self.bias[i].data for _ in range(groupsize(g))], dim = 1).reshape(self.out_channels)
         
         return filter, bias
-
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
 
         _filter, _bias = self.build_filter()
 
-        assert _bias.shape == (self.out_channels)
+        assert len(_bias) == self.out_channels
         assert _filter.shape == (self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
+
+        x = x.view(x.shape[0], self.in_channels, x.shape[-2], x.shape[-1])
 
         out = torch.conv2d(x, _filter,
                         stride=self.stride,
@@ -694,9 +713,10 @@ class MixedLiftingConv2d(torch.nn.Module):
         #TODO skip connect
         return out.view(-1, self.out_channels, out.shape[-2], out.shape[-1]) 
 
-class MixedGroupConv2d(torch.nn.Module):
+
+class MixedGroupConv2dV1(torch.nn.Module):
     def __init__(self, group: tuple, in_channels: int, out_channels: int, kernel_size: int, padding: int = 0, bias: bool = True, test: bool = False):
-        super(MixedGroupConv2d, self).__init__()
+        super(MixedGroupConv2dV1, self).__init__()
         self.group = group
         self.kernel_size = kernel_size
         self.stride = 1
@@ -720,15 +740,32 @@ class MixedGroupConv2d(torch.nn.Module):
                 out_c = int(self.out_channels/groupsize(g))
                 self.weights.append(torch.nn.Parameter(torch.normal(mean = 0.0, std = 1 / (out_c * in_c)**(1/2), 
                     size=(out_c, in_c, groupsize(g), kernel_size, kernel_size)), requires_grad=True))
+                print(out_c, in_c, groupsize(g), torch.linalg.norm(self.weights[-1].data))
                 self.groups.append(g)
                 if bias:
                     self.bias.append(torch.nn.Parameter(torch.zeros(out_c), requires_grad=True))
+        skip_weights = torch.zeros(size=(self.in_channels, self.out_channels, kernel_size, kernel_size))
+        if self.in_channels == self.out_channels:
+            for c in range(self.in_channels):
+                skip_weights[c,c,kernel_size//2,kernel_size//2] = 1
+        else:
+            self.alphas.data[-1] = -np.inf
+        skip_weights = torch.nn.Parameter(skip_weights, requires_grad=True)
+        self.weights.append(skip_weights)
+        if bias:
+            self.bias.append(torch.nn.Parameter(torch.zeros(out_c), requires_grad=True))
+        self.groups.append((-1,-1))
         #print("weights", len(self.weights), [w.shape for w in self.weights])
         #print("bias", len(self.bias), [b.shape for b in self.bias], [b for b in self.bias])
         #print("groups", len(self.groups), [g for g in self.groups])
-        print("alphas", self.alphas.shape, self.alphas)
+        #print("alphas", self.alphas.shape, self.alphas)
         #self.test = test
         self.test = False
+    
+    def learnable_weights(self):
+        for name, param in self.named_parameters():
+            if name != "alphas" and not name.endswith("."+str(len(self.weights)-1)):
+                yield param
 
     def build_filter(self) -> torch.Tensor:
         #print("self.alphas", self.alphas)
@@ -780,6 +817,77 @@ class MixedGroupConv2d(torch.nn.Module):
 
         #TODO skip connect
         return out.view(-1, self.out_channels, out.shape[-2], out.shape[-1]) 
+
+
+class MixedGroupConv2dV2(torch.nn.Module):
+    def __init__(self, group: tuple, in_channels: int, out_channels: int, kernel_size: int, padding: int = 0, bias: bool = True, test: bool = False):
+        super(MixedGroupConv2dV2, self).__init__()
+        self.group = group
+        self.kernel_size = kernel_size
+        self.stride = 1
+        self.dilation = 1
+        self.padding = padding
+        #print(groupsize(group))
+        self.out_channels = out_channels * groupsize(group)
+        self.in_channels = in_channels * groupsize(group)
+        #print("soc", self.out_channels)
+        self.alphas = torch.nn.Parameter(torch.zeros(np.prod([g+1 for g in group])+1))
+        self.weights = torch.nn.ParameterList()
+        if bias:
+            self.bias = torch.nn.ParameterList()
+        else:
+            self.bias = None
+        self.groups = []
+        for i in range(group[0]+1):
+            for j in range(group[1]+1):
+                g = (i,j)
+                in_c = int(self.in_channels/groupsize(g))
+                out_c = int(self.out_channels/groupsize(g))
+                self.weights.append(torch.nn.Parameter(torch.normal(mean = 0.0, std = 1 / (out_c * in_c)**(1/2), 
+                    size=(out_c, in_c, groupsize(g), kernel_size, kernel_size)), requires_grad=True))
+                print(out_c, in_c, groupsize(g), torch.linalg.norm(self.weights[-1].data))
+                self.groups.append(g)
+                if bias:
+                    self.bias.append(torch.nn.Parameter(torch.zeros(out_c), requires_grad=True))
+        skip_weights = torch.zeros(size=(self.in_channels, self.out_channels, kernel_size, kernel_size))
+        if self.in_channels == self.out_channels:
+            for c in range(self.in_channels):
+                skip_weights[c,c,kernel_size//2,kernel_size//2] = 1
+        else:
+            self.alphas.data[-1] = -np.inf
+        skip_weights = torch.nn.Parameter(skip_weights, requires_grad=True)
+        self.weights.append(skip_weights)
+        if bias:
+            self.bias.append(torch.nn.Parameter(torch.zeros(out_c), requires_grad=True))
+        self.groups.append((-1,-1))
+        #print("weights", len(self.weights), [w.shape for w in self.weights])
+        #print("bias", len(self.bias), [b.shape for b in self.bias], [b for b in self.bias])
+        #print("groups", len(self.groups), [g for g in self.groups])
+        #print("alphas", self.alphas.shape, self.alphas)
+        #self.test = test
+        self.test = False
+    
+    def learnable_weights(self):
+        for name, param in self.named_parameters():
+            if name != "alphas" and not name.endswith("."+str(len(self.weights)-1)):
+                yield param
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+
+        #init out
+
+        #for layer in len(self.weights):
+            #lift x to this space
+            #x_view = x.clone().view(x.shape[0], -1, x.shape[2], x.shape[3])
+
+            #build this filter (and bias)
+
+            #convolve x with this filter
+
+            #add alpha times flattened output to running sum
+
+        #return out
+        return
 
 
 def first(od):
