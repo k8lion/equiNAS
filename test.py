@@ -223,7 +223,10 @@ class Test(unittest.TestCase):
             layer = models.MixedGroupConv2dV2(group, in_channels=in_channels, out_channels=out_channels, kernel_size = kernel_size, padding=int(kernel_size//2), bias=True)#, test=True)
             layer.eval()
             
-            x = torch.ones(batchsize, in_channels*models.groupsize(group), S, S)
+            x = torch.rand(batchsize, in_channels*models.groupsize(group), S, S)
+            for k1 in range(S):
+                for k2 in range(S):
+                    x.data[:,:,k1,k2] = 100**k1
             # for i in range(S):
             #     for j in range(S):
             #         x[0,0,i,j] = (i-1)*10+j-1

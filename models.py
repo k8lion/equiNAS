@@ -68,10 +68,11 @@ output: A x B x C x D, C x D data rotated/flipped
 
 """
 def rotateflip_n(x: torch.Tensor, r: int, n_r: int, f: int, n_f: int, flipfirst: bool = False) -> torch.Tensor:
-    if flipfirst and r % 2 == 1:#n_f == 2 and f == 1:
-        r = n_r-r
-    if flipfirst and n_f == 2 and f == 1:
-        x = torch.flip(x, (-1,))
+    #if flipfirst:#n_f == 2 and f == 1:
+    #    r = (n_r-r)%n_r
+    #if flipfirst and n_f == 2 and f == 1:
+        #x = torch.flip(x, (-1,))
+        #x = rotate_4(x, 2)
     if r == 0:
         roty = x
     elif r/n_r == 1/2:
@@ -83,7 +84,8 @@ def rotateflip_n(x: torch.Tensor, r: int, n_r: int, f: int, n_f: int, flipfirst:
     else:
         shape = x.shape
         roty = tvF.rotate(x.reshape(x.size(1), -1, x.size(-2), x.size(-1)), 360*r/n_r).reshape(shape)
-    if not flipfirst and n_f == 2 and f == 1:
+    #if not flipfirst and n_f == 2 and f == 1:
+    if n_f == 2 and f == 1:
         roty = torch.flip(roty, (-1,))
     return roty
 
@@ -114,8 +116,8 @@ def rotateflipstack_n(y: torch.Tensor, r: int, n_r: int, f: int, n_f: int, order
     if test:
         for g in range(roty.shape[-3]):
             roty[:,:,g] = g
-    #print("rfs", r, n_r, f, n_f, [(n_r-r+i)%n_r+f*n_r for i in order0]+[(n_r-r+i)%n_r+(1-f)*n_r for i in order1])
-    roty = torch.stack([torch.select(roty, -3, (n_r-r+i)%n_r+f*n_r) for i in order0]+[torch.select(roty, -3, (n_r-r+i)%n_r+(1-f)*n_r) for i in order1], dim=-3) 
+    print("rfs", r, n_r, f, n_f, [(n_r-r+i)%n_r+f*n_r for i in order0]+[(n_r-r+i)%n_r+(1-f)*n_r for i in order1])
+    roty = torch.stack([rotate_4(torch.select(roty, -3, (n_r-r+i)%n_r+f*n_r), 2 if kernel else 0) for i in order0]+[rotate_4(torch.select(roty, -3, (n_r-r+i)%n_r+(1-f)*n_r), 2 if kernel else 0) for i in order1], dim=-3) 
     return roty
 
 def adapt(parentweight: torch.Tensor, parentg, childg, inchannels, outchannels):
@@ -849,6 +851,9 @@ class MixedGroupConv2dV2(torch.nn.Module):
                 out_c = int(self.out_channels/groupsize(g))
                 weights = torch.nn.Parameter(torch.normal(mean = 0.0, std = 1 / (out_c * in_c)**(1/2), 
                     size=(out_c, in_c, groupsize(g), kernel_size, kernel_size)), requires_grad=True)
+                for k1 in range(kernel_size):
+                    for k2 in range(kernel_size):
+                        weights.data[:,:,:,k1,k2] = 10*k1
                 self.norms.data[len(self.weights)] = torch.linalg.norm(weights)
                 self.weights.append(weights)
                 self.groups.append(g)
