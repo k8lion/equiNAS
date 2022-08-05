@@ -225,9 +225,10 @@ class Test(unittest.TestCase):
             layer.eval()
             
             x = torch.rand(batchsize, in_channels*models.groupsize(group), S, S)
-            #for k1 in range(S):
-            #    for k2 in range(S):
-            #        x.data[:,:,k1,k2] = 100**k1
+            for k1 in range(S):
+                for k2 in range(S):
+                    for gs in range(x.shape[1]):
+                        x.data[:,gs,k1,k2] = 0.1*k2+gs
             #x.data[:,:,:,:] = 0
             #x.data[:,:,0,1] = 0
             #for i in range(x.shape[1]):

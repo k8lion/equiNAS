@@ -850,10 +850,10 @@ class MixedGroupConv2dV2(torch.nn.Module):
                 out_c = int(self.out_channels/groupsize(g))
                 weights = torch.nn.Parameter(torch.normal(mean = 0.0, std = 1 / (out_c * in_c)**(1/2), 
                     size=(out_c, in_c, groupsize(g), kernel_size, kernel_size)), requires_grad=True)
-                # for ks in range(kernel_size):
-                #     for gs in range(weights.shape[2]):
-                #         #weights.data[:,:,gs,:,:] = gs
-                #         weights.data[:,:,gs,ks,:] = ks+gs
+                for ks in range(kernel_size):
+                    for gs in range(weights.shape[2]):
+                        #weights.data[:,:,gs,:,:] = gs
+                        weights.data[:,:,gs,ks,ks] = ks*10+gs
                 self.norms.data[len(self.weights)] = torch.linalg.norm(weights)
                 self.weights.append(weights)
                 self.groups.append(g)
@@ -904,7 +904,7 @@ class MixedGroupConv2dV2(torch.nn.Module):
                 _filter = torch.stack([rotatestack_n(weights.data, i, groupsize(self.groups[layer])) for i in range(subgroupsize(self.groups[layer], 1))], dim = -5)
             if alphas[layer] > 0:
                 print(layer, _filter.shape, [(i, subgroupsize(self.groups[layer], 1), j, subgroupsize(self.groups[layer], 0)) for j in range(subgroupsize(self.groups[layer], 0)) for i in range(subgroupsize(self.groups[layer], 1))])
-                #_filter[:,_filter.shape[1]//2:] = rotate_4(_filter[:,_filter.shape[1]//2:], 2)
+                _filter[:,_filter.shape[1]//2:] = rotate_4(_filter[:,_filter.shape[1]//2:], 2)
                 #_filter[:,:,:,:_filter.shape[3]//2] = rotate_4(_filter[:,:,:,:_filter.shape[3]//2], 2)
 
             if self.bias is not None:
