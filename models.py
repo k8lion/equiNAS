@@ -68,10 +68,10 @@ output: A x B x C x D, C x D data rotated/flipped
 
 """
 def rotateflip_n(x: torch.Tensor, r: int, n_r: int, f: int, n_f: int, flipfirst: bool = False) -> torch.Tensor:
-    #if flipfirst:#n_f == 2 and f == 1:
-    #    r = (n_r-r)%n_r
-    #if flipfirst and n_f == 2 and f == 1:
-        #x = torch.flip(x, (-1,))
+    if flipfirst and n_f == 2 and f == 1:
+        x = torch.flip(x, (-1,))
+    #if flipfirst and r % 2 == 1:
+        #r = (n_r-r)%n_r
         #x = rotate_4(x, 2)
     if r == 0:
         roty = x
@@ -84,8 +84,8 @@ def rotateflip_n(x: torch.Tensor, r: int, n_r: int, f: int, n_f: int, flipfirst:
     else:
         shape = x.shape
         roty = tvF.rotate(x.reshape(x.size(1), -1, x.size(-2), x.size(-1)), 360*r/n_r).reshape(shape)
-    #if not flipfirst and n_f == 2 and f == 1:
-    if n_f == 2 and f == 1:
+    if not flipfirst and n_f == 2 and f == 1:
+        #if n_f == 2 and f == 1:
         roty = torch.flip(roty, (-1,))
     return roty
 
@@ -110,14 +110,13 @@ def rotateflipstack_n(y: torch.Tensor, r: int, n_r: int, f: int, n_f: int, order
     order0, order1 = order[:n_r], order[n_r:]
     if f == 1:
         order0, order1 = order1, order0
-        #TODO: maybe fix for flip case? currently exception condtional in build_filter
 
-    roty = rotateflip_n(y, r, n_r, f, n_f, flipfirst=kernel) 
+    roty = rotateflip_n(y, r, n_r, f, n_f)#, flipfirst=kernel) 
     if test:
         for g in range(roty.shape[-3]):
             roty[:,:,g] = g
-    print("rfs", r, n_r, f, n_f, [(n_r-r+i)%n_r+f*n_r for i in order0]+[(n_r-r+i)%n_r+(1-f)*n_r for i in order1])
-    roty = torch.stack([rotate_4(torch.select(roty, -3, (n_r-r+i)%n_r+f*n_r), 2 if kernel else 0) for i in order0]+[rotate_4(torch.select(roty, -3, (n_r-r+i)%n_r+(1-f)*n_r), 2 if kernel else 0) for i in order1], dim=-3) 
+    #print("rfs", r, n_r, f, n_f, [(n_r-r+i)%n_r+f*n_r for i in order0]+[(n_r-r+i)%n_r+(1-f)*n_r for i in order1])
+    roty = torch.stack([torch.select(roty, -3, (n_r-r+i)%n_r+f*n_r) for i in order0]+[torch.select(roty, -3, (n_r-r+i)%n_r+(1-f)*n_r) for i in order1], dim=-3) 
     return roty
 
 def adapt(parentweight: torch.Tensor, parentg, childg, inchannels, outchannels):
@@ -785,7 +784,7 @@ class MixedGroupConv2dV1(torch.nn.Module):
             if g == (-1,-1):
                 _filter = self.weights[i]
             elif g[0] == 1:
-                _filter = torch.stack([rotateflipstack_n(self.weights[i].data, k, subgroupsize(g, 1), 0, subgroupsize(g, 0), test = self.test) for _ in range(subgroupsize(g, 0)) for k in range(subgroupsize(g, 1))], dim = -5)
+                _filter = torch.stack([rotateflipstack_n(self.weights[i].data, k, subgroupsize(g, 1), j, subgroupsize(g, 0), test = self.test) for j in range(subgroupsize(g, 0)) for k in range(subgroupsize(g, 1))], dim = -5)
                 #_filter = torch.flip(_filter, (-1,))
             else:
                 _filter = torch.stack([rotatestack_n(self.weights[i].data, k, groupsize(g)) for k in range(subgroupsize(g, 1))], dim = -5)
@@ -851,9 +850,10 @@ class MixedGroupConv2dV2(torch.nn.Module):
                 out_c = int(self.out_channels/groupsize(g))
                 weights = torch.nn.Parameter(torch.normal(mean = 0.0, std = 1 / (out_c * in_c)**(1/2), 
                     size=(out_c, in_c, groupsize(g), kernel_size, kernel_size)), requires_grad=True)
-                for k1 in range(kernel_size):
-                    for k2 in range(kernel_size):
-                        weights.data[:,:,:,k1,k2] = 10*k1
+                # for ks in range(kernel_size):
+                #     for gs in range(weights.shape[2]):
+                #         #weights.data[:,:,gs,:,:] = gs
+                #         weights.data[:,:,gs,ks,:] = ks+gs
                 self.norms.data[len(self.weights)] = torch.linalg.norm(weights)
                 self.weights.append(weights)
                 self.groups.append(g)
@@ -900,12 +900,12 @@ class MixedGroupConv2dV2(torch.nn.Module):
             #build this filter (and bias)
             if self.groups[layer][0] == 1:
                 _filter = torch.stack([rotateflipstack_n(weights.data, i, subgroupsize(self.groups[layer], 1), j, subgroupsize(self.groups[layer], 0), kernel=True) for j in range(subgroupsize(self.groups[layer], 0)) for i in range(subgroupsize(self.groups[layer], 1))], dim = -5)
-                #_filter[:, :, :, _filter.shape[-3]//2:] = torch.flip(_filter[:, :, :, _filter.shape[-3]//2:], (-1,))
-                #_filter[:, :_filter.shape[-5]//2] = torch.flip(_filter[:, :_filter.shape[-5]//2], (-1,))
             else:
                 _filter = torch.stack([rotatestack_n(weights.data, i, groupsize(self.groups[layer])) for i in range(subgroupsize(self.groups[layer], 1))], dim = -5)
             if alphas[layer] > 0:
                 print(layer, _filter.shape, [(i, subgroupsize(self.groups[layer], 1), j, subgroupsize(self.groups[layer], 0)) for j in range(subgroupsize(self.groups[layer], 0)) for i in range(subgroupsize(self.groups[layer], 1))])
+                #_filter[:,_filter.shape[1]//2:] = rotate_4(_filter[:,_filter.shape[1]//2:], 2)
+                #_filter[:,:,:,:_filter.shape[3]//2] = rotate_4(_filter[:,:,:,:_filter.shape[3]//2], 2)
 
             if self.bias is not None:
                 _bias = torch.stack([self.bias[layer].data for _ in range(groupsize(self.groups[layer]))], dim = 1)
@@ -914,7 +914,6 @@ class MixedGroupConv2dV2(torch.nn.Module):
                 _bias = None
 
             _filter = _filter.reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
-            #_filter[3] = 0
 
             #convolve x with this filter
             y = torch.conv2d(x, _filter,

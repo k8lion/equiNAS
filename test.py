@@ -212,6 +212,7 @@ class Test(unittest.TestCase):
             self.assertTrue(layer.bias.numel() == out_channels)
 
     def test_mixedgroupconv(self):
+        torch.manual_seed(0)
         torch.set_printoptions(precision=2, sci_mode=False)
         in_channels = 1
         out_channels = 1
@@ -224,10 +225,13 @@ class Test(unittest.TestCase):
             layer.eval()
             
             x = torch.rand(batchsize, in_channels*models.groupsize(group), S, S)
-            for k1 in range(S):
-                for k2 in range(S):
-                    x.data[:,:,k1,k2] = 100**k1
-            # for i in range(S):
+            #for k1 in range(S):
+            #    for k2 in range(S):
+            #        x.data[:,:,k1,k2] = 100**k1
+            #x.data[:,:,:,:] = 0
+            #x.data[:,:,0,1] = 0
+            #for i in range(x.shape[1]):
+            #    x.data[:,i,:,:] += i*0.1
             #     for j in range(S):
             #         x[0,0,i,j] = (i-1)*10+j-1
             #print("x", x.reshape(torch.numel(x)).data)
@@ -242,20 +246,21 @@ class Test(unittest.TestCase):
                         else:
                             layer.alphas.data[k] = -np.inf
                     print(2**(group[1]-rotation), 2**group[1], flip, 2**group[0])
+                    print("x", x.reshape(torch.numel(x)).data)
                     gx = models.rotateflipstack_n(x.clone().reshape(batchsize, in_channels, models.groupsize(group), S, S), 2**(group[1]-rotation), 2**group[1], flip, 2**group[0]).reshape(batchsize, in_channels*models.groupsize(group), S, S)
-                    #print("gx", gx.reshape(torch.numel(gx)).data)
+                    print("gx", gx.reshape(torch.numel(gx)).data)
 
                     # compute the output
                     psi_x = layer(x.clone())
                     psi_gx = layer(gx.clone())
 
-                    #print("psi_x", psi_x.reshape(torch.numel(psi_x)).data)
-                    #print("psi_gx", psi_gx.reshape(torch.numel(psi_gx)).data)
+                    print("psi_x", psi_x.reshape(torch.numel(psi_x)).data)
+                    print("psi_gx", psi_gx.reshape(torch.numel(psi_gx)).data)
 
                     # the output is a function in the space Y, so we need to use the new action to rotate it
                     g_psi_x = models.rotateflipstack_n(psi_x.clone().reshape(batchsize, out_channels, models.groupsize(group), S, S), 2**(group[1]-rotation), 2**group[1], flip, 2**group[0]).reshape(batchsize, out_channels*models.groupsize(group), S, S)
 
-                    #print("g_psi_x", g_psi_x.reshape(torch.numel(g_psi_x)).data)
+                    print("g_psi_x", g_psi_x.reshape(torch.numel(g_psi_x)).data)
 
                     self.assertTrue(psi_x.shape == g_psi_x.shape)
                     self.assertTrue(psi_x.shape == (batchsize, out_channels*models.groupsize(group), S, S))
@@ -266,7 +271,7 @@ class Test(unittest.TestCase):
                     # check equivariance
                     print(psi_gx.reshape(8,9))
                     print(g_psi_x.reshape(8,9))
-                    print(psi_gx-g_psi_x)
+                    print((psi_gx-g_psi_x)[0,:,:,:])
                     #self.assertTrue(torch.allclose(psi_gx, g_psi_x, atol=1e-4, rtol=1e-6))
             
 
