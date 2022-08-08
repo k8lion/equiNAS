@@ -53,6 +53,19 @@ def rotatestack_n(y: torch.Tensor, r: int, n: int, order = None) -> torch.Tensor
     roty = torch.stack([torch.select(roty, -3, (n-r+i)%n) for i in order], dim=-3) 
     return roty
 
+def transform(y: torch.Tensor, g: tuple) -> torch.Tensor:
+  
+  assert len(y.shape) >= 2
+
+  f, r = g
+
+  y = y.clone()
+
+  if f == 1:
+    y = torch.flip(y, dims=(-2,))
+  y = y.rot90(r, dims=(-2, -1))
+  return y
+
 """
 group action on images
 
@@ -68,11 +81,10 @@ output: A x B x C x D, C x D data rotated/flipped
 
 """
 def rotateflip_n(x: torch.Tensor, r: int, n_r: int, f: int, n_f: int, flipfirst: bool = False) -> torch.Tensor:
-    if flipfirst and n_f == 2 and f == 1:
-        x = torch.flip(x, (-1,))
-    #if flipfirst and r % 2 == 1:
-        #r = (n_r-r)%n_r
-        #x = rotate_4(x, 2)
+    if n_f == 2 and n_r == 4:
+        return transform(x, (f,r))
+    if n_f == 2 and n_r == 2:
+        return transform(x, (f,r*2))
     if r == 0:
         roty = x
     elif r/n_r == 1/2:
@@ -89,6 +101,46 @@ def rotateflip_n(x: torch.Tensor, r: int, n_r: int, f: int, n_f: int, flipfirst:
         roty = torch.flip(roty, (-1,))
     return roty
 
+
+def transform_p2m(y: torch.Tensor, g: tuple) -> torch.Tensor:
+  assert len(y.shape) >= 3
+  assert y.shape[-3] == 4
+
+  f, r = g
+
+  y = transform(y, (g[0], 2*g[1]))
+
+  y = y.reshape(*y.shape[:-3], 2, 2, *y.shape[-2:])
+
+  if f:
+    y = torch.flip(y, dims=(-4,))
+  
+  y = torch.roll(y, r, dims=-3)
+
+  y = y.reshape(*y.shape[:-4], 4, *y.shape[-2:])
+
+  return y
+
+def transform_p4m(y: torch.Tensor, g: tuple) -> torch.Tensor:
+  assert len(y.shape) >= 3
+  assert y.shape[-3] == 8
+
+  f, r = g
+
+  y = transform(y, g)
+
+  y = y.reshape(*y.shape[:-3], 2, 4, *y.shape[-2:])
+
+  if f:
+    y = torch.index_select(y, -3, torch.LongTensor([0, 3, 2, 1]))
+    y = torch.flip(y, dims=(-4,))
+  
+  y = torch.roll(y, r, dims=-3)
+
+  y = y.reshape(*y.shape[:-4], 8, *y.shape[-2:])
+
+  return y
+
 """
 group action on lifted activations/weights
 
@@ -102,6 +154,10 @@ n_f: flip aspects of group
 output: A x B x |G| x C x D, 3rd dimension rolled and C x D data transformed for each member of G
 """
 def rotateflipstack_n(y: torch.Tensor, r: int, n_r: int, f: int, n_f: int, order = None, test = False, kernel = False) -> torch.Tensor:
+    if n_f == 2 and n_r == 4:
+        return transform_p4m(y, (f,r))
+    if n_f == 2 and n_r == 2:
+        return transform_p2m(y, (f,r))
     if order is None:
         order = list(range(n_f*n_r))
     assert len(y.shape) >= 3
@@ -110,11 +166,25 @@ def rotateflipstack_n(y: torch.Tensor, r: int, n_r: int, f: int, n_f: int, order
     order0, order1 = order[:n_r], order[n_r:]
     if f == 1:
         order0, order1 = order1, order0
+        # if n_f == 2:
+        #     order0, order1 = order0[::-1], order1[::-1]
+        #     if len(order0) > 0:
+        #         order0.insert(0, order0.pop())
+        #     order1.insert(0, order1.pop())
 
     roty = rotateflip_n(y, r, n_r, f, n_f)#, flipfirst=kernel) 
     if test:
         for g in range(roty.shape[-3]):
             roty[:,:,g] = g
+    # if n_r == 4 and n_f == 2 and f == 1:
+    #     orders = [[4, 7, 6, 5, 0, 3, 2, 1],
+    #               [5, 4, 7, 6, 1, 0, 3, 2],
+    #               [6, 5, 4, 7, 2, 1, 0, 3],
+    #               [7, 6, 5, 4, 3, 2, 1, 0],         
+    #     ]
+    #     order = orders[r]
+    #     roty = torch.stack([torch.select(roty, -3, i) for i in order], dim=-3) 
+    #     return roty
     #print("rfs", r, n_r, f, n_f, [(n_r-r+i)%n_r+f*n_r for i in order0]+[(n_r-r+i)%n_r+(1-f)*n_r for i in order1])
     roty = torch.stack([torch.select(roty, -3, (n_r-r+i)%n_r+f*n_r) for i in order0]+[torch.select(roty, -3, (n_r-r+i)%n_r+(1-f)*n_r) for i in order1], dim=-3) 
     return roty
@@ -245,10 +315,9 @@ class LiftingConv2d(torch.nn.Module):
 
 class GroupConv2d(torch.nn.Module):
 
-    def __init__(self, group: tuple, in_channels: int, out_channels: int, kernel_size: int, padding: int = 0, bias: bool = True):
+    def __init__(self, group: tuple, in_channels: int, out_channels: int, kernel_size: int, padding: int = 0, bias: bool = True, perm=list(range(8))):
         
         super(GroupConv2d, self).__init__()
-
         self.group = group
         self.kernel_size = kernel_size
         self.stride = 1
@@ -290,7 +359,8 @@ class GroupConv2d(torch.nn.Module):
   
     def build_filter(self) -> torch.Tensor:
         if self.group[0] == 1:
-            _filter = torch.stack([rotateflipstack_n(self.weight.data, i, subgroupsize(self.group, 1), j, subgroupsize(self.group, 0)) for j in range(subgroupsize(self.group, 0)) for i in range(subgroupsize(self.group, 1))], dim = -5)
+            order = [(i,j) for j in range(subgroupsize(self.group, 0)) for i in range(subgroupsize(self.group, 1))]
+            _filter = torch.stack([rotateflipstack_n(self.weight.data, i, subgroupsize(self.group, 1), j, subgroupsize(self.group, 0)) for (i,j) in order], dim = -5)
         else:
             _filter = torch.stack([rotatestack_n(self.weight.data, i, groupsize(self.group)) for i in range(subgroupsize(self.group, 1))], dim = -5)
 
@@ -631,9 +701,9 @@ class SkipEquiCNN(torch.nn.Module):
 def order(subgroupsize: int):
     return [int('{:0{width}b}'.format(n, width=int(np.log2(subgroupsize)))[::-1], 2) for n in range(subgroupsize)]
 
-class MixedLiftingConv2d(torch.nn.Module):
+class MixedLiftingConv2dV1(torch.nn.Module):
     def __init__(self, group: tuple, in_channels: int, out_channels: int, kernel_size: int, padding: int = 0, bias: bool = True):
-        super(MixedLiftingConv2d, self).__init__()
+        super(MixedLiftingConv2dV1, self).__init__()
         self.group = group
         self.kernel_size = kernel_size
         self.stride = 1
@@ -651,20 +721,20 @@ class MixedLiftingConv2d(torch.nn.Module):
         for i in range(group[0]+1):
             for j in range(group[1]+1):
                 g = (i,j)
-                in_c = int(self.in_channels/groupsize(g))
+                in_c = self.in_channels
                 out_c = int(self.out_channels/groupsize(g))
                 self.weights.append(torch.nn.Parameter(torch.normal(mean = 0.0, std = 1 / (out_c * in_c)**(1/2), 
-                    size=(out_c, in_c, groupsize(g), kernel_size, kernel_size)), requires_grad=True))
+                    size=(out_c, in_c, kernel_size, kernel_size)), requires_grad=True))
                 self.groups.append(g)
                 if bias:
                     self.bias.append(torch.nn.Parameter(torch.zeros(out_c), requires_grad=True))
-        skip_weights = torch.zeros(size=(out_c, in_c, kernel_size, kernel_size))
+        skip_weights = torch.zeros(size=(self.out_channels, self.in_channels, kernel_size, kernel_size))
         if self.in_channels == self.out_channels:
             for c in range(self.in_channels):
                 skip_weights[c,c,kernel_size//2,kernel_size//2] = 1
         else:
             self.alphas.data[-1] = -np.inf
-        skip_weights = torch.nn.Parameter(skip_weights, requires_grad=True)
+        skip_weights = torch.nn.Parameter(skip_weights, requires_grad=False)
         self.weights.append(skip_weights)
         if bias:
             self.bias.append(torch.nn.Parameter(torch.zeros(out_c), requires_grad=True))
@@ -686,12 +756,9 @@ class MixedLiftingConv2d(torch.nn.Module):
             bias = None
         for (i,g) in enumerate(self.groups):
             if g[0] == 1:
-                _filter = torch.stack([rotateflipstack_n(self.weights[i].data, k, subgroupsize(g, 1), 0, subgroupsize(g, 0), test = self.test) for j in range(subgroupsize(g, 0)) for k in range(subgroupsize(g, 1))], dim = -5)
+                _filter = torch.stack([rotateflip_n(self.weights[i].data, k, subgroupsize(g, 1), j, subgroupsize(g, 0)) for j in range(subgroupsize(g, 0)) for k in range(subgroupsize(g, 1))], dim = -5)
             else:
-                _filter = torch.stack([rotatestack_n(self.weights[i].data, k, groupsize(g)) for k in range(subgroupsize(g, 1))], dim = -5)
-            if self.test:
-                for gm in range(_filter.shape[1]):
-                    _filter[:,gm] += 10*gm
+                _filter = torch.stack([rotate_n(self.weights[i].data, k, groupsize(g)) for k in range(subgroupsize(g, 1))], dim = -5)
             filter += torch.round(alphas[i])*_filter.reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
             if self.bias is not None:
                 bias += torch.round(alphas[i])*torch.stack([self.bias[i].data for _ in range(groupsize(g))], dim = 1).reshape(self.out_channels)
@@ -705,7 +772,7 @@ class MixedLiftingConv2d(torch.nn.Module):
         assert len(_bias) == self.out_channels
         assert _filter.shape == (self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
 
-        x = x.view(x.shape[0], self.in_channels, x.shape[-2], x.shape[-1])
+        #x = x.view(x.shape[0], self.in_channels, x.shape[-2], x.shape[-1])
 
         out = torch.conv2d(x, _filter,
                         stride=self.stride,
@@ -725,10 +792,8 @@ class MixedGroupConv2dV1(torch.nn.Module):
         self.stride = 1
         self.dilation = 1
         self.padding = padding
-        #print(groupsize(group))
         self.out_channels = out_channels * groupsize(group)
         self.in_channels = in_channels * groupsize(group)
-        #print("soc", self.out_channels)
         self.alphas = torch.nn.Parameter(torch.zeros(np.prod([g+1 for g in group])+1))
         self.weights = torch.nn.ParameterList()
         if bias:
@@ -757,12 +822,6 @@ class MixedGroupConv2dV1(torch.nn.Module):
         if bias:
             self.bias.append(torch.nn.Parameter(torch.zeros(self.out_channels), requires_grad=True))
         self.groups.append((-1,-1))
-        #print("weights", len(self.weights), [w.shape for w in self.weights])
-        #print("bias", len(self.bias), [b.shape for b in self.bias], [b for b in self.bias])
-        #print("groups", len(self.groups), [g for g in self.groups])
-        #print("alphas", self.alphas.shape, self.alphas)
-        #self.test = test
-        self.test = False
     
     def learnable_weights(self):
         for name, param in self.named_parameters():
@@ -770,31 +829,23 @@ class MixedGroupConv2dV1(torch.nn.Module):
                 yield param
 
     def build_filter(self) -> torch.Tensor:
-        #print("self.alphas", self.alphas)
-        alphas = torch.round(torch.softmax(self.alphas, dim=0)) #add temperature? remove round?
+        #alphas = torch.round(torch.softmax(self.alphas, dim=0)) #add temperature? remove round?
+        alphas = torch.softmax(self.alphas, dim=0)
         filter = torch.zeros(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
-        #print("alphas", alphas)
         if self.bias is not None:
             bias = torch.zeros(self.out_channels)
         else:
             bias = None
         for (i,g) in enumerate(self.groups):
-            #print("bias", bias)
-            #creates _filter: C_out x |G| x C_in x |G| x K x K, adding dim1 
             if g == (-1,-1):
                 _filter = self.weights[i]
             elif g[0] == 1:
-                _filter = torch.stack([rotateflipstack_n(self.weights[i].data, k, subgroupsize(g, 1), j, subgroupsize(g, 0), test = self.test) for j in range(subgroupsize(g, 0)) for k in range(subgroupsize(g, 1))], dim = -5)
-                #_filter = torch.flip(_filter, (-1,))
+                _filter = torch.stack([rotateflipstack_n(self.weights[i].data, k, subgroupsize(g, 1), j, subgroupsize(g, 0)) for j in range(subgroupsize(g, 0)) for k in range(subgroupsize(g, 1))], dim = -5)
             else:
                 _filter = torch.stack([rotatestack_n(self.weights[i].data, k, groupsize(g)) for k in range(subgroupsize(g, 1))], dim = -5)
-            #print("_filter.shape", _filter.shape)
-            #print("self.test", self.test)
             if self.test:
                 for gm in range(_filter.shape[1]):
                     _filter[:,gm] += 10*gm
-            #print("unordered", _filter.reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)[:,:,0,0])
-            #print("ordered", _filter[:,order(_filter.shape[1])].reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)[:,:,0,0])
             filter += torch.round(alphas[i])*_filter.reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
             #filter += torch.round(alphas[i])*_filter[:,order(_filter.shape[1])].reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
             if self.bias is not None:
@@ -822,19 +873,16 @@ class MixedGroupConv2dV1(torch.nn.Module):
         #TODO skip connect
         return out.view(-1, self.out_channels, out.shape[-2], out.shape[-1]) 
 
-
-class MixedGroupConv2dV2(torch.nn.Module):
+class MixedLiftingConv2dV2(torch.nn.Module):
     def __init__(self, group: tuple, in_channels: int, out_channels: int, kernel_size: int, padding: int = 0, bias: bool = True, test: bool = False):
-        super(MixedGroupConv2dV2, self).__init__()
+        super(MixedLiftingConv2dV2, self).__init__()
         self.group = group
         self.kernel_size = kernel_size
         self.stride = 1
         self.dilation = 1
         self.padding = padding
-        #print(groupsize(group))
         self.out_channels = out_channels * groupsize(group)
-        self.in_channels = in_channels * groupsize(group)
-        #print("soc", self.out_channels)
+        self.in_channels = in_channels
         self.alphas = torch.nn.Parameter(torch.zeros(np.prod([g+1 for g in group])+1), requires_grad=True)
         self.norms = torch.nn.Parameter(torch.zeros(np.prod([g+1 for g in group])+1), requires_grad=False)
         self.weights = torch.nn.ParameterList()
@@ -846,14 +894,10 @@ class MixedGroupConv2dV2(torch.nn.Module):
         for i in range(group[0]+1):
             for j in range(group[1]+1):
                 g = (i,j)
-                in_c = int(self.in_channels/groupsize(g))
+                in_c = self.in_channels
                 out_c = int(self.out_channels/groupsize(g))
                 weights = torch.nn.Parameter(torch.normal(mean = 0.0, std = 1 / (out_c * in_c)**(1/2), 
-                    size=(out_c, in_c, groupsize(g), kernel_size, kernel_size)), requires_grad=True)
-                for ks in range(kernel_size):
-                    for gs in range(weights.shape[2]):
-                        #weights.data[:,:,gs,:,:] = gs
-                        weights.data[:,:,gs,ks,ks] = ks*10+gs
+                    size=(out_c, in_c, kernel_size, kernel_size)), requires_grad=True)
                 self.norms.data[len(self.weights)] = torch.linalg.norm(weights)
                 self.weights.append(weights)
                 self.groups.append(g)
@@ -870,11 +914,6 @@ class MixedGroupConv2dV2(torch.nn.Module):
         if bias:
             self.bias.append(torch.nn.Parameter(torch.zeros(self.out_channels), requires_grad=True))
         self.groups.append((-1,-1))
-        #print("weights", len(self.weights), [w.shape for w in self.weights])
-        #print("bias", len(self.bias), [b.shape for b in self.bias], [b for b in self.bias])
-        #print("groups", len(self.groups), [g for g in self.groups])
-        #print("alphas", self.alphas.shape, self.alphas)
-        #self.test = test
     
     def learnable_weights(self):
         for name, param in self.named_parameters():
@@ -891,21 +930,15 @@ class MixedGroupConv2dV2(torch.nn.Module):
         else:
             out = torch.zeros(x.shape[0], self.out_channels, x.shape[-2], x.shape[-1])
 
-        #print(out.shape)
         for layer in range(len(self.weights)-1):
-            #lift to x.shape[0] x -1 x groupsize(self.groups[layer]) x x.shape[-2] x x.shape[-1] to reorder if needed
 
             weights = self.weights[layer]/torch.linalg.norm(self.weights[layer])*self.norms[layer]
 
-            #build this filter (and bias)
             if self.groups[layer][0] == 1:
-                _filter = torch.stack([rotateflipstack_n(weights.data, i, subgroupsize(self.groups[layer], 1), j, subgroupsize(self.groups[layer], 0), kernel=True) for j in range(subgroupsize(self.groups[layer], 0)) for i in range(subgroupsize(self.groups[layer], 1))], dim = -5)
+                order = [(i,j) for j in range(subgroupsize(self.groups[layer], 0)) for i in range(subgroupsize(self.groups[layer], 1))]
+                _filter = torch.stack([rotateflip_n(weights.data, i, subgroupsize(self.groups[layer], 1), j, subgroupsize(self.groups[layer], 0)) for (i,j) in order], dim = -5)
             else:
-                _filter = torch.stack([rotatestack_n(weights.data, i, groupsize(self.groups[layer])) for i in range(subgroupsize(self.groups[layer], 1))], dim = -5)
-            if alphas[layer] > 0:
-                print(layer, _filter.shape, [(i, subgroupsize(self.groups[layer], 1), j, subgroupsize(self.groups[layer], 0)) for j in range(subgroupsize(self.groups[layer], 0)) for i in range(subgroupsize(self.groups[layer], 1))])
-                _filter[:,_filter.shape[1]//2:] = rotate_4(_filter[:,_filter.shape[1]//2:], 2)
-                #_filter[:,:,:,:_filter.shape[3]//2] = rotate_4(_filter[:,:,:,:_filter.shape[3]//2], 2)
+                _filter = torch.stack([rotate_n(weights.data, i, groupsize(self.groups[layer])) for i in range(subgroupsize(self.groups[layer], 1))], dim = -5)
 
             if self.bias is not None:
                 _bias = torch.stack([self.bias[layer].data for _ in range(groupsize(self.groups[layer]))], dim = 1)
@@ -915,7 +948,6 @@ class MixedGroupConv2dV2(torch.nn.Module):
 
             _filter = _filter.reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
 
-            #convolve x with this filter
             y = torch.conv2d(x, _filter,
                         stride=self.stride,
                         padding=self.padding,
@@ -924,13 +956,135 @@ class MixedGroupConv2dV2(torch.nn.Module):
             
             #lift to out.shape[0] x -1 x groupsize(self.groups[layer]) x out.shape[-2] x out.shape[-1] to reorder if needed
 
-            #add alpha times flattened output to running sum
             out += alphas[layer]*y
-            #print(out.shape, alphas[layer], y.shape)
-        
+
         return out
 
 
+class MixedGroupConv2dV2(torch.nn.Module):
+    def __init__(self, group: tuple, in_channels: int, out_channels: int, kernel_size: int, padding: int = 0, bias: bool = True, test: bool = False):
+        super(MixedGroupConv2dV2, self).__init__()
+        self.group = group
+        self.kernel_size = kernel_size
+        self.stride = 1
+        self.dilation = 1
+        self.padding = padding
+        self.out_channels = out_channels * groupsize(group)
+        self.in_channels = in_channels * groupsize(group)
+        self.alphas = torch.nn.Parameter(torch.zeros(np.prod([g+1 for g in group])+1), requires_grad=True)
+        self.norms = torch.nn.Parameter(torch.zeros(np.prod([g+1 for g in group])+1), requires_grad=False)
+        self.weights = torch.nn.ParameterList()
+        if bias:
+            self.bias = torch.nn.ParameterList()
+        else:
+            self.bias = None
+        self.groups = []
+        for i in range(group[0]+1):
+            for j in range(group[1]+1):
+                g = (i,j)
+                in_c = int(self.in_channels/groupsize(g))
+                out_c = int(self.out_channels/groupsize(g))
+                weights = torch.nn.Parameter(torch.normal(mean = 0.0, std = 1 / (out_c * in_c)**(1/2), 
+                    size=(out_c, in_c, groupsize(g), kernel_size, kernel_size)), requires_grad=True)
+                self.norms.data[len(self.weights)] = torch.linalg.norm(weights)
+                self.weights.append(weights)
+                self.groups.append(g)
+                if bias:
+                    self.bias.append(torch.nn.Parameter(torch.zeros(out_c), requires_grad=True))
+        skip_weights = torch.zeros(size=(self.in_channels, self.out_channels, kernel_size, kernel_size))
+        if self.in_channels == self.out_channels:
+            for c in range(self.in_channels):
+                skip_weights[c,c,kernel_size//2,kernel_size//2] = 1
+        else:
+            self.alphas.data[-1] = -np.inf
+        skip_weights = torch.nn.Parameter(skip_weights, requires_grad=True)
+        self.weights.append(skip_weights)
+        if bias:
+            self.bias.append(torch.nn.Parameter(torch.zeros(self.out_channels), requires_grad=True))
+        self.groups.append((-1,-1))
+    
+    def learnable_weights(self):
+        for name, param in self.named_parameters():
+            if name != "alphas" and not name.endswith("."+str(len(self.weights)-1)):
+                yield param
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+
+        #alphas = torch.round(torch.softmax(self.alphas, dim=0))
+        alphas = torch.softmax(self.alphas, dim=0)
+
+        if self.in_channels == self.out_channels:
+            out = alphas[-1]*x.clone()
+        else:
+            out = torch.zeros(x.shape[0], self.out_channels, x.shape[-2], x.shape[-1])
+
+        for layer in range(len(self.weights)-1):
+
+            weights = self.weights[layer]/torch.linalg.norm(self.weights[layer])*self.norms[layer]
+
+            if self.groups[layer][0] == 1:
+                order = [(i,j) for j in range(subgroupsize(self.groups[layer], 0)) for i in range(subgroupsize(self.groups[layer], 1))]
+                _filter = torch.stack([rotateflipstack_n(weights.data, i, subgroupsize(self.groups[layer], 1), j, subgroupsize(self.groups[layer], 0)) for (i,j) in order], dim = -5)
+            else:
+                _filter = torch.stack([rotatestack_n(weights.data, i, groupsize(self.groups[layer])) for i in range(subgroupsize(self.groups[layer], 1))], dim = -5)
+
+            if self.bias is not None:
+                _bias = torch.stack([self.bias[layer].data for _ in range(groupsize(self.groups[layer]))], dim = 1)
+                _bias = _bias.reshape(self.out_channels)
+            else:
+                _bias = None
+
+            _filter = _filter.reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
+            
+            y = torch.conv2d(x, _filter,
+                        stride=self.stride,
+                        padding=self.padding,
+                        dilation=self.dilation,
+                        bias=_bias)
+            
+            #lift to out.shape[0] x -1 x groupsize(self.groups[layer]) x out.shape[-2] x out.shape[-1] to reorder if needed
+
+            out += alphas[layer]*y
+
+        return out
+
+class DEANASNet(torch.nn.Module):
+
+    def __init__(self, superspace: tuple = (1,2)):
+        
+        super(DEANASNet, self).__init__()
+
+        self.superspace = superspace
+        self.channels = [4, 4, 4, 4, 8, 8, 8, 8]
+        self.kernels = [5, 5, 5, 5, 5, 5, 5, 5]
+        self.paddings = [2, 2, 2, 2, 2, 2, 2, 2]
+        self.loss_function = torch.nn.CrossEntropyLoss()
+        #self.optimizer = torch.optim.Adam(self.parameters(), lr=5e-5)
+        self.blocks = torch.nn.ModuleList([])
+        self.blocks.append(torch.nn.Sequential(
+            MixedLiftingConv2dV2(in_channels=1, out_channels=self.channels[0], group=self.superspace, kernel_size=self.kernels[0], padding=self.paddings[0]),
+            torch.nn.BatchNorm2d(self.channels[0]*groupsize(self.superspace)),
+            torch.nn.ReLU(inplace=True)))
+        for i in range(1,len(self.channels)):
+            self.blocks.append(torch.nn.Sequential(
+                MixedGroupConv2dV2(in_channels=self.channels[i-1], out_channels=self.channels[i], group=self.superspace, kernel_size=self.kernels[i], padding=self.paddings[i]),
+                torch.nn.BatchNorm2d(self.channels[i]*groupsize(self.superspace)),
+                torch.nn.ReLU(inplace=True)))
+        self.blocks.append(torch.nn.AvgPool2d((5,5), (1,1), padding=(0,0)))
+        self.full1 = torch.nn.Sequential(
+            torch.nn.Linear(int(self.channels[-1]), 64),
+            torch.nn.BatchNorm1d(64),
+            torch.nn.ELU(inplace=True),
+        )
+        self.full2 = torch.nn.Linear(64, 10)
+
+    def forward(self, x: torch.Tensor):
+        for block in self.blocks:
+            x = block(x)
+            print(x.shape)
+        x = self.full1(x.reshape(x.shape[0], -1))
+        print(x.shape)
+        return self.full2(x)
 
 def first(od):
     for item in od.values():

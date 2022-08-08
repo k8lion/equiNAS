@@ -6,6 +6,8 @@ import models
 import utilities
 import torch
 import numpy as np
+from itertools import permutations
+
 
 class Test(unittest.TestCase):
 
@@ -163,118 +165,105 @@ class Test(unittest.TestCase):
             self.assertTrue(layer.bias.numel() == out_channels)
 
     def test_groupconv_equivariance(self):
-        in_channels = 1
-        out_channels = 1
+        torch.manual_seed(0)
+        in_channels = 8
+        out_channels = 8
         kernel_size = 3
-        batchsize = 1
+        batchsize = 6
         S = 3
-        for group in [(1,0), (0,0), (1,2), (0,2)]:#, (1,4), (0,4)]:
-            print(group)
+        for group in [(1,0), (0,0), (1,1), (0,1), (1,2), (0,2)]:
 
             layer = models.GroupConv2d(group, in_channels=in_channels, out_channels=out_channels, kernel_size = kernel_size, padding=1, bias=True)
             layer.eval()
-            for i in range(kernel_size):
-                for j in range(kernel_size):
-                    layer.weight.data[0,0,:,i,j] = (i-1)*10+j-1
 
             x = torch.randn(batchsize, in_channels, models.groupsize(group), S, S)
-            for i in range(S):
-                for j in range(S):
-                    x[0,0,:,i,j] = (i-1)*10+j-1
-            gx = models.rotateflipstack_n(x, 1, 2**group[1], 1, 2**group[0])
 
-            # compute the output
             psi_x = layer(x)
-            psi_gx = layer(gx)
 
-            # the output is a function in the space Y, so we need to use the new action to rotate it
-            g_psi_x = models.rotateflipstack_n(psi_x, 1, 2**group[1], 1, 2**group[0])
-
-            self.assertTrue(psi_x.shape == g_psi_x.shape)
-            self.assertTrue(psi_x.shape == (batchsize, out_channels, models.groupsize(group), S, S))
-
-            # check the model is giving meaningful outputs
-            self.assertTrue(not torch.allclose(psi_x, torch.zeros_like(psi_x), atol=1e-4, rtol=1e-4))
-
-            if group == (1,2):
-                print(x)
-                print(gx)
-                print(psi_x)
-                print(psi_gx)
-                print(g_psi_x)
-
-            # check equivariance
-            self.assertTrue(torch.allclose(psi_gx, g_psi_x, atol=1e-6, rtol=1e-6))
-
-            # check the model has the right number of parameters
-            print(layer.weight.shape)
-            self.assertTrue(layer.weight.numel() == in_channels * out_channels * models.groupsize(group) * kernel_size**2)
-            self.assertTrue(layer.bias.numel() == out_channels)
-
-    def test_mixedgroupconv(self):
-        torch.manual_seed(0)
-        torch.set_printoptions(precision=2, sci_mode=False)
-        in_channels = 1
-        out_channels = 1
-        kernel_size = 3
-        batchsize = 1
-        S = 3
-        #for group in [(1,0), (0,0), (1,1), (0,1), (1,2)]:#, (0,2)]:
-        for group in [(1,2)]:
-            layer = models.MixedGroupConv2dV2(group, in_channels=in_channels, out_channels=out_channels, kernel_size = kernel_size, padding=int(kernel_size//2), bias=True)#, test=True)
-            layer.eval()
-            
-            x = torch.rand(batchsize, in_channels*models.groupsize(group), S, S)
-            for k1 in range(S):
-                for k2 in range(S):
-                    for gs in range(x.shape[1]):
-                        x.data[:,gs,k1,k2] = 0.1*k2+gs
-            #x.data[:,:,:,:] = 0
-            #x.data[:,:,0,1] = 0
-            #for i in range(x.shape[1]):
-            #    x.data[:,i,:,:] += i*0.1
-            #     for j in range(S):
-            #         x[0,0,i,j] = (i-1)*10+j-1
-            #print("x", x.reshape(torch.numel(x)).data)
-            for flip in range(group[0]+1):
-                for rotation in range(group[1]+1):
-                    if group[0] != flip or group[1] != rotation:
-                        continue
-                    print(group, flip, rotation)
-                    for k in range(len(layer.alphas)):
-                        if layer.groups[k][0] == flip and layer.groups[k][1] == rotation:
-                            layer.alphas.data[k] = 0
-                        else:
-                            layer.alphas.data[k] = -np.inf
-                    print(2**(group[1]-rotation), 2**group[1], flip, 2**group[0])
-                    print("x", x.reshape(torch.numel(x)).data)
-                    gx = models.rotateflipstack_n(x.clone().reshape(batchsize, in_channels, models.groupsize(group), S, S), 2**(group[1]-rotation), 2**group[1], flip, 2**group[0]).reshape(batchsize, in_channels*models.groupsize(group), S, S)
-                    print("gx", gx.reshape(torch.numel(gx)).data)
+            for f in range(2**group[0]):
+                for r in range(2**group[1]):
+                    gx = models.rotateflipstack_n(x, r, 2**group[1], f, 2**group[0])
 
                     # compute the output
-                    psi_x = layer(x.clone())
-                    psi_gx = layer(gx.clone())
-
-                    print("psi_x", psi_x.reshape(torch.numel(psi_x)).data)
-                    print("psi_gx", psi_gx.reshape(torch.numel(psi_gx)).data)
+                    psi_gx = layer(gx)
 
                     # the output is a function in the space Y, so we need to use the new action to rotate it
-                    g_psi_x = models.rotateflipstack_n(psi_x.clone().reshape(batchsize, out_channels, models.groupsize(group), S, S), 2**(group[1]-rotation), 2**group[1], flip, 2**group[0]).reshape(batchsize, out_channels*models.groupsize(group), S, S)
-
-                    print("g_psi_x", g_psi_x.reshape(torch.numel(g_psi_x)).data)
+                    g_psi_x = models.rotateflipstack_n(psi_x, r, 2**group[1], f, 2**group[0])
 
                     self.assertTrue(psi_x.shape == g_psi_x.shape)
-                    self.assertTrue(psi_x.shape == (batchsize, out_channels*models.groupsize(group), S, S))
+                    self.assertTrue(psi_x.shape == (batchsize, out_channels, models.groupsize(group), S, S))
 
                     # check the model is giving meaningful outputs
                     self.assertTrue(not torch.allclose(psi_x, torch.zeros_like(psi_x), atol=1e-4, rtol=1e-4))
 
+                    # if group == (1,2):
+                    #     print(x)
+                    #     print(gx)
+                    #     print(psi_x)
+                    #     print(psi_gx)
+                    #     print(g_psi_x)
+
+                    #score += sum([torch.allclose(psi_gx[:,:,i,:,:],g_psi_x[:,:,i,:,:]) for i in range(psi_gx.shape[2])])
+
                     # check equivariance
-                    print(psi_gx.reshape(8,9))
-                    print(g_psi_x.reshape(8,9))
-                    print((psi_gx-g_psi_x)[0,:,:,:])
+                    self.assertTrue(torch.allclose(psi_gx, g_psi_x, atol=1e-5, rtol=1e-5))
+                    if not torch.allclose(psi_gx, g_psi_x, atol=1e-5, rtol=1e-5):
+                        print(group, (f,r), [torch.allclose(psi_gx[:,:,i,:,:],g_psi_x[:,:,i,:,:], atol=1e-4, rtol=1e-4) for i in range(psi_gx.shape[2])])
+                        #eq = False
+                    else:
+                        print(group, (f,r), "equivariant")
+
+            self.assertTrue(layer.weight.numel() == in_channels * out_channels * models.groupsize(group) * kernel_size**2)
+            self.assertTrue(layer.bias.numel() == out_channels)
+
+        
+        #print(bestperm, bestscore)
+
+    def test_mixedgroupconv(self):
+        torch.manual_seed(0)
+        torch.set_printoptions(precision=2, sci_mode=False)
+        in_channels = 2
+        out_channels = 2
+        kernel_size = 3
+        batchsize = 4
+        S = 3
+        for group in [(1,0), (0,0), (1,1), (0,1), (1,2), (0,2)]:
+        #for group in [(1,2)]:
+            layer = models.MixedGroupConv2dV2(group, in_channels=in_channels, out_channels=out_channels, kernel_size = kernel_size, padding=int(kernel_size//2), bias=True)#, test=True)
+            layer.eval()
+            
+            x = torch.rand(batchsize, in_channels*models.groupsize(group), S, S)
+            for flip in range(group[0]+1):
+                for rotation in range(group[1]+1):
+                    for k in range(len(layer.alphas)):
+                        if layer.groups[k][0] >= flip and layer.groups[k][1] >= rotation:
+                            layer.alphas.data[k] = 0
+                        else:
+                            layer.alphas.data[k] = -np.inf
+                    gx = models.rotateflipstack_n(x.clone().reshape(batchsize, in_channels, models.groupsize(group), S, S), 2**(group[1]-rotation)%2**group[1], 2**group[1], flip, 2**group[0]).reshape(batchsize, in_channels*models.groupsize(group), S, S)
+
+                    psi_x = layer(x.clone())
+                    psi_gx = layer(gx.clone())
+
+                    g_psi_x = models.rotateflipstack_n(psi_x.clone().reshape(batchsize, out_channels, models.groupsize(group), S, S), 2**(group[1]-rotation)%2**group[1], 2**group[1], flip, 2**group[0]).reshape(batchsize, out_channels*models.groupsize(group), S, S)
+
+                    self.assertTrue(psi_x.shape == g_psi_x.shape)
+                    self.assertTrue(psi_x.shape == (batchsize, out_channels*models.groupsize(group), S, S))
+
+                    self.assertTrue(not torch.allclose(psi_x, torch.zeros_like(psi_x), atol=1e-4, rtol=1e-4))
+
+                    if not torch.allclose(psi_gx, g_psi_x, atol=1e-5, rtol=1e-5):
+                        print(group, (flip, rotation), (flip,2**(group[1]-rotation)%2**group[1]), [torch.allclose(psi_gx[:,i,:,:],g_psi_x[:,i,:,:], atol=1e-4, rtol=1e-4) for i in range(psi_gx.shape[1])])
+                        #eq = False
+                    else:
+                        print(group, (flip, rotation), (flip,2**(group[1]-rotation)%2**group[1]), "equivariant")
                     #self.assertTrue(torch.allclose(psi_gx, g_psi_x, atol=1e-4, rtol=1e-6))
             
+    def test_DEANASNet(self):
+        x = torch.randn(16, 1, 29, 29)
+        model = models.DEANASNet((1,2))
+        model(x)
+
 
     def test_offspring(self):
         torch.set_printoptions(sci_mode=False)
