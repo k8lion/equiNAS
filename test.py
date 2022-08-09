@@ -6,7 +6,6 @@ import models
 import utilities
 import torch
 import numpy as np
-from itertools import permutations
 
 
 class Test(unittest.TestCase):
@@ -260,9 +259,32 @@ class Test(unittest.TestCase):
                     #self.assertTrue(torch.allclose(psi_gx, g_psi_x, atol=1e-4, rtol=1e-6))
             
     def test_DEANASNet(self):
-        x = torch.randn(16, 1, 29, 29)
+        device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+        inputs = torch.randn(16, 1, 29, 29)
+        labels = torch.randint(0, 9, (16,))
         model = models.DEANASNet((1,2))
-        model(x)
+        model(inputs)
+        model.train()
+        model.to(device)
+        inputs = inputs.to(device)
+        labels = labels.to(device)
+        outputs0 = model(inputs)
+        loss = model.loss_function(outputs0, labels)
+        alphas0 = model.blocks[1]._modules["0"].alphas.clone()
+        norms0 = model.blocks[1]._modules["0"].norms.clone()
+        weights0 =  model.blocks[0]._modules["0"].weights[0].clone()
+        model.optimizer.zero_grad()
+        model.alphaopt.zero_grad()
+        loss.backward()
+        model.optimizer.step()
+        self.assertTrue(torch.allclose(alphas0, model.blocks[1]._modules["0"].alphas, atol=1e-7, rtol=1e-7))
+        self.assertTrue(torch.allclose(norms0, model.blocks[1]._modules["0"].norms, atol=1e-7, rtol=1e-7))
+        weights1 =  model.blocks[0]._modules["0"].weights[0].clone()
+        self.assertTrue(not torch.allclose(weights0, weights1, atol=1e-7, rtol=1e-7))
+        model.alphaopt.step()
+        self.assertTrue(not torch.allclose(alphas0, model.blocks[1]._modules["0"].alphas, atol=1e-7, rtol=1e-7))
+        self.assertTrue(torch.allclose(weights1, model.blocks[0]._modules["0"].weights[0], atol=1e-7, rtol=1e-7))
+
 
 
     def test_offspring(self):
