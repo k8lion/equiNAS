@@ -929,9 +929,9 @@ class MixedLiftingConv2dV2(torch.nn.Module):
         alphas = torch.softmax(self.alphas, dim=0)
 
         if self.in_channels == self.out_channels:
-            out = alphas[-1]*x.clone()
+            out = alphas[-1]*x
         else:
-            out = torch.zeros(x.shape[0], self.out_channels, x.shape[-2], x.shape[-1])
+            out = torch.zeros(x.shape[0], self.out_channels, x.shape[-2], x.shape[-1]).to(x.device)
 
         for layer in range(len(self.groups)-1):
 
@@ -959,7 +959,11 @@ class MixedLiftingConv2dV2(torch.nn.Module):
                         bias=_bias)
             
             #lift to out.shape[0] x -1 x groupsize(self.groups[layer]) x out.shape[-2] x out.shape[-1] to reorder if needed
-            #print(alphas.device)
+            print("alphas", alphas.device)
+            print("alphas[layer]", alphas[layer].device)
+            print("x", x.device)
+            print("filter", _filter.device)
+            print("y", y.device)
             out += alphas[layer]*y
 
         return out
@@ -1014,9 +1018,9 @@ class MixedGroupConv2dV2(torch.nn.Module):
         alphas = torch.softmax(self.alphas, dim=0)
 
         if self.in_channels == self.out_channels:
-            out = alphas[-1]*x.clone()
+            out = alphas[-1]*x
         else:
-            out = torch.zeros(x.shape[0], self.out_channels, x.shape[-2], x.shape[-1])
+            out = torch.zeros(x.shape[0], self.out_channels, x.shape[-2], x.shape[-1]).to(x.device)
 
         for layer in range(len(self.groups)-1):
 
