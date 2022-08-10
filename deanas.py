@@ -29,7 +29,6 @@ def DEANASearch(args):
     print("weights", model.blocks[0]._modules["0"].weights[0].device)
     history['alphas'].append([torch.softmax(a, dim=0).detach().tolist() for a in model.alphas()])
     for epoch in range(args.epochs):
-        scheduler.step()
         for phase in ['train', 'validation']:
             batch = []
             if phase == 'train':
@@ -61,19 +60,22 @@ def DEANASearch(args):
                         loss_search.backward()
                         model.alphaopt.step()
                 running_loss += loss.item() * inputs.size(0)
-                running_corrects += torch.sum(preds == labels.data)
+                running_corrects += torch.sum(preds == labels.data).item()
                 running_count += inputs.size(0)
                 if phase == 'train':
                     batch.append(running_count)
                     history['train']['batchloss'].append(loss.detach().item())
             epoch_loss = running_loss / running_count
-            epoch_acc = running_corrects.double() / running_count
+            epoch_acc = running_corrects / running_count
             print('{} {} Loss: {:.4f} Acc: {:.4f}'.format(epoch, phase, epoch_loss, epoch_acc))
             history[phase]['loss'].append(epoch_loss)
             history[phase]['accuracy'].append(epoch_acc)
             if phase == 'train':
                 history["trainsteps"] += [b / running_count for b in batch]
         history['alphas'].append([torch.softmax(a, dim=0).detach().tolist() for a in model.alphas()])
+        print(history)
+        scheduler.step()
+
     
     with open(filename, 'wb') as f:
         pickle.dump(history, f)
