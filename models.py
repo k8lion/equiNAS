@@ -132,7 +132,7 @@ def transform_p4m(y: torch.Tensor, g: tuple) -> torch.Tensor:
   y = y.reshape(*y.shape[:-3], 2, 4, *y.shape[-2:])
 
   if f:
-    y = torch.index_select(y, -3, torch.LongTensor([0, 3, 2, 1]))
+    y = torch.index_select(y, -3, torch.LongTensor([0, 3, 2, 1]).to(y.device))
     y = torch.flip(y, dims=(-4,))
   
   y = torch.roll(y, r, dims=-3)

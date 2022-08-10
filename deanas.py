@@ -34,7 +34,7 @@ def DEANASearch(args):
             running_corrects = 0
             running_count = 0
             loader = train_loader if phase == 'train' else validation_loader
-            for batch_idx, (inputs, labels) in enumerate(loader):
+            for inputs, labels in loader:
                 inputs = inputs.to(device)
                 labels = labels.to(device)
                 if phase == 'train':
