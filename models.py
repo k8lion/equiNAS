@@ -4,8 +4,7 @@ import torchvision.transforms.functional as tvF
 import numpy as np
 import copy
 import uuid
-import escnn
-from escnn import gspaces
+#import escnn
 
 
 def rotmat2d(theta):
@@ -960,7 +959,7 @@ class MixedLiftingConv2dV2(torch.nn.Module):
                         bias=_bias)
             
             #lift to out.shape[0] x -1 x groupsize(self.groups[layer]) x out.shape[-2] x out.shape[-1] to reorder if needed
-
+            #print(alphas.device)
             out += alphas[layer]*y
 
         return out

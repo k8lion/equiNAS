@@ -22,6 +22,9 @@ def DEANASearch(args):
                                 'accuracy': []},
     }
     model = models.DEANASNet(weightlr = args.weightlr, alphalr = args.alphalr).to(device)
+    print("alphas", model.blocks[1]._modules["0"].alphas.device)
+    print("norms", model.blocks[1]._modules["0"].norms.device)
+    print("weights", model.blocks[0]._modules["0"].weights[0].device)
     history['alphas'].append([torch.softmax(a, dim=0).detach().tolist() for a in model.alphas()])
     for epoch in range(args.epochs):
         for phase in ['train', 'validation']:
