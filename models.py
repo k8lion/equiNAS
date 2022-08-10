@@ -280,14 +280,14 @@ class LiftingConv2d(torch.nn.Module):
     def build_filter(self) -> torch.Tensor:
         if self.group[0] == 1:
             n_r = subgroupsize(self.group, 1)
-            _filter = torch.stack([rotateflip_n(self.weight.data, i%n_r, n_r, i//n_r, 2)
+            _filter = torch.stack([rotateflip_n(self.weight, i%n_r, n_r, i//n_r, 2)
                             for i in self.order], dim=-4)
         else:
-            _filter = torch.stack([rotate_n(self.weight.data, i, groupsize(self.group))
+            _filter = torch.stack([rotate_n(self.weight, i, groupsize(self.group))
                             for i in self.order], dim=-4)
 
         if self.bias is not None:
-            _bias = torch.stack([self.bias.data for _ in range(groupsize(self.group))], dim=1)
+            _bias = torch.stack([self.bias for _ in range(groupsize(self.group))], dim=1)
         else:
             _bias = None
 
@@ -761,12 +761,12 @@ class MixedLiftingConv2dV1(torch.nn.Module):
             bias = None
         for (i,g) in enumerate(self.groups):
             if g[0] == 1:
-                _filter = torch.stack([rotateflip_n(self.weights[i].data, k, subgroupsize(g, 1), j, subgroupsize(g, 0)) for j in range(subgroupsize(g, 0)) for k in range(subgroupsize(g, 1))], dim = -5)
+                _filter = torch.stack([rotateflip_n(self.weights[i], k, subgroupsize(g, 1), j, subgroupsize(g, 0)) for j in range(subgroupsize(g, 0)) for k in range(subgroupsize(g, 1))], dim = -5)
             else:
-                _filter = torch.stack([rotate_n(self.weights[i].data, k, groupsize(g)) for k in range(subgroupsize(g, 1))], dim = -5)
+                _filter = torch.stack([rotate_n(self.weights[i], k, groupsize(g)) for k in range(subgroupsize(g, 1))], dim = -5)
             filter += torch.round(alphas[i])*_filter.reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
             if self.bias is not None and i < len(self.bias)-1:
-                bias += torch.round(alphas[i])*torch.stack([self.bias[i].data for _ in range(groupsize(g))], dim = 1).reshape(self.out_channels)
+                bias += torch.round(alphas[i])*torch.stack([self.bias[i] for _ in range(groupsize(g))], dim = 1).reshape(self.out_channels)
         
         return filter, bias
 

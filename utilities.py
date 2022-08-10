@@ -38,7 +38,7 @@ class MnistRotDataset(Dataset):
         return len(self.labels)
     
 
-def get_dataloaders(path_to_dir = "~"):
+def get_dataloaders(path_to_dir = "~", validation_split=0.2):
     pad = Pad((0, 0, 1, 1), fill=0)
     resize1 = Resize(87)
     resize2 = Resize(29)
