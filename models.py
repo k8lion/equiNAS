@@ -1052,7 +1052,7 @@ class MixedGroupConv2dV2(torch.nn.Module):
 
 class DEANASNet(torch.nn.Module):
 
-    def __init__(self, superspace: tuple = (1,2)):
+    def __init__(self, alphalr = 1e-3, weightlr = 1e-3, superspace: tuple = (1,2)):
         
         super(DEANASNet, self).__init__()
 
@@ -1082,8 +1082,8 @@ class DEANASNet(torch.nn.Module):
         ))
         self.blocks.append(torch.nn.Sequential(torch.nn.Linear(64, 10)))
         self.loss_function = torch.nn.CrossEntropyLoss()
-        self.optimizer = torch.optim.Adam(self.parameters(), lr=5e-1)
-        self.alphaopt = torch.optim.Adam(self.alphas(), lr=1e-3)
+        self.optimizer = torch.optim.Adam(self.parameters(), lr=weightlr)
+        self.alphaopt = torch.optim.Adam(self.alphas(), lr=alphalr)
 
 
     def forward(self, x: torch.Tensor):
