@@ -71,7 +71,7 @@ def DEANASearch(args):
             history[phase]['loss'].append(epoch_loss)
             history[phase]['accuracy'].append(epoch_acc)
             if phase == 'train':
-                history["trainsteps"] += [b / running_count for b in batch]
+                history["trainsteps"] += [epoch + b / running_count for b in batch]
         history['alphas'].append([torch.softmax(a, dim=0).detach().tolist() for a in model.alphas()])
         print(history)
         scheduler.step()
