@@ -22,11 +22,14 @@ def DEANASearch(args):
                                 'accuracy': []},
     }
     model = models.DEANASNet(weightlr = args.weightlr, alphalr = args.alphalr).to(device)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        model.optimizer, float(args.epochs), eta_min=1e-4)
     print("alphas", model.blocks[1]._modules["0"].alphas.device)
     print("norms", model.blocks[1]._modules["0"].norms.device)
     print("weights", model.blocks[0]._modules["0"].weights[0].device)
     history['alphas'].append([torch.softmax(a, dim=0).detach().tolist() for a in model.alphas()])
     for epoch in range(args.epochs):
+        scheduler.step()
         for phase in ['train', 'validation']:
             batch = []
             if phase == 'train':
