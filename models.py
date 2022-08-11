@@ -1050,16 +1050,16 @@ class MixedGroupConv2dV2(torch.nn.Module):
 
 class DEANASNet(torch.nn.Module):
 
-    def __init__(self, alphalr = 1e-3, weightlr = 1e-3, superspace: tuple = (1,2), stagedepth: int = 4, classes: int = 10, prior: bool = True):
+    def __init__(self, alphalr = 1e-3, weightlr = 1e-3, superspace: tuple = (1,2), basechannels: int = 4, stages: int = 2, stagedepth: int = 4, indim: int = 1, outdim: int = 10, prior: bool = True):
         
         super(DEANASNet, self).__init__()
 
         self.superspace = superspace
-        self.channels = [4 for _ in range(stagedepth)] + [8 for _ in range(stagedepth)]
+        self.channels = sum([[basechannels*(i+1) for _ in range(stagedepth)] for i in range(stages)])
         self.kernels = [5 for _ in range(len(self.channels))]
         self.paddings = [2 for _ in range(len(self.channels))]
         self.blocks = torch.nn.ModuleList([])
-        mlc = MixedLiftingConv2dV2(in_channels=1, out_channels=self.channels[0], group=self.superspace, kernel_size=self.kernels[0], padding=self.paddings[0], prior=prior)
+        mlc = MixedLiftingConv2dV2(in_channels=indim, out_channels=self.channels[0], group=self.superspace, kernel_size=self.kernels[0], padding=self.paddings[0], prior=prior)
         self.groups = mlc.groups
         self.blocks.append(torch.nn.Sequential(
             mlc,
@@ -1080,7 +1080,7 @@ class DEANASNet(torch.nn.Module):
             torch.nn.BatchNorm1d(64),
             torch.nn.ELU(inplace=True),
         ))
-        self.blocks.append(torch.nn.Sequential(torch.nn.Linear(64, classes)))
+        self.blocks.append(torch.nn.Sequential(torch.nn.Linear(64, outdim)))
         self.loss_function = torch.nn.CrossEntropyLoss()
         self.optimizer = torch.optim.Adam(self.parameters(), lr=weightlr)
         self.alphaopt = torch.optim.Adam(self.alphas(), lr=alphalr)

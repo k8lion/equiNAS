@@ -12,7 +12,8 @@ def DEANASearch(args):
     filename = str(args.path) +'/equiNAS/out/logsdea_'+datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")+'.pkl'
     print(filename)
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
-    train_loader, validation_loader, test_loader = utilities.get_dataloaders(path_to_dir=args.path, validation_split=0.5)
+    if args.task == "mnist":
+        train_loader, validation_loader, test_loader = utilities.get_dataloaders(path_to_dir=args.path, validation_split=0.5)
     model = models.DEANASNet(weightlr = args.weightlr, alphalr = args.alphalr, prior = not args.equalize).to(device)
     history = {'args': args,
                 'alphas': [],
@@ -80,12 +81,13 @@ def DEANASearch(args):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Run hillclimber algorithm')
+    parser = argparse.ArgumentParser(description='Run diffentiable equivariance-aware NAS')
     parser.add_argument('--epochs', "-e", type=int, default="50", help='number of epochs per child')
     parser.add_argument('--weightlr', "-w", type=float, default="1e-3", help='weight learning rate')
     parser.add_argument('--alphalr', "-a", type=float, default="1e-3", help='alpha learning rate')
     parser.add_argument('--path', "-p", type=pathlib.Path, default="..", help='datapath')
     parser.add_argument('--equalize', action='store_true', default=False, help='eqaulize initial alphas')
+    parser.add_argument('--task', "-t", type=str, default="mnist", help='task')
     args = parser.parse_args()
     DEANASearch(args)
     
