@@ -1055,7 +1055,8 @@ class DEANASNet(torch.nn.Module):
         super(DEANASNet, self).__init__()
 
         self.superspace = superspace
-        self.channels = sum([[basechannels*(i+1) for _ in range(stagedepth)] for i in range(stages)])
+        self.channels = [basechannels*(i+1) for i in range(stages) for _ in range(stagedepth)]
+        print(self.channels)
         self.kernels = [5 for _ in range(len(self.channels))]
         self.paddings = [2 for _ in range(len(self.channels))]
         self.blocks = torch.nn.ModuleList([])
