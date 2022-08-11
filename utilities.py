@@ -38,7 +38,7 @@ class MnistRotDataset(Dataset):
         return len(self.labels)
     
 
-def get_dataloaders(path_to_dir = "~", validation_split=0.2):
+def get_dataloaders(path_to_dir = "~", validation_split=0.2, batch_size=64):
     pad = Pad((0, 0, 1, 1), fill=0)
     resize1 = Resize(87)
     resize2 = Resize(29)
@@ -59,7 +59,6 @@ def get_dataloaders(path_to_dir = "~", validation_split=0.2):
 
     shuffle_dataset = True
     random_seed = 42
-    validation_split = .2
     dataset_size = mnist_train.num_samples
     indices = list(range(dataset_size))
     split = int(np.floor(validation_split * dataset_size))
@@ -73,13 +72,13 @@ def get_dataloaders(path_to_dir = "~", validation_split=0.2):
     valid_sampler = SubsetRandomSampler(val_indices)
 
     #train_loader = torch.utils.data.DataLoader(mnist_train, batch_size=64)
-    train_loader = DataLoader(mnist_train, batch_size=64, 
+    train_loader = DataLoader(mnist_train, batch_size=batch_size, 
                                             sampler=train_sampler)
-    validation_loader = DataLoader(mnist_train, batch_size=64,
+    validation_loader = DataLoader(mnist_train, batch_size=batch_size,
                                                     sampler=valid_sampler)
 
     mnist_test = MnistRotDataset(mode='test', transform=test_transform, path_to_dir=path_to_dir)
-    test_loader = DataLoader(mnist_test, batch_size=64)
+    test_loader = DataLoader(mnist_test, batch_size=batch_size)
 
     return train_loader, validation_loader, test_loader
 
