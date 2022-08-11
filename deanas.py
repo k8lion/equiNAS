@@ -10,10 +10,13 @@ import torch
             
 def DEANASearch(args):
     filename = str(args.path) +'/equiNAS/out/logsdea_'+datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")+'.pkl'
+    print(filename)
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     train_loader, validation_loader, test_loader = utilities.get_dataloaders(path_to_dir=args.path, validation_split=0.5)
+    model = models.DEANASNet(weightlr = args.weightlr, alphalr = args.alphalr).to(device)
     history = {'args': args,
                 'alphas': [],
+                'groups': model.groups, 
                 'train': {'loss': [], 
                         'accuracy': [], 
                         'batchloss': []},
@@ -21,12 +24,8 @@ def DEANASearch(args):
                 'validation' : {'loss': [], 
                                 'accuracy': []},
     }
-    model = models.DEANASNet(weightlr = args.weightlr, alphalr = args.alphalr).to(device)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
         model.optimizer, float(args.epochs), eta_min=1e-4)
-    print("alphas", model.blocks[1]._modules["0"].alphas.device)
-    print("norms", model.blocks[1]._modules["0"].norms.device)
-    print("weights", model.blocks[0]._modules["0"].weights[0].device)
     history['alphas'].append([torch.softmax(a, dim=0).detach().tolist() for a in model.alphas()])
     for epoch in range(args.epochs):
         for phase in ['train', 'validation']:
@@ -73,7 +72,6 @@ def DEANASearch(args):
             if phase == 'train':
                 history["trainsteps"] += [epoch + b / running_count for b in batch]
         history['alphas'].append([torch.softmax(a, dim=0).detach().tolist() for a in model.alphas()])
-        print(history)
         scheduler.step()
 
     
