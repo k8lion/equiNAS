@@ -1050,17 +1050,19 @@ class MixedGroupConv2dV2(torch.nn.Module):
 
 class DEANASNet(torch.nn.Module):
 
-    def __init__(self, alphalr = 1e-3, weightlr = 1e-3, superspace: tuple = (1,2)):
+    def __init__(self, alphalr = 1e-3, weightlr = 1e-3, superspace: tuple = (1,2), stagedepth: int = 4, classes: int = 10):
         
         super(DEANASNet, self).__init__()
 
         self.superspace = superspace
-        self.channels = [4, 4, 4, 4, 8, 8, 8, 8]
-        self.kernels = [5, 5, 5, 5, 5, 5, 5, 5]
-        self.paddings = [2, 2, 2, 2, 2, 2, 2, 2]
+        self.channels = [4 for _ in range(stagedepth)] + [8 for _ in range(stagedepth)]
+        self.kernels = [5 for _ in range(len(self.channels))]
+        self.paddings = [2 for _ in range(len(self.channels))]
         self.blocks = torch.nn.ModuleList([])
+        mlc = MixedLiftingConv2dV2(in_channels=1, out_channels=self.channels[0], group=self.superspace, kernel_size=self.kernels[0], padding=self.paddings[0])
+        self.groups = mlc.groups
         self.blocks.append(torch.nn.Sequential(
-            MixedLiftingConv2dV2(in_channels=1, out_channels=self.channels[0], group=self.superspace, kernel_size=self.kernels[0], padding=self.paddings[0]),
+            mlc,
             torch.nn.BatchNorm2d(self.channels[0]*groupsize(self.superspace)),
             torch.nn.ReLU(inplace=True)
             ))
@@ -1070,7 +1072,7 @@ class DEANASNet(torch.nn.Module):
                 torch.nn.BatchNorm2d(self.channels[i]*groupsize(self.superspace)),
                 torch.nn.ReLU(inplace=True)
                 ))
-            if i%2 == 0 and i != len(self.channels)-1:
+            if i%(len(self.channels)//4) == 0 and i != len(self.channels)-1:
                 self.blocks[i].add_module(name="pool", module = torch.nn.AvgPool2d((3,3), (2,2), padding=(1,1)))
         self.blocks[-1].add_module(name="pool", module = torch.nn.AvgPool2d((4,4), (1,1), padding=(0,0)))
         self.blocks.append(torch.nn.Sequential(
@@ -1078,7 +1080,7 @@ class DEANASNet(torch.nn.Module):
             torch.nn.BatchNorm1d(64),
             torch.nn.ELU(inplace=True),
         ))
-        self.blocks.append(torch.nn.Sequential(torch.nn.Linear(64, 10)))
+        self.blocks.append(torch.nn.Sequential(torch.nn.Linear(64, classes)))
         self.loss_function = torch.nn.CrossEntropyLoss()
         self.optimizer = torch.optim.Adam(self.parameters(), lr=weightlr)
         self.alphaopt = torch.optim.Adam(self.alphas(), lr=alphalr)
