@@ -1,5 +1,6 @@
 #escnn
 matplotlib
 numpy
+pandas
 torch
 torchvision
