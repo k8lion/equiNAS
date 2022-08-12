@@ -226,7 +226,7 @@ class Test(unittest.TestCase):
         kernel_size = 3
         batchsize = 4
         S = 3
-        for group in [(1,0), (0,0), (1,1), (0,1), (1,2), (0,2)]:
+        for group in [(1,0), (0,0), (1,1), (0,1), (1,2), (0,2), (1,3), (0,3), (1,4), (0,4)]:
         #for group in [(1,2)]:
             layer = models.MixedGroupConv2dV2(group, in_channels=in_channels, out_channels=out_channels, kernel_size = kernel_size, padding=int(kernel_size//2), bias=True)#, test=True)
             layer.eval()

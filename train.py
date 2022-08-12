@@ -108,7 +108,7 @@ if __name__ == "__main__":
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     loss_function = torch.nn.CrossEntropyLoss()
     epochs = 50
-    train_loader, validation_loader, test_loader = utilities.get_dataloaders(path_to_dir="..")
+    train_loader, validation_loader, test_loader = utilities.get_mnist_dataloaders(path_to_dir="..")
     #models = {'steerable': models.C8SteerableCNN(), 'unsteerable': models.UnsteerableCNN()}
     models = {'soft': models.C8MutantCNN(soft=True), 'hard': models.C8MutantCNN(soft=False)}
     logs = {}

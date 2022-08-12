@@ -1,5 +1,7 @@
 import numpy as np
 import os
+import os.path
+import pandas as pd
 from PIL import Image
 from torch.utils.data import Dataset, DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
@@ -38,7 +40,62 @@ class MnistRotDataset(Dataset):
         return len(self.labels)
     
 
-def get_dataloaders(path_to_dir = "~", validation_split=0.2, batch_size=64):
+class ISICDataset(Dataset):
+    """ISIC dataset."""
+    # classes = {'NV': 0, 'MEL': 1, 'BKL': 2, 'DF': 3, 'SCC': 4, 'BCC': 5, 'VASC': 6, 'AK': 7}
+    
+    def __init__(self, data_df, path_to_dir, split='train', input_size=256, run_id=1):
+        """
+        Args:
+        """
+        self.split = split
+        self.input_size = input_size
+        self.data_df = data_df
+        self.path_to_dir = path_to_dir
+        # if split == "train":
+        #     self.trans = transforms.Compose([transforms.RandomHorizontalFlip(),
+        #                                  transforms.RandomVerticalFlip(),
+        #                                  transforms.ColorJitter(brightness=32. / 255., saturation=0.5),
+        #                                  transforms.Resize(self.input_size),
+        #                                  transforms.ToTensor()])
+        # elif split == "val":
+        self.trans = Compose([Resize(self.input_size),
+                              ToTensor()])
+        
+    
+    def __getitem__(self, idx):
+        val_start_id = int(len(self.data_df) * 0.8)
+        if self.split == "train":
+            idx = idx
+        elif self.split == "val":
+            idx = idx + val_start_id
+        image_id = self.data_df.loc[idx, "image"]
+        y = self.data_df.loc[idx, "target"]
+        x = Image.open(os.path.join(self.path_to_dir, "/data/isic-2019/ISIC_2019_Training_Input/ISIC_2019_Training_Input", "{}.jpg".format(image_id)))
+        x = self.center_crop(x)
+        x = self.trans(x)
+        y = np.int64(y)
+        return {"image": x, "label": y}
+            
+    def __len__(self):
+        if self.split == "train":
+            return int(len(self.data_df) * 0.8)
+        elif self.split == "val":
+            return int(len(self.data_df) * 0.2)
+    
+    def center_crop(self, pil_img):
+        img_width, img_height = pil_img.size
+        if img_width > img_height:
+            crop_size = img_height
+        else:
+            crop_size = img_width
+        return pil_img.crop(((img_width - crop_size) // 2,
+                             (img_height - crop_size) // 2,
+                             (img_width + crop_size) // 2,
+                             (img_height + crop_size) // 2))
+
+
+def get_mnist_dataloaders(path_to_dir = "~", validation_split=0.2, batch_size=64):
     pad = Pad((0, 0, 1, 1), fill=0)
     resize1 = Resize(87)
     resize2 = Resize(29)
@@ -81,6 +138,11 @@ def get_dataloaders(path_to_dir = "~", validation_split=0.2, batch_size=64):
     test_loader = DataLoader(mnist_test, batch_size=batch_size)
 
     return train_loader, validation_loader, test_loader
+
+def get_isic_dataloaders(path_to_dir = "~", validation_split=0.2, batch_size=64):
+    groundtruth_df = pd.read_csv(str(path_to_dir)+"/data/isic-2019/ISIC_2019_Training_GroundTruth.csv")
+    groundtruth_df["target"] = groundtruth_df.apply(lambda x: np.argmax(x[["MEL", "NV", "BCC", "AK", "BKL", "DF", "VASC", "SCC"]]), axis=1)
+    classes = ["MEL", "NV", "BCC", "AK", "BKL", "DF", "VASC", "SCC"]
 
 def getmodelsize(model, includebuffer=False, counts=True):
     param_size = 0
