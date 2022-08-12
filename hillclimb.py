@@ -35,9 +35,9 @@ class HillClimber(object):
             self.g = (1,2)
         if reg:
             if skip:
-                self.model = models.SkipEquiCNN(gs=[self.g for _ in range(6)], ordered = self.ordered, lr = lr)
+                self.model = models.SkipEquiCNN(gs=[self.g for _ in range(8)], ordered = self.ordered, lr = lr, superspace = self.g)
             else:
-                self.model = models.TDRegEquiCNN(gs=[self.g for _ in range(6)], ordered = self.ordered, lr = lr)
+                self.model = models.TDRegEquiCNN(gs=[self.g for _ in range(8)], ordered = self.ordered, lr = lr)
         else:
             self.model = models.EquiCNN(reset)
         self.skip = True
@@ -217,38 +217,57 @@ class HillClimber(object):
 
     def baselines(self, iterations = -1, epochs = 40, lr = 5e-4):
         upper = 5
-        allgs = [[(0,i) for _ in range(6)] for i in range(upper)]
-        allgs += [[(1,i) for _ in range(6)] for i in range(upper)]
+        allgs = [[(0,i) for _ in range(8)] for i in range(upper)]
+        allgs += [[(1,i) for _ in range(8)] for i in range(upper)]
         for j in range(upper-1):
-            allgs += [[(0,i) for _ in range(5)]+[(0,j)] for i in range(1,upper) if i >= j]
-            allgs += [[(1,i) for _ in range(5)]+[(0,j)] for i in range(1,upper) if i >= j]
-            allgs += [[(1,i) for _ in range(5)]+[(1,j)] for i in range(1,upper) if i >= j]
+            allgs += [[(0,i) for _ in range(7)]+[(0,j)] for i in range(1,upper) if i >= j]
+            allgs += [[(1,i) for _ in range(7)]+[(0,j)] for i in range(1,upper) if i >= j]
+            allgs += [[(1,i) for _ in range(7)]+[(1,j)] for i in range(1,upper) if i >= j]
             for k in range(j+1):
-                allgs += [[(0,i) for _ in range(4)]+[(0,j)]+[(0,k)] for i in range(1,upper) if i >= j]
-                allgs += [[(1,i) for _ in range(4)]+[(0,j)]+[(0,k)] for i in range(1,upper) if i >= j]
-                allgs += [[(1,i) for _ in range(4)]+[(1,j)]+[(0,k)] for i in range(1,upper) if i >= j]
-                allgs += [[(1,i) for _ in range(4)]+[(1,j)]+[(1,k)] for i in range(1,upper) if i >= j]
+                allgs += [[(0,i) for _ in range(6)]+[(0,j)]+[(0,k)] for i in range(1,upper) if i >= j]
+                allgs += [[(1,i) for _ in range(6)]+[(0,j)]+[(0,k)] for i in range(1,upper) if i >= j]
+                allgs += [[(1,i) for _ in range(6)]+[(1,j)]+[(0,k)] for i in range(1,upper) if i >= j]
+                allgs += [[(1,i) for _ in range(6)]+[(1,j)]+[(1,k)] for i in range(1,upper) if i >= j]
                 for l in range(k+1):
-                    allgs += [[(0,i) for _ in range(3)]+[(0,j)]+[(0,k)]+[(0,l)] for i in range(1,upper) if i >= j]
-                    allgs += [[(1,i) for _ in range(3)]+[(0,j)]+[(0,k)]+[(0,l)] for i in range(1,upper) if i >= j]
-                    allgs += [[(1,i) for _ in range(3)]+[(1,j)]+[(0,k)]+[(0,l)] for i in range(1,upper) if i >= j]
-                    allgs += [[(1,i) for _ in range(3)]+[(1,j)]+[(1,k)]+[(0,l)] for i in range(1,upper) if i >= j]
-                    allgs += [[(1,i) for _ in range(3)]+[(1,j)]+[(1,k)]+[(1,l)] for i in range(1,upper) if i >= j]
+                    allgs += [[(0,i) for _ in range(5)]+[(0,j)]+[(0,k)]+[(0,l)] for i in range(1,upper) if i >= j]
+                    allgs += [[(1,i) for _ in range(5)]+[(0,j)]+[(0,k)]+[(0,l)] for i in range(1,upper) if i >= j]
+                    allgs += [[(1,i) for _ in range(5)]+[(1,j)]+[(0,k)]+[(0,l)] for i in range(1,upper) if i >= j]
+                    allgs += [[(1,i) for _ in range(5)]+[(1,j)]+[(1,k)]+[(0,l)] for i in range(1,upper) if i >= j]
+                    allgs += [[(1,i) for _ in range(5)]+[(1,j)]+[(1,k)]+[(1,l)] for i in range(1,upper) if i >= j]
                     for m in range(l+1):
-                        allgs += [[(0,i) for _ in range(2)]+[(0,j)]+[(0,k)]+[(0,l)]+[(0,m)] for i in range(1,upper) if i >= j]
-                        allgs += [[(1,i) for _ in range(2)]+[(0,j)]+[(0,k)]+[(0,l)]+[(0,m)] for i in range(1,upper) if i >= j]
-                        allgs += [[(1,i) for _ in range(2)]+[(1,j)]+[(0,k)]+[(0,l)]+[(0,m)] for i in range(1,upper) if i >= j]
-                        allgs += [[(1,i) for _ in range(2)]+[(1,j)]+[(1,k)]+[(0,l)]+[(0,m)] for i in range(1,upper) if i >= j]
-                        allgs += [[(1,i) for _ in range(2)]+[(1,j)]+[(1,k)]+[(1,l)]+[(0,m)] for i in range(1,upper) if i >= j]
-                        allgs += [[(1,i) for _ in range(2)]+[(1,j)]+[(1,k)]+[(1,l)]+[(1,m)] for i in range(1,upper) if i >= j]
+                        allgs += [[(0,i) for _ in range(4)]+[(0,j)]+[(0,k)]+[(0,l)]+[(0,m)] for i in range(1,upper) if i >= j]
+                        allgs += [[(1,i) for _ in range(4)]+[(0,j)]+[(0,k)]+[(0,l)]+[(0,m)] for i in range(1,upper) if i >= j]
+                        allgs += [[(1,i) for _ in range(4)]+[(1,j)]+[(0,k)]+[(0,l)]+[(0,m)] for i in range(1,upper) if i >= j]
+                        allgs += [[(1,i) for _ in range(4)]+[(1,j)]+[(1,k)]+[(0,l)]+[(0,m)] for i in range(1,upper) if i >= j]
+                        allgs += [[(1,i) for _ in range(4)]+[(1,j)]+[(1,k)]+[(1,l)]+[(0,m)] for i in range(1,upper) if i >= j]
+                        allgs += [[(1,i) for _ in range(4)]+[(1,j)]+[(1,k)]+[(1,l)]+[(1,m)] for i in range(1,upper) if i >= j]
                         for n in range(m+1):
-                            allgs += [[(0,i) for _ in range(1)]+[(0,j)]+[(0,k)]+[(0,l)]+[(0,m)]+[(0,n)] for i in range(1,upper) if i >= j]
-                            allgs += [[(1,i) for _ in range(1)]+[(0,j)]+[(0,k)]+[(0,l)]+[(0,m)]+[(0,n)] for i in range(1,upper) if i >= j]
-                            allgs += [[(1,i) for _ in range(1)]+[(1,j)]+[(0,k)]+[(0,l)]+[(0,m)]+[(0,n)] for i in range(1,upper) if i >= j]
-                            allgs += [[(1,i) for _ in range(1)]+[(1,j)]+[(1,k)]+[(0,l)]+[(0,m)]+[(0,n)] for i in range(1,upper) if i >= j]
-                            allgs += [[(1,i) for _ in range(1)]+[(1,j)]+[(1,k)]+[(1,l)]+[(0,m)]+[(0,n)] for i in range(1,upper) if i >= j]
-                            allgs += [[(1,i) for _ in range(1)]+[(1,j)]+[(1,k)]+[(1,l)]+[(1,m)]+[(0,n)] for i in range(1,upper) if i >= j]
-                            allgs += [[(1,i) for _ in range(1)]+[(1,j)]+[(1,k)]+[(1,l)]+[(1,m)]+[(1,n)] for i in range(1,upper) if i >= j]
+                            allgs += [[(0,i) for _ in range(3)]+[(0,j)]+[(0,k)]+[(0,l)]+[(0,m)]+[(0,n)] for i in range(1,upper) if i >= j]
+                            allgs += [[(1,i) for _ in range(3)]+[(0,j)]+[(0,k)]+[(0,l)]+[(0,m)]+[(0,n)] for i in range(1,upper) if i >= j]
+                            allgs += [[(1,i) for _ in range(3)]+[(1,j)]+[(0,k)]+[(0,l)]+[(0,m)]+[(0,n)] for i in range(1,upper) if i >= j]
+                            allgs += [[(1,i) for _ in range(3)]+[(1,j)]+[(1,k)]+[(0,l)]+[(0,m)]+[(0,n)] for i in range(1,upper) if i >= j]
+                            allgs += [[(1,i) for _ in range(3)]+[(1,j)]+[(1,k)]+[(1,l)]+[(0,m)]+[(0,n)] for i in range(1,upper) if i >= j]
+                            allgs += [[(1,i) for _ in range(3)]+[(1,j)]+[(1,k)]+[(1,l)]+[(1,m)]+[(0,n)] for i in range(1,upper) if i >= j]
+                            allgs += [[(1,i) for _ in range(3)]+[(1,j)]+[(1,k)]+[(1,l)]+[(1,m)]+[(1,n)] for i in range(1,upper) if i >= j]
+                            for o in range(n+1):
+                                allgs += [[(0,i) for _ in range(2)]+[(0,j)]+[(0,k)]+[(0,l)]+[(0,m)]+[(0,n)]+[(0,o)] for i in range(1,upper) if i >= j]
+                                allgs += [[(1,i) for _ in range(2)]+[(0,j)]+[(0,k)]+[(0,l)]+[(0,m)]+[(0,n)]+[(0,o)] for i in range(1,upper) if i >= j]
+                                allgs += [[(1,i) for _ in range(2)]+[(1,j)]+[(0,k)]+[(0,l)]+[(0,m)]+[(0,n)]+[(0,o)] for i in range(1,upper) if i >= j]
+                                allgs += [[(1,i) for _ in range(2)]+[(1,j)]+[(1,k)]+[(0,l)]+[(0,m)]+[(0,n)]+[(0,o)] for i in range(1,upper) if i >= j]
+                                allgs += [[(1,i) for _ in range(2)]+[(1,j)]+[(1,k)]+[(1,l)]+[(0,m)]+[(0,n)]+[(0,o)] for i in range(1,upper) if i >= j]
+                                allgs += [[(1,i) for _ in range(2)]+[(1,j)]+[(1,k)]+[(1,l)]+[(1,m)]+[(0,n)]+[(0,o)] for i in range(1,upper) if i >= j]
+                                allgs += [[(1,i) for _ in range(2)]+[(1,j)]+[(1,k)]+[(1,l)]+[(1,m)]+[(1,n)]+[(0,o)] for i in range(1,upper) if i >= j]
+                                allgs += [[(1,i) for _ in range(2)]+[(1,j)]+[(1,k)]+[(1,l)]+[(1,m)]+[(1,n)]+[(1,o)] for i in range(1,upper) if i >= j]
+                                for p in range(o+1):
+                                    allgs += [[(0,i) for _ in range(1)]+[(0,j)]+[(0,k)]+[(0,l)]+[(0,m)]+[(0,n)]+[(0,o)]+[(0,p)] for i in range(1,upper) if i >= j]
+                                    allgs += [[(1,i) for _ in range(1)]+[(0,j)]+[(0,k)]+[(0,l)]+[(0,m)]+[(0,n)]+[(0,o)]+[(0,p)] for i in range(1,upper) if i >= j]
+                                    allgs += [[(1,i) for _ in range(1)]+[(1,j)]+[(0,k)]+[(0,l)]+[(0,m)]+[(0,n)]+[(0,o)]+[(0,p)] for i in range(1,upper) if i >= j]
+                                    allgs += [[(1,i) for _ in range(1)]+[(1,j)]+[(1,k)]+[(0,l)]+[(0,m)]+[(0,n)]+[(0,o)]+[(0,p)] for i in range(1,upper) if i >= j]
+                                    allgs += [[(1,i) for _ in range(1)]+[(1,j)]+[(1,k)]+[(1,l)]+[(0,m)]+[(0,n)]+[(0,o)]+[(0,p)] for i in range(1,upper) if i >= j]
+                                    allgs += [[(1,i) for _ in range(1)]+[(1,j)]+[(1,k)]+[(1,l)]+[(1,m)]+[(0,n)]+[(0,o)]+[(0,p)] for i in range(1,upper) if i >= j]
+                                    allgs += [[(1,i) for _ in range(1)]+[(1,j)]+[(1,k)]+[(1,l)]+[(1,m)]+[(1,n)]+[(0,o)]+[(0,p)] for i in range(1,upper) if i >= j]
+                                    allgs += [[(1,i) for _ in range(1)]+[(1,j)]+[(1,k)]+[(1,l)]+[(1,m)]+[(1,n)]+[(1,o)]+[(0,p)] for i in range(1,upper) if i >= j]
+                                    allgs += [[(1,i) for _ in range(1)]+[(1,j)]+[(1,k)]+[(1,l)]+[(1,m)]+[(1,n)]+[(1,o)]+[(1,p)] for i in range(1,upper) if i >= j]
         lastgs = []
         for gs in sorted(allgs):
             if gs == lastgs:
