@@ -10,7 +10,15 @@ import copy
 import pathlib
 
 class HillClimber(object):
-    def __init__(self, reset = True, reg = False, skip = False, baselines = False, lr = 0.1, path = "..", d4 = False, popsize = 10):
+    def __init__(self, reset = True, reg = False, skip = False, baselines = False, lr = 0.1, path = "..", d4 = False, popsize = 10, seed = -1):
+        self.seed = seed
+        if seed != -1:
+            torch.manual_seed(seed)
+            np.random.seed(seed)
+            torch.backends.cudnn.deterministic = True
+            torch.backends.cudnn.benchmark = False
+            torch.cuda.manual_seed(seed)
+            torch.cuda.manual_seed_all(seed)
         if baselines:
             exp = "bs"
         else:
@@ -251,6 +259,7 @@ if __name__ == "__main__":
     parser.add_argument('--skip', action='store_true', default=False, help='use model with skips')
     parser.add_argument('--data', "-d", type=pathlib.Path, default="..", help='datapath')
     parser.add_argument('--d4', action='store_true', default=False, help='use d4 equivariance instead of default d2')
+    parser.add_argument('--seed', type=int, default=-1, help='random seed (-1 for unseeded)')
     args = parser.parse_args()
     print(args)
     hillclimb = HillClimber(reg=args.reg, skip=args.skip, baselines=args.baselines, lr=args.lr, path=args.data, popsize=args.popsize, d4=args.d4)

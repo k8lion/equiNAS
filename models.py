@@ -384,7 +384,7 @@ class Reshaper(torch.nn.Module):
     def __init__(self, in_channels: int, out_channels: int, in_groupsize: int, out_groupsize: int, ordered = False):
 
         super(Reshaper, self).__init__()
-        print(in_groupsize,in_channels,out_groupsize,out_channels)
+        print("Reshaper", in_groupsize,in_channels,out_groupsize,out_channels)
         assert in_groupsize*in_channels == out_groupsize*out_channels
         self.out_channels = out_channels
         self.in_channels = in_channels
@@ -574,7 +574,7 @@ class SkipEquiCNN(torch.nn.Module):
 
 
     def architect(self, parent = None):
-        print(self.gs)
+        print("Architect" self.gs)
         reshaper = None
         init = (parent is None)
         if not init and self.gs == parent.gs:

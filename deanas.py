@@ -9,6 +9,13 @@ import pathlib
 import torch
             
 def DEANASearch(args):
+    if args.seed != -1:
+        torch.manual_seed(args.seed)
+        np.random.seed(args.seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+        torch.cuda.manual_seed(args.seed)
+        torch.cuda.manual_seed_all(args.seed)
     filename = str(args.path) +'/equiNAS/out/logsdea_'+datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")+'.pkl'
     print(filename)
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
@@ -17,6 +24,7 @@ def DEANASearch(args):
     model = models.DEANASNet(weightlr = args.weightlr, alphalr = args.alphalr, prior = not args.equalize).to(device)
     history = {'args': args,
                 'alphas': [],
+                'channels': model.channels,
                 'groups': model.groups, 
                 'train': {'loss': [], 
                         'accuracy': [], 
@@ -88,6 +96,7 @@ if __name__ == "__main__":
     parser.add_argument('--path', "-p", type=pathlib.Path, default="..", help='datapath')
     parser.add_argument('--equalize', action='store_true', default=False, help='eqaulize initial alphas')
     parser.add_argument('--task', "-t", type=str, default="mnist", help='task')
+    parser.add_argument('--seed', "-s", type=int, default=-1, help='random seed (-1 for unseeded)')
     args = parser.parse_args()
     print(args)
     DEANASearch(args)
