@@ -647,7 +647,7 @@ class SkipEquiCNN(torch.nn.Module):
     def forward(self, x: torch.Tensor):
         for block in self.blocks:
             x = block(x)
-]        x = self.full1(x.reshape(x.shape[0], -1))
+        x = self.full1(x.reshape(x.shape[0], -1))
         return self.full2(x)
 
     def generate(self):
