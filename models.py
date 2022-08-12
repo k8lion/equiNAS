@@ -552,7 +552,7 @@ class SkipBlock(torch.nn.Module):
 
 class SkipEquiCNN(torch.nn.Module):
     
-    def __init__(self, gs = [(0,2) for _ in range(6)], parent = None, ordered = False, lr = 0.1):
+    def __init__(self, gs = [(0,2) for _ in range(8)], parent = None, ordered = False, lr = 0.1, stages = 2, basechannels = 4, superspace = (1,4)):
         
         super(SkipEquiCNN, self).__init__()
 
@@ -562,9 +562,13 @@ class SkipEquiCNN(torch.nn.Module):
         else:
             self.parent = None
         self.gs = gs
-        self.channels = [64, 64, 64, 128, 128, 128]
-        self.kernels = [7, 5, 5, 5, 5, 5]
-        self.paddings = [1, 2, 2, 2, 2, 2]
+        #self.channels = [64, 64, 64, 128, 128, 128]
+        #self.kernels = [7, 5, 5, 5, 5, 5]
+        #self.paddings = [1, 2, 2, 2, 2, 2]
+        self.channels = [groupsize(superspace)*basechannels*2**i for i in range(stages) for _ in range(len(gs)//stages)]
+        print(self.channels)
+        self.kernels = [5 for _ in range(len(self.channels))]
+        self.paddings = [2 for _ in range(len(self.channels))]
         self.blocks = torch.nn.ModuleList([])
         self.ordered = ordered
         self.architect(parent)
@@ -605,6 +609,8 @@ class SkipEquiCNN(torch.nn.Module):
 
             if self.channels[i-1] != self.channels[i]:
                 self.blocks[i].skip = GroupConv2d(self.gs[i], int(self.channels[i-1]/groupsize(self.gs[i])), int(self.channels[i]/groupsize(self.gs[i])), 1, 0, bias=True)
+            
+            if i%(len(self.channels)//4) == 0 and i != len(self.channels)-1:
                 self.blocks[i].after.add_module(name="pool", module = torch.nn.AvgPool3d((1,3,3), (1,2,2), padding=(0,1,1)))
 
             if not init and self.gs[i] == parent.gs[i]:
@@ -618,7 +624,7 @@ class SkipEquiCNN(torch.nn.Module):
                     self.blocks[i].after.add_module(name="reshaper", module = reshaper)
 
         if init:
-            self.blocks.append(torch.nn.AvgPool3d((groupsize(self.gs[-1]),13,13), (1,1,1), padding=(0,0,0)))
+            self.blocks.append(torch.nn.AvgPool3d((groupsize(self.gs[-1]),4,4), (1,1,1), padding=(0,0,0)))
             self.full1 = torch.nn.Sequential(
                 torch.nn.Linear(int(self.channels[-1]/groupsize(self.gs[-1])), 64),
                 torch.nn.BatchNorm1d(64),
@@ -641,7 +647,7 @@ class SkipEquiCNN(torch.nn.Module):
     def forward(self, x: torch.Tensor):
         for block in self.blocks:
             x = block(x)
-        x = self.full1(x.reshape(x.shape[0], -1))
+]        x = self.full1(x.reshape(x.shape[0], -1))
         return self.full2(x)
 
     def generate(self):
