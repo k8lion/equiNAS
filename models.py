@@ -562,7 +562,7 @@ class SkipEquiCNN(torch.nn.Module):
         else:
             self.parent = None
         self.gs = gs
-        self.channels = [48, 48, 48, 96, 96, 96]
+        self.channels = [64, 64, 64, 128, 128, 128]
         self.kernels = [7, 5, 5, 5, 5, 5]
         self.paddings = [1, 2, 2, 2, 2, 2]
         self.blocks = torch.nn.ModuleList([])
