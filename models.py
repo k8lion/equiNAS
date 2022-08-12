@@ -509,6 +509,7 @@ class TDRegEquiCNN(torch.nn.Module):
                     candidates.append(child)
         for i in range(1, len(self.gs)):
             if self.gs[i][0] < self.gs[i-1][0] or self.gs[i][1] < self.gs[i-1][1]:
+                g = list(self.gs[i])
                 child = self.offspring(i-1, self.gs[i])
                 if all([child.gs != sibling.gs for sibling in candidates]):
                     candidates.append(child)

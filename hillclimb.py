@@ -163,24 +163,22 @@ class HillClimber(object):
         self.history["args"] = args
     
     def generate(self):
-        if self.allkids:
-            children = []
-            #children += self.model.generate()
-            print("parent:", self.model.gs, self.validate(self.model))
-            for child in self.model.generate():
+        children = []
+        #children += self.model.generate()
+        print("parent:", self.model.gs, self.validate(self.model))
+        for child in self.model.generate():
+            print("child:", child.gs, self.validate(child))
+            self.test(self.model, child)
+            children.append(child)
+        for model in self.options:
+            #children += model.generate()
+            print("parent:", model.gs, self.validate(model))
+            for child in model.generate():
                 print("child:", child.gs, self.validate(child))
-                self.test(self.model, child)
+                self.test(model, child)
                 children.append(child)
-            for model in self.options:
-                #children += model.generate()
-                print("parent:", model.gs, self.validate(model))
-                for child in model.generate():
-                    print("child:", child.gs, self.validate(child))
-                    self.test(model, child)
-                    children.append(child)
-            self.options = children
-        else:
-            self.options = self.model.generate()
+        self.options = children
+
 
     def select(self):
         for child in sorted(self.options, key=attrgetter('score'), reverse=True):
