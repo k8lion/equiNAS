@@ -574,7 +574,7 @@ class SkipEquiCNN(torch.nn.Module):
 
 
     def architect(self, parent = None):
-        print("Architect" self.gs)
+        print("Architect", self.gs)
         reshaper = None
         init = (parent is None)
         if not init and self.gs == parent.gs:
