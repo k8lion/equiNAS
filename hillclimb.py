@@ -299,7 +299,7 @@ if __name__ == "__main__":
     parser.add_argument('--seed', type=int, default=-1, help='random seed (-1 for unseeded)')
     args = parser.parse_args()
     print(args)
-    hillclimb = HillClimber(reg=args.reg, skip=args.skip, baselines=args.baselines, lr=args.lr, path=args.data, popsize=args.popsize, d16=args.d6)
+    hillclimb = HillClimber(reg=args.reg, skip=args.skip, baselines=args.baselines, lr=args.lr, path=args.data, popsize=args.popsize, d16=args.d16)
     hillclimb.saveargs(vars(args))
     if args.baselines:
         hillclimb.baselines(iterations=args.iterations, epochs=args.epochs, lr=args.lr)
