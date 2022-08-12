@@ -13,7 +13,7 @@ def DEANASearch(args):
     print(filename)
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     if args.task == "mnist":
-        train_loader, validation_loader, test_loader = utilities.get_dataloaders(path_to_dir=args.path, validation_split=0.5)
+        train_loader, validation_loader, test_loader = utilities.get_mnist_dataloaders(path_to_dir=args.path, validation_split=0.5)
     model = models.DEANASNet(weightlr = args.weightlr, alphalr = args.alphalr, prior = not args.equalize).to(device)
     history = {'args': args,
                 'alphas': [],
@@ -89,5 +89,6 @@ if __name__ == "__main__":
     parser.add_argument('--equalize', action='store_true', default=False, help='eqaulize initial alphas')
     parser.add_argument('--task', "-t", type=str, default="mnist", help='task')
     args = parser.parse_args()
+    print(args)
     DEANASearch(args)
     

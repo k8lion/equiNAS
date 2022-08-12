@@ -54,16 +54,17 @@ def rotatestack_n(y: torch.Tensor, r: int, n: int, order = None) -> torch.Tensor
 
 def transform(y: torch.Tensor, g: tuple) -> torch.Tensor:
   
-  assert len(y.shape) >= 2
+    assert len(y.shape) >= 2
 
-  f, r = g
+    f, r = g
 
-  y = y.clone()
+    y = y.clone()
 
-  if f == 1:
-    y = torch.flip(y, dims=(-2,))
-  y = y.rot90(r, dims=(-2, -1))
-  return y
+    if f == 1:
+      y = torch.flip(y, dims=(-2,))
+    y = y.rot90(r, dims=(-2, -1))
+    return y
+
 
 """
 group action on images
@@ -76,8 +77,6 @@ f: flip aspect of group member
 n_f: flip aspects of group
 
 output: A x B x C x D, C x D data rotated/flipped
-
-
 """
 def rotateflip_n(x: torch.Tensor, r: int, n_r: int, f: int, n_f: int, flipfirst: bool = False) -> torch.Tensor:
     if n_f == 2 and n_r == 4:
@@ -101,44 +100,34 @@ def rotateflip_n(x: torch.Tensor, r: int, n_r: int, f: int, n_f: int, flipfirst:
     return roty
 
 
-def transform_p2m(y: torch.Tensor, g: tuple) -> torch.Tensor:
-  assert len(y.shape) >= 3
-  assert y.shape[-3] == 4
+def transform_n(y: torch.Tensor, g: tuple, n: int) -> torch.Tensor:
+    assert len(y.shape) >= 2
 
-  f, r = g
+    f, r = g
+    y = y.clone()
+    if f == 1:
+      y = torch.flip(y, dims=(-2,))
+    if (r/n*4).is_integer():
+        y = y.rot90(int(r/n*4), dims=(-2, -1))
+    else:
+        shape = y.shape
+        y = tvF.rotate(y.reshape(y.size(1), -1, y.size(-2), y.size(-1)), 360*r/n).reshape(shape)
+    return y
 
-  y = transform(y, (g[0], 2*g[1]))
+def transform_pnm(y: torch.Tensor, g: tuple, n: int) -> torch.Tensor:
+    assert len(y.shape) >= 3
+    assert y.shape[-3] == 2*n
 
-  y = y.reshape(*y.shape[:-3], 2, 2, *y.shape[-2:])
+    f, r = g
+    y = transform_n(y, g, n)
 
-  if f:
-    y = torch.flip(y, dims=(-4,))
-  
-  y = torch.roll(y, r, dims=-3)
-
-  y = y.reshape(*y.shape[:-4], 4, *y.shape[-2:])
-
-  return y
-
-def transform_p4m(y: torch.Tensor, g: tuple) -> torch.Tensor:
-  assert len(y.shape) >= 3
-  assert y.shape[-3] == 8
-
-  f, r = g
-
-  y = transform(y, g)
-
-  y = y.reshape(*y.shape[:-3], 2, 4, *y.shape[-2:])
-
-  if f:
-    y = torch.index_select(y, -3, torch.LongTensor([0, 3, 2, 1]).to(y.device))
-    y = torch.flip(y, dims=(-4,))
-  
-  y = torch.roll(y, r, dims=-3)
-
-  y = y.reshape(*y.shape[:-4], 8, *y.shape[-2:])
-
-  return y
+    y = y.reshape(*y.shape[:-3], 2, n, *y.shape[-2:])
+    if f:
+      y = torch.index_select(y, -3, torch.LongTensor([0]+list(range(n-1,0,-1))).to(y.device))
+      y = torch.flip(y, dims=(-4,))
+    y = torch.roll(y, r, dims=-3)
+    y = y.reshape(*y.shape[:-4], 2*n, *y.shape[-2:])
+    return y
 
 """
 group action on lifted activations/weights
@@ -152,7 +141,10 @@ n_f: flip aspects of group
 
 output: A x B x |G| x C x D, 3rd dimension rolled and C x D data transformed for each member of G
 """
-def rotateflipstack_n(y: torch.Tensor, r: int, n_r: int, f: int, n_f: int, order = None, test = False, kernel = False) -> torch.Tensor:
+def rotateflipstack_n(y: torch.Tensor, r: int, n_r: int, f: int, n_f: int, order = None) -> torch.Tensor:
+    if n_f == 1:
+        return rotatestack_n(y, r, n_r)
+    return transform_pnm(y, (f,r), n_r)
     if n_f == 2 and n_r == 4:
         return transform_p4m(y, (f,r))
     if n_f == 2 and n_r == 2:
@@ -165,26 +157,8 @@ def rotateflipstack_n(y: torch.Tensor, r: int, n_r: int, f: int, n_f: int, order
     order0, order1 = order[:n_r], order[n_r:]
     if f == 1:
         order0, order1 = order1, order0
-        # if n_f == 2:
-        #     order0, order1 = order0[::-1], order1[::-1]
-        #     if len(order0) > 0:
-        #         order0.insert(0, order0.pop())
-        #     order1.insert(0, order1.pop())
 
     roty = rotateflip_n(y, r, n_r, f, n_f)#, flipfirst=kernel) 
-    if test:
-        for g in range(roty.shape[-3]):
-            roty[:,:,g] = g
-    # if n_r == 4 and n_f == 2 and f == 1:
-    #     orders = [[4, 7, 6, 5, 0, 3, 2, 1],
-    #               [5, 4, 7, 6, 1, 0, 3, 2],
-    #               [6, 5, 4, 7, 2, 1, 0, 3],
-    #               [7, 6, 5, 4, 3, 2, 1, 0],         
-    #     ]
-    #     order = orders[r]
-    #     roty = torch.stack([torch.select(roty, -3, i) for i in order], dim=-3) 
-    #     return roty
-    #print("rfs", r, n_r, f, n_f, [(n_r-r+i)%n_r+f*n_r for i in order0]+[(n_r-r+i)%n_r+(1-f)*n_r for i in order1])
     roty = torch.stack([torch.select(roty, -3, (n_r-r+i)%n_r+f*n_r) for i in order0]+[torch.select(roty, -3, (n_r-r+i)%n_r+(1-f)*n_r) for i in order1], dim=-3) 
     return roty
 
@@ -410,7 +384,7 @@ class Reshaper(torch.nn.Module):
     def __init__(self, in_channels: int, out_channels: int, in_groupsize: int, out_groupsize: int, ordered = False):
 
         super(Reshaper, self).__init__()
-
+        print(in_groupsize,in_channels,out_groupsize,out_channels)
         assert in_groupsize*in_channels == out_groupsize*out_channels
         self.out_channels = out_channels
         self.in_channels = in_channels
@@ -526,8 +500,7 @@ class TDRegEquiCNN(torch.nn.Module):
 
     def generate(self):
         candidates = [self.offspring(-1, self.gs[0])]
-        for d in range(1,len(self.gs[0])):
-            #if self.gs[-1][d] >= 0:
+        for d in range(len(self.gs[0])):
             for i in range(1, self.gs[-1][d]+1):
                 g = list(self.gs[-1])
                 g[d] -= i
@@ -601,6 +574,7 @@ class SkipEquiCNN(torch.nn.Module):
 
 
     def architect(self, parent = None):
+        print(self.gs)
         reshaper = None
         init = (parent is None)
         if not init and self.gs == parent.gs:
@@ -665,18 +639,14 @@ class SkipEquiCNN(torch.nn.Module):
                     self.full1._modules["0"].bias.data = parent.full1._modules["0"].bias.data.clone()
         
     def forward(self, x: torch.Tensor):
-        #print("start", x.shape)
-        for (i, block) in enumerate(self.blocks):
-            #if hasattr(block, "_modules"):
-                #print(i, block._modules.keys())
+        for block in self.blocks:
             x = block(x)
-            #print(i, x.shape)
         x = self.full1(x.reshape(x.shape[0], -1))
         return self.full2(x)
 
     def generate(self):
         candidates = [self.offspring(-1, self.gs[0])]
-        for d in range(1,len(self.gs[0])):
+        for d in range(len(self.gs[0])):
             for i in range(1, self.gs[-1][d]+1):
                 g = list(self.gs[-1])
                 g[d] -= i

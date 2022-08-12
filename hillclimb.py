@@ -10,7 +10,7 @@ import copy
 import pathlib
 
 class HillClimber(object):
-    def __init__(self, reset = True, allkids = False, reg = False, skip = False, baselines = False, lr = 0.1, path = ".."):
+    def __init__(self, reset = True, reg = False, skip = False, baselines = False, lr = 0.1, path = "..", d4 = False, popsize = 10):
         if baselines:
             exp = "bs"
         else:
@@ -19,18 +19,23 @@ class HillClimber(object):
         print(self.filename)
         self.ordered = True
         self.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
-        self.train_loader, self.validation_loader, self.test_loader = utilities.get_dataloaders(path_to_dir=path)
+        self.train_loader, self.validation_loader, self.test_loader = utilities.get_mnist_dataloaders(path_to_dir=path)
         self.reg = reg
+        if d4:
+            self.g = (1,4)
+        else:
+            self.g = (1,2)
         if reg:
             if skip:
-                self.model = models.SkipEquiCNN(gs=[(0,4) for _ in range(6)], ordered = self.ordered, lr = lr)
+                self.model = models.SkipEquiCNN(gs=[self.g for _ in range(6)], ordered = self.ordered, lr = lr)
             else:
-                self.model = models.TDRegEquiCNN(gs=[(0,2) for _ in range(6)], ordered = self.ordered, lr = lr)
+                self.model = models.TDRegEquiCNN(gs=[self.g for _ in range(6)], ordered = self.ordered, lr = lr)
         else:
             self.model = models.EquiCNN(reset)
         self.skip = True
         self.options = []
-        self.allkids = allkids
+        self.allkids = popsize < 0
+        self.popsize = popsize
         self.history = {}
 
     def train(self, epochs = 1, start = 0, lr = 5e-4):
@@ -184,6 +189,8 @@ class HillClimber(object):
                 if child.uuid not in uuids:
                     self.options.remove(child)
             print(len(self.options))
+        else:
+            self.options =  sorted(self.options, key=attrgetter('score'), reverse=True)[:min(len(self.options),self.popsize)]
 
     def save(self):
         #for model in self.options:
@@ -238,13 +245,15 @@ if __name__ == "__main__":
     parser.add_argument('--iterations', "-i", type=int, default="50", help='number of generations')
     parser.add_argument('--lr', "-l", type=float, default="5e-4", help='learning rate')
     parser.add_argument('--allkids', action='store_true', default=False, help='expand children tree')
+    parser.add_argument('--popsize', "-p", type=int, default="10", help='population size')
     parser.add_argument('--baselines', action='store_true', default=False, help='measure baselines')
     parser.add_argument('--reg', action='store_true', default=False, help='reg group convs')
     parser.add_argument('--skip', action='store_true', default=False, help='use model with skips')
     parser.add_argument('--data', "-d", type=pathlib.Path, default="..", help='datapath')
+    parser.add_argument('--d4', action='store_true', default=False, help='use d4 equivariance instead of default d2')
     args = parser.parse_args()
     print(args)
-    hillclimb = HillClimber(allkids=args.allkids, reg=args.reg, skip=args.skip, baselines=args.baselines, lr=args.lr, path=args.data)
+    hillclimb = HillClimber(reg=args.reg, skip=args.skip, baselines=args.baselines, lr=args.lr, path=args.data, popsize=args.popsize, d4=args.d4)
     hillclimb.saveargs(vars(args))
     if args.baselines:
         hillclimb.baselines(iterations=args.iterations, epochs=args.epochs, lr=args.lr)
