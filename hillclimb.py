@@ -218,16 +218,37 @@ class HillClimber(object):
     def baselines(self, iterations = -1, epochs = 40, lr = 5e-4):
         upper = 5
         allgs = [[(0,i) for _ in range(6)] for i in range(upper)]
+        allgs += [[(1,i) for _ in range(6)] for i in range(upper)]
         for j in range(upper-1):
             allgs += [[(0,i) for _ in range(5)]+[(0,j)] for i in range(1,upper) if i >= j]
+            allgs += [[(1,i) for _ in range(5)]+[(0,j)] for i in range(1,upper) if i >= j]
+            allgs += [[(1,i) for _ in range(5)]+[(1,j)] for i in range(1,upper) if i >= j]
             for k in range(j+1):
                 allgs += [[(0,i) for _ in range(4)]+[(0,j)]+[(0,k)] for i in range(1,upper) if i >= j]
+                allgs += [[(1,i) for _ in range(4)]+[(0,j)]+[(0,k)] for i in range(1,upper) if i >= j]
+                allgs += [[(1,i) for _ in range(4)]+[(1,j)]+[(0,k)] for i in range(1,upper) if i >= j]
+                allgs += [[(1,i) for _ in range(4)]+[(1,j)]+[(1,k)] for i in range(1,upper) if i >= j]
                 for l in range(k+1):
                     allgs += [[(0,i) for _ in range(3)]+[(0,j)]+[(0,k)]+[(0,l)] for i in range(1,upper) if i >= j]
+                    allgs += [[(1,i) for _ in range(3)]+[(0,j)]+[(0,k)]+[(0,l)] for i in range(1,upper) if i >= j]
+                    allgs += [[(1,i) for _ in range(3)]+[(1,j)]+[(0,k)]+[(0,l)] for i in range(1,upper) if i >= j]
+                    allgs += [[(1,i) for _ in range(3)]+[(1,j)]+[(1,k)]+[(0,l)] for i in range(1,upper) if i >= j]
+                    allgs += [[(1,i) for _ in range(3)]+[(1,j)]+[(1,k)]+[(1,l)] for i in range(1,upper) if i >= j]
                     for m in range(l+1):
                         allgs += [[(0,i) for _ in range(2)]+[(0,j)]+[(0,k)]+[(0,l)]+[(0,m)] for i in range(1,upper) if i >= j]
+                        allgs += [[(1,i) for _ in range(2)]+[(0,j)]+[(0,k)]+[(0,l)]+[(0,m)] for i in range(1,upper) if i >= j]
+                        allgs += [[(1,i) for _ in range(2)]+[(1,j)]+[(0,k)]+[(0,l)]+[(0,m)] for i in range(1,upper) if i >= j]
+                        allgs += [[(1,i) for _ in range(2)]+[(1,j)]+[(1,k)]+[(0,l)]+[(0,m)] for i in range(1,upper) if i >= j]
+                        allgs += [[(1,i) for _ in range(2)]+[(1,j)]+[(1,k)]+[(1,l)]+[(0,m)] for i in range(1,upper) if i >= j]
+                        allgs += [[(1,i) for _ in range(2)]+[(1,j)]+[(1,k)]+[(1,l)]+[(1,m)] for i in range(1,upper) if i >= j]
                         for n in range(m+1):
                             allgs += [[(0,i) for _ in range(1)]+[(0,j)]+[(0,k)]+[(0,l)]+[(0,m)]+[(0,n)] for i in range(1,upper) if i >= j]
+                            allgs += [[(1,i) for _ in range(1)]+[(0,j)]+[(0,k)]+[(0,l)]+[(0,m)]+[(0,n)] for i in range(1,upper) if i >= j]
+                            allgs += [[(1,i) for _ in range(1)]+[(1,j)]+[(0,k)]+[(0,l)]+[(0,m)]+[(0,n)] for i in range(1,upper) if i >= j]
+                            allgs += [[(1,i) for _ in range(1)]+[(1,j)]+[(1,k)]+[(0,l)]+[(0,m)]+[(0,n)] for i in range(1,upper) if i >= j]
+                            allgs += [[(1,i) for _ in range(1)]+[(1,j)]+[(1,k)]+[(1,l)]+[(0,m)]+[(0,n)] for i in range(1,upper) if i >= j]
+                            allgs += [[(1,i) for _ in range(1)]+[(1,j)]+[(1,k)]+[(1,l)]+[(1,m)]+[(0,n)] for i in range(1,upper) if i >= j]
+                            allgs += [[(1,i) for _ in range(1)]+[(1,j)]+[(1,k)]+[(1,l)]+[(1,m)]+[(1,n)] for i in range(1,upper) if i >= j]
         lastgs = []
         for gs in sorted(allgs):
             if gs == lastgs:
@@ -244,7 +265,6 @@ class HillClimber(object):
         for iter in range(iterations):
             self.train(epochs = epochs, start = iter+1, lr = lr)
             self.save()
-
             
             
 if __name__ == "__main__":
