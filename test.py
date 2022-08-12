@@ -262,7 +262,7 @@ class Test(unittest.TestCase):
         device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
         inputs = torch.randn(16, 1, 29, 29)
         labels = torch.randint(0, 9, (16,))
-        model = models.DEANASNet((1,2))
+        model = models.DEANASNet(superspace=(1,2), stages = 6)
         model(inputs)
         model.train()
         model.to(device)
