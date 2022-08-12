@@ -10,7 +10,7 @@ import copy
 import pathlib
 
 class HillClimber(object):
-    def __init__(self, reset = True, reg = False, skip = False, baselines = False, lr = 0.1, path = "..", d4 = False, popsize = 10, seed = -1):
+    def __init__(self, reset = True, reg = False, skip = False, baselines = False, lr = 0.1, path = "..", d16 = False, popsize = 10, seed = -1):
         self.seed = seed
         if seed != -1:
             torch.manual_seed(seed)
@@ -29,7 +29,7 @@ class HillClimber(object):
         self.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
         self.train_loader, self.validation_loader, self.test_loader = utilities.get_mnist_dataloaders(path_to_dir=path)
         self.reg = reg
-        if d4:
+        if d16:
             self.g = (1,4)
         else:
             self.g = (1,2)
@@ -297,11 +297,11 @@ if __name__ == "__main__":
     parser.add_argument('--reg', action='store_true', default=False, help='reg group convs')
     parser.add_argument('--skip', action='store_true', default=False, help='use model with skips')
     parser.add_argument('--data', "-d", type=pathlib.Path, default="..", help='datapath')
-    parser.add_argument('--d4', action='store_true', default=False, help='use d4 equivariance instead of default d2')
+    parser.add_argument('--d16', action='store_true', default=False, help='use d16 equivariance instead of default d4')
     parser.add_argument('--seed', type=int, default=-1, help='random seed (-1 for unseeded)')
     args = parser.parse_args()
     print(args)
-    hillclimb = HillClimber(reg=args.reg, skip=args.skip, baselines=args.baselines, lr=args.lr, path=args.data, popsize=args.popsize, d4=args.d4)
+    hillclimb = HillClimber(reg=args.reg, skip=args.skip, baselines=args.baselines, lr=args.lr, path=args.data, popsize=args.popsize, d16=args.d6)
     hillclimb.saveargs(vars(args))
     if args.baselines:
         hillclimb.baselines(iterations=args.iterations, epochs=args.epochs, lr=args.lr)
