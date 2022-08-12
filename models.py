@@ -968,7 +968,7 @@ class MixedGroupConv2dV2(torch.nn.Module):
                 if bias:
                     self.bias.append(torch.nn.Parameter(torch.zeros(out_c), requires_grad=True))
         skip_weights = torch.zeros(size=(0,))
-        if self.in_channels != self.out_channels:
+        if self.out_channels % self.in_channels != 0:
             self.alphas.data[-1] = -np.inf
         skip_weights = torch.nn.Parameter(skip_weights, requires_grad=True)
         self.weights.append(skip_weights)
@@ -982,8 +982,8 @@ class MixedGroupConv2dV2(torch.nn.Module):
         #alphas = torch.round(torch.softmax(self.alphas, dim=0))
         alphas = torch.softmax(self.alphas, dim=0)
 
-        if self.in_channels == self.out_channels:
-            out = alphas[-1]*x
+        if self.out_channels % self.in_channels == 0:
+            out = alphas[-1]*torch.tile(x, dims=(1,self.out_channels//self.in_channels,1,1))
         else:
             out = torch.zeros(x.shape[0], self.out_channels, x.shape[-2], x.shape[-1]).to(x.device)
 
@@ -1025,7 +1025,7 @@ class DEANASNet(torch.nn.Module):
         super(DEANASNet, self).__init__()
 
         self.superspace = superspace
-        self.channels = [basechannels*(i+1) for i in range(stages) for _ in range(stagedepth)]
+        self.channels = [basechannels*2**i for i in range(stages) for _ in range(stagedepth)]
         print(self.channels)
         self.kernels = [5 for _ in range(len(self.channels))]
         self.paddings = [2 for _ in range(len(self.channels))]
