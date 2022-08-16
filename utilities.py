@@ -134,7 +134,6 @@ def get_mnist_dataloaders(path_to_dir = "~", validation_split=0.2, batch_size=64
     return train_loader, validation_loader, test_loader
 
 def get_isic_dataloaders(path_to_dir = "..", validation_split=0.2, batch_size=64):
-    make_isic_traintest(path_to_dir)
     if not os.path.exists(str(path_to_dir)+"/data/ISIC_2019/ISIC_2019_SplitTrain_GroundTruth.csv"):
         if os.path.exists(str(path_to_dir)+"/data/ISIC_2019/ISIC_2019_Training_GroundTruth.csv"):
             make_isic_traintest(path_to_dir)
