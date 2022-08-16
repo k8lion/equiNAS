@@ -26,11 +26,18 @@ def DEANASearch(args):
         outdim = 10
         pools = 4
         kernel = 5
-        stages = 4
+        stages = 2
     elif args.task == "isic":
-        train_loader, validation_loader, test_loader = utilities.get_isic_dataloaders(path_to_dir=args.path, validation_split=0.5)
+        train_loader, validation_loader, test_loader = utilities.get_isic_dataloaders(path_to_dir=args.path, validation_split=0.5, batchsize=8)
         indim = 3
         outdim = 9
+        pools = 8
+        kernel = 7
+        stages = 4
+    elif args.task == "galaxy10":
+        train_loader, validation_loader, test_loader = utilities.get_galaxy10_dataloaders(path_to_dir=args.path, validation_split=0.5, batchsize=8)
+        indim = 3
+        outdim = 10
         pools = 8
         kernel = 7
         stages = 4

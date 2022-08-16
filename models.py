@@ -1078,7 +1078,7 @@ class DEANASNet(torch.nn.Module):
                 torch.nn.BatchNorm2d(self.channels[i]*groupsize(self.superspace)),
                 torch.nn.ReLU(inplace=True)
                 ))
-            if i%(len(self.channels)//pools) == 0 and i != len(self.channels)-1:
+            if i%(len(self.channels)//pools) == 0 and i != len(self.channels)-1 and (not self.indim>1 or i > 0):
                 self.blocks[i].add_module(name="pool", module = torch.nn.AvgPool2d((3,3), (2,2), padding=(1,1)))
         self.blocks[-1].add_module(name="pool", module = torch.nn.AvgPool2d((4,4), (1,1), padding=(0,0)))
         self.blocks.append(torch.nn.Sequential(
