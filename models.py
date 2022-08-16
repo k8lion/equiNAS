@@ -1088,8 +1088,12 @@ class DEANASNet(torch.nn.Module):
         ))
         self.blocks.append(torch.nn.Sequential(torch.nn.Linear(64, outdim)))
         self.loss_function = torch.nn.CrossEntropyLoss()
-        self.optimizer = torch.optim.Adam(self.parameters(), lr=weightlr)
-        self.alphaopt = torch.optim.Adam(self.alphas(), lr=alphalr)
+        if discrete:
+            self.optimizer = torch.optim.SGD(self.all_params(), lr=weightlr)
+            self.alphaopt = None
+        else:
+            self.optimizer = torch.optim.Adam(self.parameters(), lr=weightlr)
+            self.alphaopt = torch.optim.Adam(self.alphas(), lr=alphalr)
         self.gs = [self.superspace for _ in range(len(self.channels))]
         self.score = -1
         self.uuid = uuid.uuid4()
@@ -1116,6 +1120,11 @@ class DEANASNet(torch.nn.Module):
     def alphas(self, recurse: bool = True):
         for name, param in self.named_parameters():
             if "alphas" in name:
+                yield param
+    
+    def all_params(self, recurse: bool = True):
+        for name, param in self.named_parameters():
+            if "norms" not in name and not name.endswith("."+str(np.prod([g+1 for g in self.superspace]))):
                 yield param
 
     def offspring(self, i, groupnew):
