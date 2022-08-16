@@ -1158,10 +1158,16 @@ class DEANASNet(torch.nn.Module):
         weights = self.blocks[i]._modules["0"].weights[indold]
         #weights = weights.reshape(weights.shape[0], weights.shape[1]*groupdifference(groupold,groupnew), -1, *weights.shape[3:])
         if groupold[0] == 1:
-            order = [(i,j) for j in range(subgroupsize(groupold, 0)//subgroupsize(groupnew, 0)) for i in range(subgroupsize(groupold, 1)//subgroupsize(groupnew, 1))]
-            semi_filter = torch.stack([rotateflipstack_n(weights, i, subgroupsize(groupold, 1), j, subgroupsize(groupold, 0)) for (i,j) in order], dim = -5)
+            order = [(r,f) for f in range(subgroupsize(groupold, 0)//subgroupsize(groupnew, 0)) for r in range(subgroupsize(groupold, 1)//subgroupsize(groupnew, 1))]
+            if i == 0:
+                semi_filter = torch.stack([rotateflip_n(weights, r, subgroupsize(groupold, 1), f, subgroupsize(groupold, 0)) for (r,f) in order], dim = -5)
+            else:
+                semi_filter = torch.stack([rotateflipstack_n(weights, r, subgroupsize(groupold, 1), f, subgroupsize(groupold, 0)) for (r,f) in order], dim = -5)
         else:
-            semi_filter = torch.stack([rotatestack_n(weights, i, groupsize(groupold)) for i in range(subgroupsize(groupold, 1)//subgroupsize(groupnew, 1))], dim = -5)
+            if i == 0:
+                semi_filter = torch.stack([rotate_n(weights, r, groupsize(groupold)) for r in range(subgroupsize(groupold, 1)//subgroupsize(groupnew, 1))], dim = -5)
+            else:
+                semi_filter = torch.stack([rotatestack_n(weights, r, groupsize(groupold)) for r in range(subgroupsize(groupold, 1)//subgroupsize(groupnew, 1))], dim = -5)
         #bias
         semi_filter[:,semi_filter.shape[1]//2:,:,:,:,:] = torch.roll(semi_filter[:,semi_filter.shape[1]//2:,:,:,:,:], semi_filter.shape[-3]//2, dims=-3)
         if self.blocks[i]._modules["0"].bias is not None:
