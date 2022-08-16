@@ -1168,8 +1168,8 @@ class DEANASNet(torch.nn.Module):
                 semi_filter = torch.stack([rotate_n(weights, r, groupsize(groupold)) for r in range(subgroupsize(groupold, 1)//subgroupsize(groupnew, 1))], dim = -5)
             else:
                 semi_filter = torch.stack([rotatestack_n(weights, r, groupsize(groupold)) for r in range(subgroupsize(groupold, 1)//subgroupsize(groupnew, 1))], dim = -5)
-        #bias
-        semi_filter[:,semi_filter.shape[1]//2:,:,:,:,:] = torch.roll(semi_filter[:,semi_filter.shape[1]//2:,:,:,:,:], semi_filter.shape[-3]//2, dims=-3)
+        if len(semi_filter.shape) > 5:
+            semi_filter = torch.unsqueeze(semi_filter, -5)
         if self.blocks[i]._modules["0"].bias is not None:
             bias = torch.stack([self.blocks[i]._modules["0"].bias[indold] for _ in range(groupdifference(groupold, groupnew))], dim = 1).reshape(-1)
         else:
