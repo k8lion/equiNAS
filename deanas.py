@@ -21,7 +21,23 @@ def DEANASearch(args):
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     if args.task == "mnist":
         train_loader, validation_loader, test_loader = utilities.get_mnist_dataloaders(path_to_dir=args.path, validation_split=0.5)
-    model = models.DEANASNet(superspace = (1,4) if args.d16 else (1,2), weightlr = args.weightlr, alphalr = args.alphalr, prior = not args.equalize).to(device)
+        indim = 1
+        outdim = 10
+        pools = 4
+        kernel = 5
+        stages = 4
+    elif args.task == "isic":
+        train_loader, validation_loader, test_loader = utilities.get_isic_dataloaders(path_to_dir=args.path, validation_split=0.5)
+        indim = 3
+        outdim = 9
+        pools = 8
+        kernel = 7
+        stages = 4
+    model = models.DEANASNet(superspace = (1,4) if args.d16 else (1,2), 
+                             weightlr = args.weightlr, alphalr = args.alphalr, 
+                             prior = not args.equalize, indim = indim, 
+                             outdim = outdim, stages=stages, pools=pools, 
+                             kernel=kernel).to(device)
     history = {'args': args,
                 'alphas': [],
                 'channels': model.channels,

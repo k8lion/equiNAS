@@ -3,6 +3,7 @@ import os
 import os.path
 import pandas as pd
 from PIL import Image
+import torch
 from torch.utils.data import Dataset, DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
 from torchvision.transforms import RandomRotation, Pad, Resize, ToTensor, Compose
@@ -44,11 +45,8 @@ class ISICDataset(Dataset):
     """ISIC dataset."""
     # classes = {'NV': 0, 'MEL': 1, 'BKL': 2, 'DF': 3, 'SCC': 4, 'BCC': 5, 'VASC': 6, 'AK': 7}
     
-    def __init__(self, data_df, path_to_dir, split='train', input_size=256, run_id=1):
-        """
-        Args:
-        """
-        self.split = split
+    def __init__(self, data_df, path_to_dir, input_size=256):
+
         self.input_size = input_size
         self.data_df = data_df
         self.path_to_dir = path_to_dir
@@ -64,24 +62,20 @@ class ISICDataset(Dataset):
         
     
     def __getitem__(self, idx):
-        val_start_id = int(len(self.data_df) * 0.8)
-        if self.split == "train":
-            idx = idx
-        elif self.split == "val":
-            idx = idx + val_start_id
         image_id = self.data_df.loc[idx, "image"]
         y = self.data_df.loc[idx, "target"]
-        x = Image.open(os.path.join(self.path_to_dir, "/data/isic-2019/ISIC_2019_Training_Input/ISIC_2019_Training_Input", "{}.jpg".format(image_id)))
+        try:
+            x = Image.open(str(self.path_to_dir)+"/data/ISIC_2019/ISIC_2019_Training_Input/{}.jpg".format(image_id))
+        except:
+            print("Image not found: {}".format(image_id))
+            return torch.zeros(3, 256, 256), -1
         x = self.center_crop(x)
         x = self.trans(x)
         y = np.int64(y)
-        return {"image": x, "label": y}
+        return x, y
             
     def __len__(self):
-        if self.split == "train":
-            return int(len(self.data_df) * 0.8)
-        elif self.split == "val":
-            return int(len(self.data_df) * 0.2)
+        return len(self.data_df)
     
     def center_crop(self, pil_img):
         img_width, img_height = pil_img.size
@@ -96,19 +90,19 @@ class ISICDataset(Dataset):
 
 
 def get_mnist_dataloaders(path_to_dir = "~", validation_split=0.2, batch_size=64):
-    pad = Pad((0, 0, 1, 1), fill=0)
-    resize1 = Resize(87)
-    resize2 = Resize(29)
+    # pad = Pad((0, 0, 1, 1), fill=0)
+    # resize1 = Resize(87)
+    # resize2 = Resize(29)
     totensor = ToTensor()
-    train_transform = Compose([
-        pad,
-        resize1,
-        RandomRotation(180., interpolation=InterpolationMode.BILINEAR, expand=False),
-        resize2,
-        totensor,
-    ])
+    # train_transform = Compose([
+    #     pad,
+    #     resize1,
+    #     RandomRotation(180., interpolation=InterpolationMode.BILINEAR, expand=False),
+    #     resize2,
+    #     totensor,
+    # ])
     test_transform = Compose([
-        pad,
+        #pad,
         totensor,
     ])
 
@@ -139,10 +133,58 @@ def get_mnist_dataloaders(path_to_dir = "~", validation_split=0.2, batch_size=64
 
     return train_loader, validation_loader, test_loader
 
-def get_isic_dataloaders(path_to_dir = "~", validation_split=0.2, batch_size=64):
-    groundtruth_df = pd.read_csv(str(path_to_dir)+"/data/isic-2019/ISIC_2019_Training_GroundTruth.csv")
-    groundtruth_df["target"] = groundtruth_df.apply(lambda x: np.argmax(x[["MEL", "NV", "BCC", "AK", "BKL", "DF", "VASC", "SCC"]]), axis=1)
-    classes = ["MEL", "NV", "BCC", "AK", "BKL", "DF", "VASC", "SCC"]
+def get_isic_dataloaders(path_to_dir = "..", validation_split=0.2, batch_size=64):
+    make_isic_traintest(path_to_dir)
+    if not os.path.exists(str(path_to_dir)+"/data/ISIC_2019/ISIC_2019_SplitTrain_GroundTruth.csv"):
+        if os.path.exists(str(path_to_dir)+"/data/ISIC_2019/ISIC_2019_Training_GroundTruth.csv"):
+            make_isic_traintest(path_to_dir)
+        else:
+            print("No data found")
+            return None, None, None
+    
+    train_gt = pd.read_csv(str(path_to_dir)+"/data/ISIC_2019/ISIC_2019_SplitTrain_GroundTruth.csv")
+    train_gt["target"] = train_gt.apply(lambda x: np.argmax(x[["MEL", "NV", "BCC", "AK", "BKL", "DF", "VASC", "SCC"]]), axis=1)
+    #classes = ["MEL", "NV", "BCC", "AK", "BKL", "DF", "VASC", "SCC"]
+
+    isic_train = ISICDataset(train_gt, path_to_dir, input_size=256)
+
+    shuffle_dataset = True
+    random_seed = 42
+    dataset_size = len(isic_train)
+    indices = list(range(dataset_size))
+    split = int(np.floor(validation_split * dataset_size))
+    if shuffle_dataset :
+        np.random.seed(random_seed)
+        np.random.shuffle(indices)
+    train_indices, val_indices = indices[split:], indices[:split]
+
+    train_sampler = SubsetRandomSampler(train_indices)
+    valid_sampler = SubsetRandomSampler(val_indices)
+
+    train_loader = DataLoader(isic_train, batch_size=batch_size, 
+                                            sampler=train_sampler)
+    validation_loader = DataLoader(isic_train, batch_size=batch_size,
+                                                    sampler=valid_sampler)
+
+    test_gt = pd.read_csv(str(path_to_dir)+"/data/ISIC_2019/ISIC_2019_SplitTest_GroundTruth.csv")
+    test_gt["target"] = test_gt.apply(lambda x: np.argmax(x[["MEL", "NV", "BCC", "AK", "BKL", "DF", "VASC", "SCC"]]), axis=1)
+    isic_test = ISICDataset(test_gt, path_to_dir, input_size=256)
+    test_loader = DataLoader(isic_test, batch_size=batch_size)
+
+    return train_loader, validation_loader, test_loader
+
+def make_isic_traintest(path_to_dir = "..", test_split=0.1, seed=42):
+    groundtruth_df = pd.read_csv(str(path_to_dir)+"/data/ISIC_2019/ISIC_2019_Training_GroundTruth.csv")
+    print(groundtruth_df)
+    print([str(path_to_dir)+"/data/ISIC_2019/ISIC_2019_Training_Input/{}.jpg".format(im) for im in groundtruth_df["image"]][:10])
+    groundtruth_df = groundtruth_df.loc[[os.path.exists(str(path_to_dir)+"/data/ISIC_2019/ISIC_2019_Training_Input/{}.jpg".format(im)) for im in groundtruth_df["image"]]]
+    groundtruth_df = groundtruth_df[groundtruth_df["image"] != "ISIC_0072651" and groundtruth_df["image"] != "ISIC_0027736"]
+    print(groundtruth_df)
+    train=groundtruth_df.sample(frac=1-test_split,random_state=seed) 
+    test=groundtruth_df.drop(train.index)
+    assert len(list(set(train.image) & set(test.image))) == 0
+    train.to_csv(str(path_to_dir)+"/data/ISIC_2019/ISIC_2019_SplitTrain_GroundTruth.csv", index=False)
+    test.to_csv(str(path_to_dir)+"/data/ISIC_2019/ISIC_2019_SplitTest_GroundTruth.csv", index=False)
 
 def getmodelsize(model, includebuffer=False, counts=True):
     param_size = 0
