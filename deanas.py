@@ -19,6 +19,7 @@ def DEANASearch(args):
     filename = str(args.path) +'/equiNAS/out/logsdea_'+datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")+'.pkl'
     print(filename)
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+    print(args.task)
     if args.task == "mnist":
         train_loader, validation_loader, test_loader = utilities.get_mnist_dataloaders(path_to_dir=args.path, validation_split=0.5)
         indim = 1
