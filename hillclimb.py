@@ -10,7 +10,7 @@ import copy
 import pathlib
 
 class HillClimber(object):
-    def __init__(self, reset = True, reg = False, skip = False, baselines = False, lr = 0.1, path = "..", d16 = False, popsize = 10, seed = -1):
+    def __init__(self, reset = True, reg = False, skip = False, baselines = False, lr = 0.1, path = "..", d16 = False, popsize = 10, seed = -1, dea = False):
         self.seed = seed
         if seed != -1:
             torch.manual_seed(seed)
@@ -33,25 +33,23 @@ class HillClimber(object):
             self.g = (1,4)
         else:
             self.g = (1,2)
-        if reg:
+        if dea:
+            model = models.DEANASNet(superspace=self.g, discrete=True, alphalr=lr, weightlr=lr)
+        elif reg:
             if skip:
-                self.model = models.SkipEquiCNN(gs=[self.g for _ in range(8)], ordered = self.ordered, lr = lr, superspace = self.g)
+                model = models.SkipEquiCNN(gs=[self.g for _ in range(8)], ordered = self.ordered, lr = lr, superspace = self.g)
             else:
-                self.model = models.TDRegEquiCNN(gs=[self.g for _ in range(8)], ordered = self.ordered, lr = lr)
+                model = models.TDRegEquiCNN(gs=[self.g for _ in range(8)], ordered = self.ordered, lr = lr)
         else:
-            self.model = models.EquiCNN(reset)
+            model = models.EquiCNN(reset)
         self.skip = True
-        self.options = []
+        self.options = [model]
         self.allkids = popsize < 0
         self.popsize = popsize
         self.history = {}
 
     def train(self, epochs = 1, start = 0, lr = 5e-4):
-        if len(self.options)==0:
-            totrain = [self.model]
-        else:
-            totrain = self.options
-        for model in totrain:
+        for model in self.options:
             model = model.to(self.device)
             #model.optimizer = torch.optim.SGD(model.parameters(), lr=lr)
             dataloaders = {
@@ -165,11 +163,11 @@ class HillClimber(object):
     def generate(self):
         children = []
         #children += self.model.generate()
-        print("parent:", self.model.gs, self.validate(self.model))
-        for child in self.model.generate():
-            print("child:", child.gs, self.validate(child))
-            self.test(self.model, child)
-            children.append(child)
+        # print("parent:", self.model.gs, self.validate(self.model))
+        # for child in self.model.generate():
+        #     print("child:", child.gs, self.validate(child))
+        #     self.test(self.model, child)
+        #     children.append(child)
         for model in self.options:
             #children += model.generate()
             print("parent:", model.gs, self.validate(model))
@@ -183,7 +181,7 @@ class HillClimber(object):
     def select(self):
         for child in sorted(self.options, key=attrgetter('score'), reverse=True):
             print(child.gs, sum(p.numel() for p in child.parameters() if p.requires_grad), child.score)
-        self.model = max(self.options, key=attrgetter("score"))
+        #self.model = max(self.options, key=attrgetter("score"))
         if self.allkids:
             bests = {}
             for child in self.options:
@@ -297,9 +295,10 @@ if __name__ == "__main__":
     parser.add_argument('--data', "-d", type=pathlib.Path, default="..", help='datapath')
     parser.add_argument('--d16', action='store_true', default=False, help='use d16 equivariance instead of default d4')
     parser.add_argument('--seed', type=int, default=-1, help='random seed (-1 for unseeded)')
+    parser.add_argument('--dea', action='store_true', default=False, help='use DEANAS backbone')
     args = parser.parse_args()
     print(args)
-    hillclimb = HillClimber(reg=args.reg, skip=args.skip, baselines=args.baselines, lr=args.lr, path=args.data, popsize=args.popsize, d16=args.d16)
+    hillclimb = HillClimber(reg=args.reg, skip=args.skip, baselines=args.baselines, lr=args.lr, path=args.data, popsize=args.popsize, d16=args.d16, dea=args.dea, seed=args.seed)
     hillclimb.saveargs(vars(args))
     if args.baselines:
         hillclimb.baselines(iterations=args.iterations, epochs=args.epochs, lr=args.lr)
