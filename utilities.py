@@ -1,3 +1,4 @@
+import h5py
 import numpy as np
 import os
 import os.path
@@ -8,6 +9,7 @@ from torch.utils.data import Dataset, DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
 from torchvision.transforms import RandomRotation, Pad, Resize, ToTensor, Compose
 from torchvision.transforms.functional import InterpolationMode
+
 
 class MnistRotDataset(Dataset):
     
@@ -26,9 +28,6 @@ class MnistRotDataset(Dataset):
         self.images = data[:, :-1].reshape(-1, 28, 28).astype(np.float32)
         self.labels = data[:, -1].astype(np.int64)
         self.num_samples = len(self.labels)
-
-        #self.images = np.pad(self.images, pad_width=((0,0), (2, 3), (2, 3)), mode='edge')
-
     
     def __getitem__(self, index):
         image, label = self.images[index], self.labels[index]
@@ -39,7 +38,32 @@ class MnistRotDataset(Dataset):
     
     def __len__(self):
         return len(self.labels)
-    
+
+class Galaxy10Dataset(Dataset):
+    def __init__(self, path_to_dir='~', transform=ToTensor(), mode="train"):
+        if mode == "train":
+            file = str(path_to_dir)+"/data/Galaxy10_DECals_trainval.h5"
+        else:
+            file = str(path_to_dir)+"/data/Galaxy10_DECals_test.h5"
+        
+        f = h5py.File(file, 'r')
+
+        labels, images = f['class'], f['images']
+
+        self.x = images
+        self.y = torch.from_numpy(labels[:]).long()
+        self.num_samples = len(images)
+
+        self.transform = transform
+
+    def __getitem__(self, item):
+        img = self.x[item]
+        if self.transform is not None:
+            img = self.transform(img)
+        return img, self.y[item]
+
+    def __len__(self):
+        return self.num_samples
 
 class ISICDataset(Dataset):
     """ISIC dataset."""
@@ -64,11 +88,7 @@ class ISICDataset(Dataset):
     def __getitem__(self, idx):
         image_id = self.data_df.loc[idx, "image"]
         y = self.data_df.loc[idx, "target"]
-        try:
-            x = Image.open(str(self.path_to_dir)+"/data/ISIC_2019/ISIC_2019_Training_Input/{}.jpg".format(image_id))
-        except:
-            print("Image not found: {}".format(image_id))
-            return torch.zeros(3, 256, 256), -1
+        x = Image.open(str(self.path_to_dir)+"/data/ISIC_2019/ISIC_2019_Training_Input/{}.jpg".format(image_id))
         x = self.center_crop(x)
         x = self.trans(x)
         y = np.int64(y)
@@ -90,19 +110,8 @@ class ISICDataset(Dataset):
 
 
 def get_mnist_dataloaders(path_to_dir = "~", validation_split=0.2, batch_size=64):
-    # pad = Pad((0, 0, 1, 1), fill=0)
-    # resize1 = Resize(87)
-    # resize2 = Resize(29)
     totensor = ToTensor()
-    # train_transform = Compose([
-    #     pad,
-    #     resize1,
-    #     RandomRotation(180., interpolation=InterpolationMode.BILINEAR, expand=False),
-    #     resize2,
-    #     totensor,
-    # ])
     test_transform = Compose([
-        #pad,
         totensor,
     ])
 
@@ -126,6 +135,38 @@ def get_mnist_dataloaders(path_to_dir = "~", validation_split=0.2, batch_size=64
     train_loader = DataLoader(mnist_train, batch_size=batch_size, 
                                             sampler=train_sampler)
     validation_loader = DataLoader(mnist_train, batch_size=batch_size,
+                                                    sampler=valid_sampler)
+
+    mnist_test = MnistRotDataset(mode='test', transform=test_transform, path_to_dir=path_to_dir)
+    test_loader = DataLoader(mnist_test, batch_size=batch_size)
+
+    return train_loader, validation_loader, test_loader
+
+
+def get_galaxy10_dataloaders(path_to_dir = "~", validation_split=0.2, test_split = 0.1, batch_size=64):
+    totensor = ToTensor()
+    test_transform = Compose([
+        totensor,
+    ])
+
+    galaxy10_train = Galaxy10Dataset(mode='train', transform=test_transform, path_to_dir=path_to_dir)
+
+    shuffle_dataset = True
+    random_seed = 42
+    dataset_size = galaxy10_train.num_samples
+    indices = list(range(dataset_size))
+    split = int(np.floor(validation_split * dataset_size))
+    if shuffle_dataset:
+        np.random.seed(random_seed)
+        np.random.shuffle(indices)
+    train_indices, val_indices = indices[split:], indices[:split]
+
+    train_sampler = SubsetRandomSampler(train_indices)
+    valid_sampler = SubsetRandomSampler(val_indices)
+
+    train_loader = DataLoader(galaxy10_train, batch_size=batch_size, 
+                                            sampler=train_sampler)
+    validation_loader = DataLoader(galaxy10_train, batch_size=batch_size,
                                                     sampler=valid_sampler)
 
     mnist_test = MnistRotDataset(mode='test', transform=test_transform, path_to_dir=path_to_dir)
