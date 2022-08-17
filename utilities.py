@@ -47,8 +47,8 @@ class Galaxy10Dataset(Dataset):
             file = str(path_to_dir)+"/data/Galaxy10_DECals_test.h5"
         
         f = h5py.File(file, 'r')
-
-        labels, images = f['class'], f['images']
+        print(f.keys())
+        labels, images = f['labels'], f['images']
 
         self.x = images
         self.y = torch.from_numpy(labels[:]).long()
@@ -144,6 +144,13 @@ def get_mnist_dataloaders(path_to_dir = "~", validation_split=0.2, batch_size=64
 
 
 def get_galaxy10_dataloaders(path_to_dir = "~", validation_split=0.2, test_split = 0.1, batch_size=64):
+    make_galaxy10_traintest(path_to_dir)
+    if not os.path.exists(str(path_to_dir)+"/data/Galaxy10_DECals_trainval.h5"):
+        if os.path.exists(str(path_to_dir)+"/data/Galaxy10_DECals.h5"):
+            make_galaxy10_traintest(path_to_dir)
+        else:
+            print("No data found")
+            return None, None, None
     totensor = ToTensor()
     test_transform = Compose([
         totensor,
@@ -225,6 +232,27 @@ def make_isic_traintest(path_to_dir = "..", test_split=0.1, seed=42):
     assert len(list(set(train.image) & set(test.image))) == 0
     train.to_csv(str(path_to_dir)+"/data/ISIC_2019/ISIC_2019_SplitTrain_GroundTruth.csv", index=False)
     test.to_csv(str(path_to_dir)+"/data/ISIC_2019/ISIC_2019_SplitTest_GroundTruth.csv", index=False)
+
+def make_galaxy10_traintest(path_to_dir = "..", test_split=0.1, seed=42):
+    np.random.seed(seed)
+    file = str(path_to_dir)+"/data/Galaxy10_DECals.h5"
+    f = h5py.File(file, 'r')
+    print(f.keys())
+    labels, images = f['ans'], f['images']
+    inds = np.arange(len(labels))
+    np.random.shuffle(inds)
+    split_ind = int(np.floor(test_split * len(inds)))
+    tv_inds, test_inds = sorted(inds[split_ind:]), sorted(inds[:split_ind])
+    #tv_f = h5py.File(str(path_to_dir)+"/data/Galaxy10_DECals_trainval.h5", 'w')
+    print("tv", tv_inds[0], images[tv_inds,:,:,:].shape, labels[tv_inds].shape)
+    # tv_f.create_dataset('images', data=images[tv_inds,:,:,:])
+    # tv_f.create_dataset('labels', data=labels[tv_inds])
+    # tv_f.close()
+    # test_f = h5py.File(str(path_to_dir)+"/data/Galaxy10_DECals_test.h5", 'w')
+    print("test", test_inds[0], images[test_inds,:,:,:].shape, labels[test_inds].shape)
+    # test_f.create_dataset('images', data=images[test_inds,:,:,:])
+    # test_f.create_dataset('labels', data=labels[test_inds])
+    # test_f.close()
 
 def getmodelsize(model, includebuffer=False, counts=True):
     param_size = 0
