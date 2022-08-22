@@ -21,31 +21,31 @@ def DEANASearch(args):
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     print(args.task)
     if args.task == "mnist":
-        train_loader, validation_loader, test_loader = utilities.get_mnist_dataloaders(path_to_dir=args.path, validation_split=0.5)
-        indim = 1
-        outdim = 10
-        pools = 4
-        kernel = 5
-        stages = 2
+        train_loader, validation_loader, _ = utilities.get_mnist_dataloaders(path_to_dir=args.path, validation_split=0.5)
+        args.indim = 1
+        args.outdim = 10
+        args.pools = 4
+        args.kernel = 5
+        args.stages = 2
     elif args.task == "isic":
-        train_loader, validation_loader, test_loader = utilities.get_isic_dataloaders(path_to_dir=args.path, validation_split=0.5, batch_size=8)
-        indim = 3
-        outdim = 9
-        pools = 8
-        kernel = 7
-        stages = 4
+        train_loader, validation_loader, _ = utilities.get_isic_dataloaders(path_to_dir=args.path, validation_split=0.5, batch_size=8)
+        args.indim = 3
+        args.outdim = 9
+        args.pools = 8
+        args.kernel = 7
+        args.stages = 4
     elif args.task == "galaxy10":
-        train_loader, validation_loader, test_loader = utilities.get_galaxy10_dataloaders(path_to_dir=args.path, validation_split=0.5, batch_size=8)
-        indim = 3
-        outdim = 10
-        pools = 8
-        kernel = 7
-        stages = 4
+        train_loader, validation_loader, _ = utilities.get_galaxy10_dataloaders(path_to_dir=args.path, validation_split=0.5, batch_size=8)
+        args.indim = 3
+        args.outdim = 10
+        args.pools = 8
+        args.kernel = 7
+        args.stages = 4
     model = models.DEANASNet(superspace = (1,4) if args.d16 else (1,2), 
                              weightlr = args.weightlr, alphalr = args.alphalr, 
-                             prior = not args.equalize, indim = indim, 
-                             outdim = outdim, stages=stages, pools=pools, 
-                             kernel=kernel).to(device)
+                             prior = not args.equalize, indim = args.indim, 
+                             outdim = args.outdim, stages = args.stages, pools = args.pools, 
+                             kernel = args.kernel).to(device)
     history = {'args': args,
                 'alphas': [],
                 'channels': model.channels,
