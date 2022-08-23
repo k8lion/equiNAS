@@ -1047,7 +1047,7 @@ class MixedGroupConv2dV2(torch.nn.Module):
 
 class DEANASNet(torch.nn.Module):
 
-    def __init__(self, alphalr = 1e-3, weightlr = 1e-3, superspace: tuple = (1,2), basechannels: int = 4, stages: int = 2, stagedepth: int = 4, pools: int = 4, kernel: int = 5, indim: int = 1, outdim: int = 10, prior: bool = True, discrete: bool = False):
+    def __init__(self, alphalr = 1e-3, weightlr = 1e-3, superspace: tuple = (1,2), basechannels: int = 4, stages: int = 2, stagedepth: int = 4, pools: int = 4, kernel: int = 5, indim: int = 1, outdim: int = 10, hidden: int = 64, prior: bool = True, discrete: bool = False):
         
         super(DEANASNet, self).__init__()
         self.alphalr = alphalr
@@ -1059,6 +1059,7 @@ class DEANASNet(torch.nn.Module):
         self.pools = pools
         self.kernel = kernel
         self.indim = indim
+        self.hidden = hidden
         self.outdim = outdim
         self.prior = prior
         self.discrete = discrete
@@ -1082,11 +1083,11 @@ class DEANASNet(torch.nn.Module):
                 self.blocks[i].add_module(name="pool", module = torch.nn.AvgPool2d((3,3), (2,2), padding=(1,1)))
         self.blocks[-1].add_module(name="pool", module = torch.nn.AvgPool2d((4,4), (1,1), padding=(0,0)))
         self.blocks.append(torch.nn.Sequential(
-            torch.nn.Linear(self.channels[-1]*groupsize(self.superspace), 64),
-            torch.nn.BatchNorm1d(64),
+            torch.nn.Linear(self.channels[-1]*groupsize(self.superspace), hidden),
+            torch.nn.BatchNorm1d(hidden),
             torch.nn.ELU(inplace=True),
         ))
-        self.blocks.append(torch.nn.Sequential(torch.nn.Linear(64, outdim)))
+        self.blocks.append(torch.nn.Sequential(torch.nn.Linear(hidden, outdim)))
         self.loss_function = torch.nn.CrossEntropyLoss()
         if discrete:
             self.optimizer = torch.optim.SGD(self.all_params(), lr=weightlr)

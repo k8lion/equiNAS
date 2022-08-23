@@ -27,6 +27,7 @@ def DEANASearch(args):
         args.pools = 4
         args.kernel = 5
         args.stages = 2
+        args.hidden = 64
     elif args.task == "isic":
         train_loader, validation_loader, _ = utilities.get_isic_dataloaders(path_to_dir=args.path, validation_split=0.5, batch_size=8)
         args.indim = 3
@@ -34,6 +35,7 @@ def DEANASearch(args):
         args.pools = 8
         args.kernel = 7
         args.stages = 4
+        args.hidden = 256
     elif args.task == "galaxy10":
         train_loader, validation_loader, _ = utilities.get_galaxy10_dataloaders(path_to_dir=args.path, validation_split=0.5, batch_size=8)
         args.indim = 3
@@ -41,6 +43,7 @@ def DEANASearch(args):
         args.pools = 8
         args.kernel = 7
         args.stages = 4
+        args.hidden = 128
     model = models.DEANASNet(superspace = (1,4) if args.d16 else (1,2), 
                              weightlr = args.weightlr, alphalr = args.alphalr, 
                              prior = not args.equalize, indim = args.indim, 
