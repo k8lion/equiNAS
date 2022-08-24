@@ -928,6 +928,10 @@ class MixedLiftingConv2dV2(torch.nn.Module):
 
                 _filter = _filter.reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
 
+                if alphas[layer] > 0:
+                    print(x[0:4,0,0:6,0])
+                    print(_filter[0:4,:,1,0])
+
                 y = torch.conv2d(x, _filter,
                             stride=self.stride,
                             padding=self.padding,
@@ -939,6 +943,26 @@ class MixedLiftingConv2dV2(torch.nn.Module):
 
         return out
 
+    def test_weight(self, layer):
+        weights = self.weights[layer]#/torch.linalg.norm(self.weights[layer])*self.norms[layer]
+
+        if self.groups[layer][0] == 1:
+            order = [(i,j) for j in range(subgroupsize(self.groups[layer], 0)) for i in range(subgroupsize(self.groups[layer], 1))]
+            _filter = torch.stack([rotateflip_n(weights, i, subgroupsize(self.groups[layer], 1), j, subgroupsize(self.groups[layer], 0)) for (i,j) in order], dim = -5)
+        else:
+            _filter = torch.stack([rotate_n(weights, i, groupsize(self.groups[layer])) for i in range(subgroupsize(self.groups[layer], 1))], dim = -5)
+        
+        #print(_filter[:,:,0,0,0,0])
+        #print(_filter.reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)[:,:,0,0])
+
+        if self.bias is not None:
+            _bias = torch.stack([self.bias[layer] for _ in range(groupsize(self.groups[layer]))], dim = 1)
+            _bias = _bias.reshape(self.out_channels)
+        else:
+            _bias = None
+
+        return _filter.reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
+        
 
 class MixedGroupConv2dV2(torch.nn.Module):
     def __init__(self, group: tuple, in_channels: int, out_channels: int, kernel_size: int, padding: int = 0, bias: bool = True, prior: bool = True, discrete: bool = False):
@@ -1135,6 +1159,7 @@ class DEANASNet(torch.nn.Module):
                 yield param
 
     def offspring(self, i, groupnew):
+        print(i)
         assert all([sum(a > -np.inf) >= 2 for a in self.alphas()])
         offspring = DEANASNet(alphalr = self.alphalr, weightlr = self.weightlr, superspace = self.superspace, basechannels = self.basechannels, stages = self.stages, stagedepth = self.stagedepth, pools = self.pools, kernel = self.kernel, indim = self.indim, outdim = self.outdim, prior = self.prior, discrete=self.discrete)
         offspring.load_state_dict(self.state_dict())
@@ -1153,20 +1178,23 @@ class DEANASNet(torch.nn.Module):
             return offspring
         list(offspring.alphas())[i].data[indnew] = list(self.alphas())[i].data[indold]
         list(offspring.alphas())[i].data[indold] = list(self.alphas())[i].data[indnew]
-        # for a in range(offspring.blocks[i]._modules["0"].weights[indold].shape[0]):
-        #     for b in range(offspring.blocks[i]._modules["0"].weights[indold].shape[1]):
-        #         for c in range(offspring.blocks[i]._modules["0"].weights[indold].shape[2]):
-        #             for d in range(offspring.blocks[i]._modules["0"].weights[indold].shape[3]):
-        #                 for e in range(offspring.blocks[i]._modules["0"].weights[indold].shape[4]):
-        #                     self.blocks[i]._modules["0"].weights[indold].data[a,b,c,d,e] = (a*10**4+b*10**3+c*10**2)*1+d*10+e
-        #                     offspring.blocks[i]._modules["0"].weights[indold].data[a,b,c,d,e] = (a*10**4+b*10**3+c*10**2)*1+d*10+e
+        for a in range(offspring.blocks[i]._modules["0"].weights[indold].shape[0]):
+            for b in range(offspring.blocks[i]._modules["0"].weights[indold].shape[1]):
+                for c in range(offspring.blocks[i]._modules["0"].weights[indold].shape[2]):
+                    for d in range(offspring.blocks[i]._modules["0"].weights[indold].shape[3]):
+                        if len(offspring.blocks[i]._modules["0"].weights[indold].shape) > 4:
+                            for e in range(offspring.blocks[i]._modules["0"].weights[indold].shape[4]):
+                                self.blocks[i]._modules["0"].weights[indold].data[a,b,c,d,e] = (a*10**4+b*10**3+c*10**2)*1+d*10+e
+                                offspring.blocks[i]._modules["0"].weights[indold].data[a,b,c,d,e] = (a*10**4+b*10**3+c*10**2)*1+d*10+e
+                        else:
+                            self.blocks[i]._modules["0"].weights[indold].data[a,b,c,d] = (a*10**4+b*10**3+c*10**2)*1+d
+                            offspring.blocks[i]._modules["0"].weights[indold].data[a,b,c,d] = (a*10**4+b*10**3+c*10**2)*1+d
         #print(indnew, offspring.blocks[i]._modules["0"].weights[indnew][0,0,0,:,:])
         #print(offspring.blocks[i]._modules["0"].test_weight(indnew)[0,1,:,:])
         weights = self.blocks[i]._modules["0"].weights[indold]
         #weights = weights.reshape(weights.shape[0], weights.shape[1]*groupdifference(groupold,groupnew), -1, *weights.shape[3:])
         if groupold[0] == 1:
             order = [(r,f) for f in range(subgroupsize(groupold, 0)//subgroupsize(groupnew, 0)) for r in range(subgroupsize(groupold, 1)//subgroupsize(groupnew, 1))]
-            #try dim = -6
             if i == 0:
                 semi_filter = torch.stack([rotateflip_n(weights, r, subgroupsize(groupold, 1), f, subgroupsize(groupold, 0)) for (r,f) in order], dim = -5)
             else:
@@ -1176,22 +1204,29 @@ class DEANASNet(torch.nn.Module):
                 semi_filter = torch.stack([rotate_n(weights, r, groupsize(groupold)) for r in range(subgroupsize(groupold, 1)//subgroupsize(groupnew, 1))], dim = -5)
             else:
                 semi_filter = torch.stack([rotatestack_n(weights, r, groupsize(groupold)) for r in range(subgroupsize(groupold, 1)//subgroupsize(groupnew, 1))], dim = -5)
-        if len(semi_filter.shape) > 5:
+        if len(semi_filter.shape) == 5:
             semi_filter = torch.unsqueeze(semi_filter, -5)
+        #semi_filter[:,1] = rotate_n(semi_filter[:,1], 1, 4)
         if self.blocks[i]._modules["0"].bias is not None:
             bias = torch.stack([self.blocks[i]._modules["0"].bias[indold] for _ in range(groupdifference(groupold, groupnew))], dim = 1).reshape(-1)
         else:
-            bias = None      
-        #print(offspring.blocks[i]._modules["0"].weights[indnew].shape, semi_filter.shape)
+            bias = None  
+        #filter[:,i,:,j,(x,y)] = weights[:,:,(j+i)%4, g_j(x,y)]
+        print(weights.shape, offspring.blocks[i]._modules["0"].weights[indnew].shape, semi_filter.shape)
         offspring.blocks[i]._modules["0"].weights[indnew] = torch.nn.Parameter(semi_filter.reshape(offspring.blocks[i]._modules["0"].weights[indnew].shape))
-        offspring.blocks[i]._modules["0"].norms[indnew] = offspring.blocks[i]._modules["0"].norms[indold]
+        #offspring.blocks[i]._modules["0"].weights[indnew] *= torch.linalg.norm(offspring.blocks[i]._modules["0"].weights[indnew])/torch.linalg.norm(offspring.blocks[i]._modules["0"].weights[indold])
+        offspring.blocks[i]._modules["0"].norms[indnew] = self.blocks[i]._modules["0"].norms[indold]/torch.linalg.norm(offspring.blocks[i]._modules["0"].weights[indnew])*torch.linalg.norm(self.blocks[i]._modules["0"].weights[indold])
         offspring.blocks[i]._modules["0"].bias[indnew] = torch.nn.Parameter(bias)
-        # print(offspring.blocks[i]._modules["0"].test_weight(indnew)[:,:,0,1])
-        # print(offspring.blocks[i]._modules["0"].test_weight(indold)[:,:,0,1])
-        # print(offspring.blocks[i]._modules["0"].test_weight(indnew)[:,2,:,3])
-        # print(offspring.blocks[i]._modules["0"].test_weight(indold)[:,2,:,3])
-        # if not torch.allclose(offspring.blocks[i]._modules["0"].test_weight(indold), offspring.blocks[i]._modules["0"].test_weight(indnew)):
-        #     print("not close")
+        print(offspring.blocks[i]._modules["0"].test_weight(indnew)[:,0:4,0,1])
+        print(offspring.blocks[i]._modules["0"].test_weight(indold)[:,0:4,0,1])
+        if i != 0:
+            print(offspring.blocks[i]._modules["0"].test_weight(indnew)[:,0,:,3])
+            print(offspring.blocks[i]._modules["0"].test_weight(indold)[:,0,:,3])
+        else:
+            print(offspring.blocks[i]._modules["0"].test_weight(indnew))
+            print(offspring.blocks[i]._modules["0"].test_weight(indold))
+        if not torch.allclose(offspring.blocks[i]._modules["0"].test_weight(indold), offspring.blocks[i]._modules["0"].test_weight(indnew)):
+            print("not close")
         return offspring
     
     def generate(self):

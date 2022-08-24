@@ -251,7 +251,7 @@ class Test(unittest.TestCase):
 
                     self.assertTrue(not torch.allclose(psi_x, torch.zeros_like(psi_x), atol=1e-4, rtol=1e-4))
 
-                    if not torch.allclose(psi_gx, g_psi_x, atol=1e-5, rtol=1e-5):
+                    if not torch.allclose(psi_gx, g_psi_x, atol=1e-4, rtol=1e-4):
                         print(group, (flip, rotation), (flip,2**(group[1]-rotation)%2**group[1]), [torch.allclose(psi_gx[:,i,:,:],g_psi_x[:,i,:,:], atol=1e-4, rtol=1e-4) for i in range(psi_gx.shape[1])])
                         #eq = False
                     else:
@@ -297,6 +297,28 @@ class Test(unittest.TestCase):
             xchild = child.blocks[i](xchild)
             if not torch.allclose(xmodel, xchild, rtol = 1e-4, atol = 1e-4):
                 print(i)
+            #self.assertTrue(torch.allclose(xmodel, xchild, rtol = 1e-4, atol = 1e-4))
+            if i == len(model.blocks)-3:
+                xmodel = xmodel.reshape(xmodel.shape[0], -1)
+                xchild = xchild.reshape(xchild.shape[0], -1)
+        
+    def test_offspring_DEANAS_lifting(self):
+        torch.manual_seed(0)
+        torch.set_printoptions(sci_mode=False)
+        model = models.DEANASNet(superspace=(0,2), stages = 2, basechannels=1, discrete=True)
+        for i in range(len(model.channels)-1):
+            model = model.offspring(len(model.channels)-1-i, (0,1))
+        child = model.offspring(0, (0,1))
+        xmodel = torch.randn(16, 1, 29, 29)
+        xchild = xmodel.clone()
+        for i in range(len(model.blocks)):
+            xmodel = model.blocks[i](xmodel)
+            xchild = child.blocks[i](xchild)
+            if not torch.allclose(xmodel, xchild, rtol = 1e-4, atol = 1e-4):
+                print(i)
+                if i == 0:
+                    print(xmodel[0:4,:,0:6,0])
+                    print(xchild[0:4,:,0:6,0])
             #self.assertTrue(torch.allclose(xmodel, xchild, rtol = 1e-4, atol = 1e-4))
             if i == len(model.blocks)-3:
                 xmodel = xmodel.reshape(xmodel.shape[0], -1)
