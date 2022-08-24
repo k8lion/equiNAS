@@ -997,13 +997,13 @@ class MixedGroupConv2dV2(torch.nn.Module):
         for layer in range(len(self.groups)-1):
             if alphas[layer] > 0:
                 weights = self.weights[layer]/torch.linalg.norm(self.weights[layer])*self.norms[layer]
-
+                #weights: C_l x C_{l-i} x S_{G_{l-1}} x K_l x K_l
                 if self.groups[layer][0] == 1:
                     order = [(i,j) for j in range(subgroupsize(self.groups[layer], 0)) for i in range(subgroupsize(self.groups[layer], 1))]
                     _filter = torch.stack([rotateflipstack_n(weights, i, subgroupsize(self.groups[layer], 1), j, subgroupsize(self.groups[layer], 0)) for (i,j) in order], dim = -5)
                 else:
                     _filter = torch.stack([rotatestack_n(weights, i, groupsize(self.groups[layer])) for i in range(subgroupsize(self.groups[layer], 1))], dim = -5)
-
+                #filter: filter[:,i,:,j,x,y] = weights[:,:,j+ind(g_i),g_i(x,y)...]
                 if self.bias is not None:
                     _bias = torch.stack([self.bias[layer] for _ in range(groupsize(self.groups[layer]))], dim = 1)
                     _bias = _bias.reshape(self.out_channels)
@@ -1011,8 +1011,14 @@ class MixedGroupConv2dV2(torch.nn.Module):
                     _bias = None
 
                 _filter = _filter.reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
+
+                #xshape = x.shape
+                #xg = x.reshape(x.shape[0], -1, groupsize(self.groups[layer]), x.shape[-2], x.shape[-1])
+
+                xg = x#g.reshape(xshape)
+
                 
-                y = torch.conv2d(x, _filter,
+                y = torch.conv2d(xg, _filter,
                             stride=self.stride,
                             padding=self.padding,
                             dilation=self.dilation,
@@ -1160,6 +1166,7 @@ class DEANASNet(torch.nn.Module):
         #weights = weights.reshape(weights.shape[0], weights.shape[1]*groupdifference(groupold,groupnew), -1, *weights.shape[3:])
         if groupold[0] == 1:
             order = [(r,f) for f in range(subgroupsize(groupold, 0)//subgroupsize(groupnew, 0)) for r in range(subgroupsize(groupold, 1)//subgroupsize(groupnew, 1))]
+            #try dim = -6
             if i == 0:
                 semi_filter = torch.stack([rotateflip_n(weights, r, subgroupsize(groupold, 1), f, subgroupsize(groupold, 0)) for (r,f) in order], dim = -5)
             else:
