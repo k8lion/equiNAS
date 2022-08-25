@@ -289,7 +289,7 @@ class Test(unittest.TestCase):
         torch.manual_seed(0)
         torch.set_printoptions(sci_mode=False)
         model = models.DEANASNet(superspace=(0,2), stages = 2, basechannels=1, discrete=True)
-        child = model.offspring(len(model.channels)-1, (0,1))
+        child = model.offspring(len(model.channels)-1, (0,0))
         xmodel = torch.randn(16, 1, 29, 29)
         xchild = xmodel.clone()
         for i in range(len(model.blocks)):
@@ -297,6 +297,9 @@ class Test(unittest.TestCase):
             xchild = child.blocks[i](xchild)
             if not torch.allclose(xmodel, xchild, rtol = 1e-4, atol = 1e-4):
                 print(i)
+                #if i == 7:
+                #    print(xmodel[0:4,:,0:6,0])
+                #    print(xchild[0:4,:,0:6,0])
             #self.assertTrue(torch.allclose(xmodel, xchild, rtol = 1e-4, atol = 1e-4))
             if i == len(model.blocks)-3:
                 xmodel = xmodel.reshape(xmodel.shape[0], -1)
