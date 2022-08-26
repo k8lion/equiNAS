@@ -288,8 +288,8 @@ class Test(unittest.TestCase):
     def test_offspring_DEANAS(self):
         torch.manual_seed(0)
         torch.set_printoptions(sci_mode=False)
-        model = models.DEANASNet(superspace=(0,2), stages = 2, basechannels=1, discrete=True)
-        child = model.offspring(len(model.channels)-1, (0,0))
+        model = models.DEANASNet(superspace=(0,3), stages = 2, basechannels=1, discrete=True)
+        child = model.offspring(len(model.channels)-1, (0,1), verbose=True)
         xmodel = torch.randn(16, 1, 29, 29)
         xchild = xmodel.clone()
         for i in range(len(model.blocks)):
@@ -304,6 +304,26 @@ class Test(unittest.TestCase):
             if i == len(model.blocks)-3:
                 xmodel = xmodel.reshape(xmodel.shape[0], -1)
                 xchild = xchild.reshape(xchild.shape[0], -1)
+    
+    def test_offspring_DEANAS_all(self):
+        torch.manual_seed(0)
+        torch.set_printoptions(sci_mode=False)
+        for f in range(2):
+            for r in range(5):
+                for sf in range(f+1):
+                    for sr in range(r+1):
+                        if sf != f or sr != r:
+                            model = models.DEANASNet(superspace=(f,r), stages = 2, basechannels=2, discrete=True)
+                            child = model.offspring(len(model.channels)-1, (sf,sr))
+                            xmodel = torch.randn(4, 1, 29, 29)
+                            xchild = xmodel.clone()
+                            for i in range(8):
+                                xmodel = model.blocks[i](xmodel)
+                                xchild = child.blocks[i](xchild)
+                            if not torch.allclose(xmodel, xchild, rtol = 1e-4, atol = 1e-4):
+                                print((f,r), (sf,sr))
+                            else:
+                                print((f,r), (sf,sr), "passed")
         
     def test_offspring_DEANAS_lifting(self):
         torch.manual_seed(0)

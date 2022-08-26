@@ -50,7 +50,9 @@ def rotatestack_n(y: torch.Tensor, r: int, n: int, order = None) -> torch.Tensor
     assert len(order) == n
 
     roty = rotate_n(y, r, n)
+    print(roty.numel()-roty.nonzero().size(0), order, n, r)
     roty = torch.stack([torch.select(roty, -3, (n-r+i)%n) for i in order], dim=-3) 
+    print(roty.numel()-roty.nonzero().size(0))
     return roty
 
 def transform(y: torch.Tensor, g: tuple) -> torch.Tensor:
@@ -943,26 +945,6 @@ class MixedLiftingConv2dV2(torch.nn.Module):
 
         return out
 
-    def test_weight(self, layer):
-        weights = self.weights[layer]#/torch.linalg.norm(self.weights[layer])*self.norms[layer]
-
-        if self.groups[layer][0] == 1:
-            order = [(i,j) for j in range(subgroupsize(self.groups[layer], 0)) for i in range(subgroupsize(self.groups[layer], 1))]
-            _filter = torch.stack([rotateflip_n(weights, i, subgroupsize(self.groups[layer], 1), j, subgroupsize(self.groups[layer], 0)) for (i,j) in order], dim = -5)
-        else:
-            _filter = torch.stack([rotate_n(weights, i, groupsize(self.groups[layer])) for i in range(subgroupsize(self.groups[layer], 1))], dim = -5)
-        
-        #print(_filter[:,:,0,0,0,0])
-        #print(_filter.reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)[:,:,0,0])
-
-        if self.bias is not None:
-            _bias = torch.stack([self.bias[layer] for _ in range(groupsize(self.groups[layer]))], dim = 1)
-            _bias = _bias.reshape(self.out_channels)
-        else:
-            _bias = None
-
-        return _filter.reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
-        
 
 class MixedGroupConv2dV2(torch.nn.Module):
     def __init__(self, group: tuple, in_channels: int, out_channels: int, kernel_size: int, padding: int = 0, bias: bool = True, prior: bool = True, discrete: bool = False):
@@ -1008,6 +990,7 @@ class MixedGroupConv2dV2(torch.nn.Module):
         if bias:
             self.bias.append(torch.nn.Parameter(torch.zeros(self.out_channels), requires_grad=True))
         self.groups.append((-1,-1))
+        #self.channelorders = [list(range())]
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
 
@@ -1020,8 +1003,10 @@ class MixedGroupConv2dV2(torch.nn.Module):
 
         for layer in range(len(self.groups)-1):
             if alphas[layer] > 0:
-                
-                weights = self.weights[layer]/torch.linalg.norm(self.weights[layer])*self.norms[layer]
+                if len(x.shape)>1:
+                    weights = self.weights[layer]/torch.linalg.norm(self.weights[layer])*self.norms[layer]
+                else:
+                    weights = self.weights[layer]
                 #weights: C_l x C_{l-i} x S_{G_{l-1}} x K_l x K_l
                 if self.groups[layer][0] == 1:
                     order = [(i,j) for j in range(subgroupsize(self.groups[layer], 0)) for i in range(subgroupsize(self.groups[layer], 1))]
@@ -1029,7 +1014,14 @@ class MixedGroupConv2dV2(torch.nn.Module):
                 else:
                     _filter = torch.stack([rotatestack_n(weights, i, groupsize(self.groups[layer])) for i in range(subgroupsize(self.groups[layer], 1))], dim = -5)
                 #filter: filter[:,i,:,j,x,y] = weights[:,:,j+ind(g_i),g_i(x,y)...]
-                print(self.groups[layer], _filter.shape)
+                if len(x.shape)<=1:
+                    print(self.groups[layer], _filter.shape)
+                    print(_filter[:,:,0,0,0,0])
+                    if self.groups[layer][1] == 1:
+                        #_filter = torch.transpose(_filter.reshape(2,2,*_filter.shape[1:]),1,2).reshape(*_filter.shape)
+                        #_filter = torch.transpose(_filter.reshape(*_filter.shape[0:2],2,2,*_filter.shape[3:]),2,3).reshape(_filter.shape)
+                        print(_filter[:,:,0,0,0,0])
+
 
                 if self.bias is not None:
                     _bias = torch.stack([self.bias[layer] for _ in range(groupsize(self.groups[layer]))], dim = 1)
@@ -1037,8 +1029,13 @@ class MixedGroupConv2dV2(torch.nn.Module):
                 else:
                     _bias = None
 
-                print(_filter.shape)
-                _filter = torch.transpose(torch.transpose(_filter,0,1),2,3).reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
+                
+                #_filter = torch.transpose(torch.transpose(_filter,0,1),2,3)
+
+                _filter = _filter.reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
+                if len(x.shape)<=1:
+                    return _filter
+
                 #_filter = torch.transpose(_filter,2,3).reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
                 #_filter = _filter.reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
 
@@ -1059,27 +1056,6 @@ class MixedGroupConv2dV2(torch.nn.Module):
                 out += alphas[layer]*y
 
         return out
-
-    def test_weight(self, layer):
-        weights = self.weights[layer]#/torch.linalg.norm(self.weights[layer])*self.norms[layer]
-
-        if self.groups[layer][0] == 1:
-            order = [(i,j) for j in range(subgroupsize(self.groups[layer], 0)) for i in range(subgroupsize(self.groups[layer], 1))]
-            _filter = torch.stack([rotateflipstack_n(weights, i, subgroupsize(self.groups[layer], 1), j, subgroupsize(self.groups[layer], 0)) for (i,j) in order], dim = -5)
-        else:
-            _filter = torch.stack([rotatestack_n(weights, i, groupsize(self.groups[layer])) for i in range(subgroupsize(self.groups[layer], 1))], dim = -5)
-        
-        #print(_filter[:,:,0,0,0,0])
-        #print(_filter.reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)[:,:,0,0])
-
-        if self.bias is not None:
-            _bias = torch.stack([self.bias[layer] for _ in range(groupsize(self.groups[layer]))], dim = 1)
-            _bias = _bias.reshape(self.out_channels)
-        else:
-            _bias = None
-
-        return torch.transpose(torch.transpose(_filter,0,1),2,3).reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
-       # return _filter.reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
         
 
 class DEANASNet(torch.nn.Module):
@@ -1165,8 +1141,8 @@ class DEANASNet(torch.nn.Module):
             if "norms" not in name and not name.endswith("."+str(np.prod([g+1 for g in self.superspace]))):
                 yield param
 
-    def offspring(self, i, groupnew):
-        print(i)
+    def offspring(self, i, groupnew, verbose = False):
+        #print(i)
         assert all([sum(a > -np.inf) >= 2 for a in self.alphas()])
         offspring = DEANASNet(alphalr = self.alphalr, weightlr = self.weightlr, superspace = self.superspace, basechannels = self.basechannels, stages = self.stages, stagedepth = self.stagedepth, pools = self.pools, kernel = self.kernel, indim = self.indim, outdim = self.outdim, prior = self.prior, discrete=self.discrete)
         offspring.load_state_dict(self.state_dict())
@@ -1197,46 +1173,75 @@ class DEANASNet(torch.nn.Module):
                             self.blocks[i]._modules["0"].weights[indold].data[a,b,c,d] = (a*10**4+b*10**3+c*10**2)*1+d
                             offspring.blocks[i]._modules["0"].weights[indold].data[a,b,c,d] = (a*10**4+b*10**3+c*10**2)*1+d
         #print(indnew, offspring.blocks[i]._modules["0"].weights[indnew][0,0,0,:,:])
-        #print(offspring.blocks[i]._modules["0"].test_weight(indnew)[0,1,:,:])
         weights = self.blocks[i]._modules["0"].weights[indold]
-        #weights = weights.reshape(weights.shape[0], weights.shape[1]*groupdifference(groupold,groupnew), -1, *weights.shape[3:])
+        print("weights",weights.numel()-weights.nonzero().size(0))
+        #weights = weightprint(roty.numel()-roty.nonzero().size(0))s.reshape(weights.shape[0], weights.shape[1]*groupdifference(groupold,groupnew), -1, *weights.shape[3:])
         if groupold[0] == 1:
             order = [(r,f) for f in range(subgroupsize(groupold, 0)//subgroupsize(groupnew, 0)) for r in range(subgroupsize(groupold, 1)//subgroupsize(groupnew, 1))]
             if i == 0:
-                semi_filter = torch.stack([rotateflip_n(weights, r, subgroupsize(groupold, 1), f, subgroupsize(groupold, 0)) for (r,f) in order], dim = -5)
+                weightmats = [rotateflip_n(weights, r, subgroupsize(groupold, 1), f, subgroupsize(groupold, 0)) for (r,f) in order]
             else:
-                semi_filter = torch.stack([rotateflipstack_n(weights, r, subgroupsize(groupold, 1), f, subgroupsize(groupold, 0)) for (r,f) in order], dim = -5)
+                weightmats = [rotateflipstack_n(weights, r, subgroupsize(groupold, 1), f, subgroupsize(groupold, 0)) for (r,f) in order]
         else:
             if i == 0:
-                semi_filter = torch.stack([rotate_n(weights, r, groupsize(groupold)) for r in range(subgroupsize(groupold, 1)//subgroupsize(groupnew, 1))], dim = -5)
+                weightmats = [rotate_n(weights, r, groupsize(groupold)) for r in range(subgroupsize(groupold, 1)//subgroupsize(groupnew, 1))]
             else:
-                semi_filter = torch.stack([rotatestack_n(weights, r, groupsize(groupold)) for r in range(subgroupsize(groupold, 1)//subgroupsize(groupnew, 1))], dim = -5)
+                weightmats = [rotatestack_n(weights, r, groupsize(groupold)) for r in range(subgroupsize(groupold, 1)//subgroupsize(groupnew, 1))]
+        #weightmats[1] = torch.flip(weightmats[1], dims=(3,))
+        print([w.numel()-w.nonzero().size(0) for w in weightmats])
+        semi_filter = torch.stack(weightmats, dim = -5)
         if len(semi_filter.shape) == 5:
             semi_filter = torch.unsqueeze(semi_filter, -5)
         elif semi_filter.shape[1] > 1:
+            if verbose:
+                print(weights.shape, semi_filter.shape)
+            semi_filter=torch.transpose(semi_filter.reshape(semi_filter.shape[0],semi_filter.shape[1],-1,semi_filter.shape[1],groupsize(groupnew),semi_filter.shape[4],semi_filter.shape[5]),3,4)
+            #semi_filter=torch.transpose(semi_filter,2,3)
+            if verbose:
+                print(semi_filter.shape)
             #semi_filter[:,semi_filter.shape[1]//2:] = torch.flip(semi_filter[:,semi_filter.shape[1]//2:], dims=(3,))
-            semi_filter=semi_filter.reshape(semi_filter.shape[0],semi_filter.shape[1],-1,groupsize(groupnew),semi_filter.shape[4],semi_filter.shape[5])
-        semi_filter=torch.transpose(torch.transpose(semi_filter,0,1),2,3)
+
+        # semi_filter: c_out x orbits x c_in x groupsize x k x k
+
+        #sfshape = semi_filter.shape
+        semi_filter=semi_filter.reshape(semi_filter.shape[0],semi_filter.shape[1],semi_filter.shape[2],-1,semi_filter.shape[4],semi_filter.shape[5])
+        #if groupsize(groupnew) > 1:
+        #semi_filter=torch.transpose(torch.transpose(semi_filter,0,0),2,3)
         if self.blocks[i]._modules["0"].bias is not None:
             bias = torch.stack([self.blocks[i]._modules["0"].bias[indold] for _ in range(groupdifference(groupold, groupnew))], dim = 1).reshape(-1)
         else:
             bias = None  
         #filter[:,i,:,j,(x,y)] = weights[:,:,(j+i)%4, g_j(x,y)]
-        print(weights.shape, offspring.blocks[i]._modules["0"].weights[indnew].shape, semi_filter.shape)
-        offspring.blocks[i]._modules["0"].weights[indnew] = torch.nn.Parameter(semi_filter.reshape(offspring.blocks[i]._modules["0"].weights[indnew].shape))
+        #print(weights.shape, offspring.blocks[i]._modules["0"].weights[indnew].shape, semi_filter.shape)
+        semi_filter = semi_filter.reshape(offspring.blocks[i]._modules["0"].weights[indnew].shape)
+        #m = groupsize(groupold)//groupsize(groupnew)
+        #print(semi_filter.shape, [wm.shape for wm in weightmats])
+        #semi_filter = semi_filter*0
+        # for i_c in range(semi_filter.shape[0]):
+        #     for c in range(semi_filter.shape[1]):
+        #         for g in range(semi_filter.shape[2]):
+        #             #print(i_c,c,g,i_c%m,i_c//m,c//m,c%m+g*m)
+        #             print(torch.all(semi_filter[i_c,c,g] == weightmats[i_c%m][i_c//m,c//m,c%m+g*m]))
+        #             #semi_filter[i_c,c,g] = weightmats[i_c%m][i_c//m,c//m,c%m+g*m]
+        #     semi_filter[i_c] = torch.reshape(weightmats[i_c%m][i_c//m],semi_filter[i_c].shape)
+        #     print(torch.all(semi_filter[i_c] == torch.reshape(weightmats[i_c%m][i_c//m],semi_filter[i_c].shape)) )
+        offspring.blocks[i]._modules["0"].weights[indnew] = torch.nn.Parameter(semi_filter)
         #offspring.blocks[i]._modules["0"].weights[indnew] *= torch.linalg.norm(offspring.blocks[i]._modules["0"].weights[indnew])/torch.linalg.norm(offspring.blocks[i]._modules["0"].weights[indold])
         offspring.blocks[i]._modules["0"].norms[indnew] = self.blocks[i]._modules["0"].norms[indold]*torch.linalg.norm(offspring.blocks[i]._modules["0"].weights[indnew])/torch.linalg.norm(offspring.blocks[i]._modules["0"].weights[indold])
         offspring.blocks[i]._modules["0"].bias[indnew] = torch.nn.Parameter(bias)
-        print(offspring.blocks[i]._modules["0"].test_weight(indnew)[0:10,0:4,0,1])
-        print(offspring.blocks[i]._modules["0"].test_weight(indold)[0:10,0:4,0,1])
-        if i != 0:
-            print(offspring.blocks[i]._modules["0"].test_weight(indnew)[0:10,0,:,3])
-            print(offspring.blocks[i]._modules["0"].test_weight(indold)[0:10,0,:,3])
-        else:
-            print(offspring.blocks[i]._modules["0"].test_weight(indnew))
-            print(offspring.blocks[i]._modules["0"].test_weight(indold))
-        if not torch.allclose(offspring.blocks[i]._modules["0"].test_weight(indold), offspring.blocks[i]._modules["0"].test_weight(indnew)):
-            print("not close")
+        if verbose:
+            print(offspring.blocks[i]._modules["0"].weights[indnew][0,:,:,1,1])
+            print(self.blocks[i]._modules["0"].weights[indold][0,:,:,1,1])
+            print(offspring.blocks[i]._modules["0"](torch.Tensor([]))[0:10,0:4,0,1])
+            print(self.blocks[i]._modules["0"](torch.Tensor([]))[0:10,0:4,0,1])
+            if i != 0:
+                print(offspring.blocks[i]._modules["0"](torch.Tensor([]))[0:10,0,:,3])
+                print(self.blocks[i]._modules["0"](torch.Tensor([]))[0:10,0,:,3])
+            else:
+                print(offspring.blocks[i]._modules["0"](torch.Tensor([])))
+                print(self.blocks[i]._modules["0"](torch.Tensor([])))
+            if not torch.allclose(offspring.blocks[i]._modules["0"](torch.Tensor([])), offspring.blocks[i]._modules["0"](torch.Tensor([]))):
+                print("not close")
         return offspring
     
     def generate(self):
