@@ -288,8 +288,8 @@ class Test(unittest.TestCase):
     def test_offspring_DEANAS(self):
         torch.manual_seed(0)
         torch.set_printoptions(sci_mode=False)
-        model = models.DEANASNet(superspace=(0,3), stages = 2, basechannels=1, discrete=True)
-        child = model.offspring(len(model.channels)-1, (0,1), verbose=True)
+        model = models.DEANASNet(superspace=(1,2), stages = 2, basechannels=1, discrete=True)
+        child = model.offspring(len(model.channels)-1, (1,1), verbose=True)
         xmodel = torch.randn(16, 1, 29, 29)
         xchild = xmodel.clone()
         for i in range(len(model.blocks)):
@@ -305,26 +305,101 @@ class Test(unittest.TestCase):
                 xmodel = xmodel.reshape(xmodel.shape[0], -1)
                 xchild = xchild.reshape(xchild.shape[0], -1)
     
+    # def test_offspring_DEANAS_all(self):
+    #     torch.manual_seed(0)
+    #     torch.set_printoptions(sci_mode=False)
+    #     for f in range(2):
+    #         for r in range(3):
+    #             for sf in range(f+1):
+    #                 for sr in range(r+1):
+    #                     if sf != f or sr != r:
+    #                         model = models.DEANASNet(superspace=(f,r), stages = 2, basechannels=2, discrete=True)
+    #                         child = model.offspring(len(model.channels)-1, (sf,sr))
+    #                         xmodel = torch.randn(4, 1, 29, 29)
+    #                         xchild = xmodel.clone()
+    #                         for i in range(8):
+    #                             xmodel = model.blocks[i](xmodel)
+    #                             xchild = child.blocks[i](xchild)
+    #                         if not torch.allclose(xmodel, xchild, rtol = 1e-4, atol = 1e-4):
+    #                             print((f,r), (sf,sr))
+    #                         else:
+    #                             print((f,r), (sf,sr), "passed")
+
     def test_offspring_DEANAS_all(self):
         torch.manual_seed(0)
         torch.set_printoptions(sci_mode=False)
-        for f in range(2):
-            for r in range(5):
-                for sf in range(f+1):
-                    for sr in range(r+1):
-                        if sf != f or sr != r:
-                            model = models.DEANASNet(superspace=(f,r), stages = 2, basechannels=2, discrete=True)
-                            child = model.offspring(len(model.channels)-1, (sf,sr))
-                            xmodel = torch.randn(4, 1, 29, 29)
-                            xchild = xmodel.clone()
-                            for i in range(8):
-                                xmodel = model.blocks[i](xmodel)
-                                xchild = child.blocks[i](xchild)
-                            if not torch.allclose(xmodel, xchild, rtol = 1e-4, atol = 1e-4):
-                                print((f,r), (sf,sr))
-                            else:
-                                print((f,r), (sf,sr), "passed")
-        
+        mf = 1
+        mr = 2
+        model = models.DEANASNet(superspace=(mf,mr), stages = 2, basechannels=2, discrete=True)
+        while max(mf, mr) > 0:
+            for f in range(mf+1):
+                for r in range(mr+1):
+                    if mf == f and mr == r:
+                        continue
+                    child = model.offspring(len(model.channels)-1, (f,r))
+                    xmodel = torch.randn(4, 1, 29, 29)
+                    xchild = xmodel.clone()
+                    for i in range(8):
+                        xmodel = model.blocks[i](xmodel)
+                        xchild = child.blocks[i](xchild)
+                    if not torch.allclose(xmodel, xchild, rtol = 1e-4, atol = 1e-4):
+                        print((mf,mr), (f,r))
+                    else:
+                        print((mf,mr), (f,r),"passed")
+            if mf == 1:
+                mf = 0
+            elif mr > 0:
+                mr -= 1
+            model = model.offspring(len(model.channels)-1, (mf,mr))
+        mf = 1
+        mr = 2
+        model = models.DEANASNet(superspace=(mf,mr), stages = 2, basechannels=2, discrete=True)
+        while max(mf, mr) > 0:
+            for f in range(mf+1):
+                for r in range(mr+1):
+                    if mf == f and mr == r:
+                        continue
+                    child = model.offspring(len(model.channels)-1, (f,r))
+                    xmodel = torch.randn(4, 1, 29, 29)
+                    xchild = xmodel.clone()
+                    for i in range(8):
+                        xmodel = model.blocks[i](xmodel)
+                        xchild = child.blocks[i](xchild)
+                    if not torch.allclose(xmodel, xchild, rtol = 1e-4, atol = 1e-4):
+                        print((mf,mr), (f,r))
+                    else:
+                        print((mf,mr), (f,r),"passed")
+            if mr > 1:
+                mr -= 1
+            elif mf == 1:
+                mf = 0
+            elif mr == 1:
+                mr = 0
+            model = model.offspring(len(model.channels)-1, (mf,mr))
+        mf = 1
+        mr = 2
+        model = models.DEANASNet(superspace=(mf,mr), stages = 2, basechannels=2, discrete=True)
+        while max(mf, mr) > 0:
+            for f in range(mf+1):
+                for r in range(mr+1):
+                    if mf == f and mr == r:
+                        continue
+                    child = model.offspring(len(model.channels)-1, (f,r))
+                    xmodel = torch.randn(4, 1, 29, 29)
+                    xchild = xmodel.clone()
+                    for i in range(8):
+                        xmodel = model.blocks[i](xmodel)
+                        xchild = child.blocks[i](xchild)
+                    if not torch.allclose(xmodel, xchild, rtol = 1e-4, atol = 1e-4):
+                        print((mf,mr), (f,r))
+                    else:
+                        print((mf,mr), (f,r),"passed")
+            if mr > 0:
+                mr -= 1
+            elif mf == 1:
+                mf = 0
+            model = model.offspring(len(model.channels)-1, (mf,mr))
+
     def test_offspring_DEANAS_lifting(self):
         torch.manual_seed(0)
         torch.set_printoptions(sci_mode=False)
