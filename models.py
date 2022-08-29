@@ -1171,26 +1171,7 @@ class DEANASNet(torch.nn.Module):
         semi_filter = torch.stack(weightmats, dim = -5)
         if len(semi_filter.shape) == 5:
             semi_filter = torch.unsqueeze(semi_filter, -5)
-        if groupnew == (1,1):
-            if verbose:
-                print("weights:", weights.shape, "sf before:", semi_filter.shape)
-            #semi_filter[:,1] = torch.flip(semi_filter[:,1], dims=(2,))
-        #elif semi_filter.shape[1] > 1:
-            # if verbose:
-            #     print("weights:", weights.shape, "sf before:", semi_filter.shape)
-            # #if groupnew[0] == 1:
-            # #    semi_filter=torch.transpose(semi_filter.reshape(semi_filter.shape[0],semi_filter.shape[1],-1,semi_filter.shape[1],groupsize(groupnew),semi_filter.shape[4],semi_filter.shape[5]),3,3)
-            # #semi_filter=torch.transpose(semi_filter,2,3)
-            # if verbose:
-            #     print("sf after:",semi_filter.shape)
-            # #semi_filter[:,semi_filter.shape[1]//2:] = torch.flip(semi_filter[:,semi_filter.shape[1]//2:], dims=(3,))
-
-        # semi_filter: c_out x orbits x c_in x groupsize x k x k
-
-        #sfshape = semi_filter.shape
         semi_filter=semi_filter.reshape(semi_filter.shape[0],semi_filter.shape[1],semi_filter.shape[2],-1,semi_filter.shape[4],semi_filter.shape[5])
-        #if groupsize(groupnew) > 1:
-        #semi_filter=torch.transpose(torch.transpose(semi_filter,0,0),2,3)
         if self.blocks[i]._modules["0"].bias is not None:
             bias = torch.stack([self.blocks[i]._modules["0"].bias[indold] for _ in range(groupdifference(groupold, groupnew))], dim = 1).reshape(-1)
         else:
@@ -1214,7 +1195,10 @@ class DEANASNet(torch.nn.Module):
             elif groupnew == (1,1):
                 offspring.blocks[i]._modules["0"].outchannelorders[indnew] = sum([[8*c,8*c+4,8*c+1,8*c+5,8*c+2,8*c+7,8*c+3,8*c+6] for c in range(int(semi_filter.shape[0]*semi_filter.shape[2]/8))], start=[])
                 offspring.blocks[i]._modules["0"].inchannelorders[indnew] = sum([[8*c+3,8*c+2,8*c+1,8*c+0,8*c+7,8*c+6,8*c+5,8*c+4] for c in range(int(semi_filter.shape[0]*semi_filter.shape[2]/8))], start=[])
-
+        elif groupold == (1,1):
+            if groupnew == (1,0):
+                offspring.blocks[i]._modules["0"].outchannelorders[indnew] = sum([[8*c,8*c+4,8*c+2,8*c+6,8*c+1,8*c+5,8*c+3,8*c+7] for c in range(int(semi_filter.shape[0]*semi_filter.shape[2]/8))], start=[])
+                #offspring.blocks[i]._modules["0"].inchannelorders[indnew] = sum([[8*c+5,8*c+6,8*c+7,8*c+4,8*c+1,8*c+2,8*c+3,8*c] for c in range(int(semi_filter.shape[0]*semi_filter.shape[2]/8))], start=[])
 
 
         if verbose:

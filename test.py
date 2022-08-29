@@ -289,7 +289,8 @@ class Test(unittest.TestCase):
         torch.manual_seed(0)
         torch.set_printoptions(sci_mode=False)
         model = models.DEANASNet(superspace=(1,2), stages = 2, basechannels=1, discrete=True)
-        child = model.offspring(len(model.channels)-1, (1,1), verbose=True)
+        model = model.offspring(len(model.channels)-1, (1,1))
+        child = model.offspring(len(model.channels)-1, (1,0), verbose=True)
         xmodel = torch.randn(16, 1, 29, 29)
         xchild = xmodel.clone()
         for i in range(len(model.blocks)):
