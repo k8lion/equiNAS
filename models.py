@@ -1163,11 +1163,15 @@ class DEANASNet(torch.nn.Module):
             offspring.blocks[i]._modules["0"].bias[indnew] = torch.nn.Parameter(bias)
         #filter[:,i,:,j,(x,y)] = weights[:,:,(j+i)%4, g_j(x,y)]
         if verbose:
-            print(semi_filter[:,:,0,0,0,1])
+            print(semi_filter[0,1,0,:,0,1])
+            #semi_filter = semi_filter.reshape(*semi_filter.shape[:3], 2, 4, *semi_filter.shape[4:])
+            #semi_filter[:,1] = torch.flip(semi_filter[:,1], dims=(3,))
             print(weights.shape, offspring.blocks[i]._modules["0"].weights[indnew].shape, semi_filter.shape)
         semi_filter = semi_filter.reshape(offspring.blocks[i]._modules["0"].weights[indnew].shape)
         if verbose:
-            print(semi_filter[:,:,2,0,1])
+            print(semi_filter[:,:,2,4,3])
+            #semi_filter[1::2] = torch.rot90(semi_filter[1::2], 2, dims=(3,4))
+            print(semi_filter[:,:,2,4,3])
         offspring.blocks[i]._modules["0"].weights[indnew] = torch.nn.Parameter(semi_filter)
         #offspring.blocks[i]._modules["0"].weights[indnew] *= torch.linalg.norm(offspring.blocks[i]._modules["0"].weights[indnew])/torch.linalg.norm(offspring.blocks[i]._modules["0"].weights[indold])
         offspring.blocks[i]._modules["0"].norms[indnew] = self.blocks[i]._modules["0"].norms[indold]*torch.linalg.norm(offspring.blocks[i]._modules["0"].weights[indnew].data)/torch.linalg.norm(offspring.blocks[i]._modules["0"].weights[indold].data)
@@ -1186,7 +1190,8 @@ class DEANASNet(torch.nn.Module):
                 offspring.blocks[i]._modules["0"].inchannelorders[indnew] = sum([[8*c+5,8*c+6,8*c+7,8*c+4,8*c+1,8*c+2,8*c+3,8*c] for c in range(int(semi_filter.shape[0]*semi_filter.shape[2]/8))], start=[])
             elif groupnew == (1,1):
                 offspring.blocks[i]._modules["0"].outchannelorders[indnew] = sum([[8*c,8*c+4,8*c+1,8*c+5,8*c+2,8*c+7,8*c+3,8*c+6] for c in range(int(semi_filter.shape[0]*semi_filter.shape[2]/8))], start=[])
-                #offspring.blocks[i]._modules["0"].inchannelorders[indnew] = sum([[8*c+3,8*c+2,8*c+1,8*c+0,8*c+7,8*c+6,8*c+5,8*c+4] for c in range(int(semi_filter.shape[0]*semi_filter.shape[2]/8))], start=[])
+                offspring.blocks[i]._modules["0"].inchannelapply[indnew] = sum([[8*c+2,8*c+3,8*c+6,8*c+7] for c in range(int(semi_filter.shape[0]*semi_filter.shape[2]/8))], start=[])
+                offspring.blocks[i]._modules["0"].inchannelorders[indnew] = sum([[8*c+5,8*c+6,8*c+7,8*c+4,8*c+1,8*c+2,8*c+3,8*c] for c in range(int(semi_filter.shape[0]*semi_filter.shape[2]/8))], start=[])
         elif groupold == (1,1):
             if groupnew == (1,0):
                 #offspring.blocks[i]._modules["0"].outchannelorders[indnew] = sum([[8*c,8*c+4,8*c+2,8*c+6,8*c+1,8*c+7,8*c+3,8*c+5] for c in range(int(semi_filter.shape[0]*semi_filter.shape[2]/8))], start=[])
