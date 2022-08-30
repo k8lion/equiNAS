@@ -173,7 +173,7 @@ class HillClimber(object):
             print("parent:", model.gs, self.validate(model))
             for child in model.generate():
                 print("child:", child.gs, self.validate(child))
-                self.test(model, child)
+                #self.test(model, child)
                 children.append(child)
         self.options = children
 
