@@ -175,6 +175,8 @@ class HillClimber(object):
             print("parent:", model.gs, self.validate(model))
             model = model.cpu()
             for child in model.generate():
+                if any([g == (1,1) for g in child.gs]): #DELETE 
+                    continue
                 print("child:", child.gs, self.validate(child))
                 children.append(child)
         self.options = children
