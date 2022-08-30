@@ -947,13 +947,9 @@ class MixedGroupConv2dV2(torch.nn.Module):
                 self.weights.append(weights)
                 #setattr(self, 'weights%d' % (len(self.groups)), weights)
                 self.groups.append(g)
-                #if g == (0,2):
-                    #self.channelorders.append(sum([[4*c,4*c+2,4*c+1,4*c+3] for c in range(out_c)], start=[]))
-                    #else:
                 self.outchannelorders.append(list(range(self.out_channels)))
                 self.inchannelapply.append([])
                 self.inchannelorders.append(list(range(self.in_channels)))
-                #self.inchannelorders_.append(list(range(self.in_channels)))
                 if bias:
                     self.bias.append(torch.nn.Parameter(torch.zeros(out_c), requires_grad=True))
         skip_weights = torch.zeros(size=(0,))
@@ -961,7 +957,6 @@ class MixedGroupConv2dV2(torch.nn.Module):
             self.alphas.data[-1] = -np.inf
         skip_weights = torch.nn.Parameter(skip_weights, requires_grad=True)
         self.weights.append(skip_weights)
-        #setattr(self, 'weights%d' % (len(self.groups)), skip_weights)
         if bias:
             self.bias.append(torch.nn.Parameter(torch.zeros(self.out_channels), requires_grad=True))
         self.groups.append((-1,-1))
@@ -981,24 +976,18 @@ class MixedGroupConv2dV2(torch.nn.Module):
                     weights = self.weights[layer]/torch.linalg.norm(self.weights[layer])*self.norms[layer]
                 else:
                     weights = self.weights[layer]
-                #weights: C_l x C_{l-i} x S_{G_{l-1}} x K_l x K_l
+
                 if self.groups[layer][0] == 1:
                     order = [(i,j) for j in range(subgroupsize(self.groups[layer], 0)) for i in range(subgroupsize(self.groups[layer], 1))]
                     _filter = torch.stack([rotateflipstack_n(weights, i, subgroupsize(self.groups[layer], 1), j, subgroupsize(self.groups[layer], 0)) for (i,j) in order], dim = -5)
                 else:
                     _filter = torch.stack([rotatestack_n(weights, i, groupsize(self.groups[layer])) for i in range(subgroupsize(self.groups[layer], 1))], dim = -5)
 
-
                 if self.bias is not None:
                     _bias = torch.stack([self.bias[layer] for _ in range(groupsize(self.groups[layer]))], dim = 1)
                     _bias = _bias.reshape(self.out_channels)
                 else:
                     _bias = None
-
-                #_filter[1::2] = torch.flip(_filter[1::2], dims=(3,))
-                #if len(x.shape)<=1:
-                #    _f[1::2] = torch.flip(_f[1::2], dims=(3,))
-                #_filter = torch.transpose(torch.transpose(_filter,0,1),2,3)
 
                 _filter = _filter.reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
                 # if self.groups[layer] == (1,1):
@@ -1008,6 +997,7 @@ class MixedGroupConv2dV2(torch.nn.Module):
                     
                 _filter[self.inchannelapply[layer]] = _filter[self.inchannelapply[layer]][:,self.inchannelorders[layer]]
                 _filter = _filter[self.outchannelorders[layer]]
+
                 
                 # if self.groups[layer] == (1,1):
                 #     o_inds = sum([[8*c+4, 8*c+5, 8*c+6, 8*c+7] for c in range(_filter.shape[0]//8)], start = [])
@@ -1017,25 +1007,14 @@ class MixedGroupConv2dV2(torch.nn.Module):
                 if len(x.shape)<=1:
                     return _filter
 
-                #_filter = torch.transpose(_filter,2,3).reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
-                #_filter = _filter.reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
-
-                #xshape = x.shape
-                #xg = x.reshape(x.shape[0], -1, groupsize(self.groups[layer]), x.shape[-2], x.shape[-1])
-
-                #xg = x#g.reshape(xshape)
-
-                
                 y = torch.conv2d(x, _filter,
                             stride=self.stride,
                             padding=self.padding,
                             dilation=self.dilation,
                             bias=_bias)
-                
-                #lift to out.shape[0] x -1 x groupsize(self.groups[layer]) x out.shape[-2] x out.shape[-1] to reorder if needed
 
                 out += alphas[layer]*y
-
+  
         return out
         
 
@@ -1142,17 +1121,18 @@ class DEANASNet(torch.nn.Module):
             return offspring
         list(offspring.alphas())[i].data[indnew] = list(self.alphas())[i].data[indold]
         list(offspring.alphas())[i].data[indold] = list(self.alphas())[i].data[indnew]
-        for a in range(offspring.blocks[i]._modules["0"].weights[indold].shape[0]):
-            for b in range(offspring.blocks[i]._modules["0"].weights[indold].shape[1]):
-                for c in range(offspring.blocks[i]._modules["0"].weights[indold].shape[2]):
-                    for d in range(offspring.blocks[i]._modules["0"].weights[indold].shape[3]):
-                        if len(offspring.blocks[i]._modules["0"].weights[indold].shape) > 4:
-                            for e in range(offspring.blocks[i]._modules["0"].weights[indold].shape[4]):
-                                self.blocks[i]._modules["0"].weights[indold].data[a,b,c,d,e] = (a*10**4+b*10**3+c*10**2)*1+d*10+e
-                                offspring.blocks[i]._modules["0"].weights[indold].data[a,b,c,d,e] = (a*10**4+b*10**3+c*10**2)*1+d*10+e
-                        else:
-                            self.blocks[i]._modules["0"].weights[indold].data[a,b,c,d] = (a*10**4+b*10**3+c*10**2)*1+d
-                            offspring.blocks[i]._modules["0"].weights[indold].data[a,b,c,d] = (a*10**4+b*10**3+c*10**2)*1+d
+        if verbose:
+            for a in range(offspring.blocks[i]._modules["0"].weights[indold].shape[0]):
+                for b in range(offspring.blocks[i]._modules["0"].weights[indold].shape[1]):
+                    for c in range(offspring.blocks[i]._modules["0"].weights[indold].shape[2]):
+                        for d in range(offspring.blocks[i]._modules["0"].weights[indold].shape[3]):
+                            if len(offspring.blocks[i]._modules["0"].weights[indold].shape) > 4:
+                                for e in range(offspring.blocks[i]._modules["0"].weights[indold].shape[4]):
+                                    self.blocks[i]._modules["0"].weights[indold].data[a,b,c,d,e] = (a*10**4+b*10**3+c*10**2)*1+d*10+e
+                                    offspring.blocks[i]._modules["0"].weights[indold].data[a,b,c,d,e] = (a*10**4+b*10**3+c*10**2)*1+d*10+e
+                            else:
+                                self.blocks[i]._modules["0"].weights[indold].data[a,b,c,d] = (a*10**4+b*10**3+c*10**2)*1+d
+                                offspring.blocks[i]._modules["0"].weights[indold].data[a,b,c,d] = (a*10**4+b*10**3+c*10**2)*1+d
         #print(indnew, offspring.blocks[i]._modules["0"].weights[indnew][0,0,0,:,:])
         weights = self.blocks[i]._modules["0"].weights[indold]
         #weights = weightprint(roty.numel()-roty.nonzero().size(0))s.reshape(weights.shape[0], weights.shape[1]*groupdifference(groupold,groupnew), -1, *weights.shape[3:])
@@ -1180,8 +1160,7 @@ class DEANASNet(torch.nn.Module):
         #semi_filter=semi_filter.reshape(semi_filter.shape[0],semi_filter.shape[1],semi_filter.shape[2],-1,semi_filter.shape[4],semi_filter.shape[5])
         if self.blocks[i]._modules["0"].bias is not None:
             bias = torch.stack([self.blocks[i]._modules["0"].bias[indold] for _ in range(groupdifference(groupold, groupnew))], dim = 1).reshape(-1)
-        else:
-            bias = None  
+            offspring.blocks[i]._modules["0"].bias[indnew] = torch.nn.Parameter(bias)
         #filter[:,i,:,j,(x,y)] = weights[:,:,(j+i)%4, g_j(x,y)]
         if verbose:
             print(semi_filter[:,:,0,0,0,1])
@@ -1191,8 +1170,8 @@ class DEANASNet(torch.nn.Module):
             print(semi_filter[:,:,2,0,1])
         offspring.blocks[i]._modules["0"].weights[indnew] = torch.nn.Parameter(semi_filter)
         #offspring.blocks[i]._modules["0"].weights[indnew] *= torch.linalg.norm(offspring.blocks[i]._modules["0"].weights[indnew])/torch.linalg.norm(offspring.blocks[i]._modules["0"].weights[indold])
-        offspring.blocks[i]._modules["0"].norms[indnew] = self.blocks[i]._modules["0"].norms[indold]*torch.linalg.norm(offspring.blocks[i]._modules["0"].weights[indnew])/torch.linalg.norm(offspring.blocks[i]._modules["0"].weights[indold])
-        offspring.blocks[i]._modules["0"].bias[indnew] = torch.nn.Parameter(bias)
+        offspring.blocks[i]._modules["0"].norms[indnew] = self.blocks[i]._modules["0"].norms[indold]*torch.linalg.norm(offspring.blocks[i]._modules["0"].weights[indnew].data)/torch.linalg.norm(offspring.blocks[i]._modules["0"].weights[indold].data)
+
         offspring.blocks[i]._modules["0"].outchannelorders[indnew] = self.blocks[i]._modules["0"].outchannelorders[indold]
         offspring.blocks[i]._modules["0"].inchannelapply[indnew] = self.blocks[i]._modules["0"].inchannelapply[indold]
         offspring.blocks[i]._modules["0"].inchannelorders[indnew] = self.blocks[i]._modules["0"].inchannelorders[indold]

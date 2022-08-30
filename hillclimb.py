@@ -136,6 +136,8 @@ class HillClimber(object):
             
         acc = running_corrects.float() / running_count
 
+        model = model.cpu()
+
         return acc.item()
 
     def test(self, model1, model2):
@@ -171,9 +173,9 @@ class HillClimber(object):
         for model in self.options:
             #children += model.generate()
             print("parent:", model.gs, self.validate(model))
+            model = model.cpu()
             for child in model.generate():
                 print("child:", child.gs, self.validate(child))
-                #self.test(model, child)
                 children.append(child)
         self.options = children
 
@@ -197,8 +199,6 @@ class HillClimber(object):
             self.options =  sorted(self.options, key=attrgetter('score'), reverse=True)[:min(len(self.options),self.popsize)]
 
     def save(self):
-        #for model in self.options:
-            #self.history[model.uuid] = self.history[model.uuid]
         with open(self.filename, 'wb') as f:
             pickle.dump(self.history, f)
 
