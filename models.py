@@ -847,6 +847,9 @@ class MixedLiftingConv2dV2(torch.nn.Module):
         else:
             self.bias = None
         self.groups = []
+        self.inchannelorders = []
+        self.inchannelapply = []
+        self.outchannelorders = []
         for i in range(group[0]+1):
             for j in range(group[1]+1):
                 g = (i,j)
@@ -857,6 +860,14 @@ class MixedLiftingConv2dV2(torch.nn.Module):
                 self.norms.data[len(self.weights)] = torch.linalg.norm(weights)
                 self.weights.append(weights)
                 self.groups.append(g)
+                if not discrete and self.group == (0,2) and g != (0,2):
+                    self.outchannelorders.append(sum([[4*c,4*c+2,4*c+1,4*c+3] for c in range(int(self.out_channels/4))], start=[]))
+                    self.inchannelapply.append([2*c+1 for c in range(int(self.out_channels/2))])
+                    self.inchannelorders.append(sum([[4*c+3,4*c+2,4*c+1,4*c] for c in range(int(self.out_channels/4))], start=[]))
+                else:
+                    self.outchannelorders.append(list(range(self.out_channels)))
+                    self.inchannelapply.append([])
+                    self.inchannelorders.append(list(range(self.in_channels)))
                 if bias:
                     self.bias.append(torch.nn.Parameter(torch.zeros(out_c), requires_grad=True))
         skip_weights = torch.zeros(size=(0,))
@@ -894,10 +905,12 @@ class MixedLiftingConv2dV2(torch.nn.Module):
                     _bias = None
 
                 _filter = _filter.reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
+                #print(self.inchannelapply[layer], self.inchannelorders[layer])
+                _filter[self.inchannelapply[layer]] = _filter[self.inchannelapply[layer]][:,self.inchannelorders[layer]]
+                _filter = _filter[self.outchannelorders[layer]]
 
-                #if alphas[layer] > 0:
-                #    print(x[0:4,0,0:6,0])
-                #    print(_filter[0:4,:,1,0])
+                if len(x.shape)<=1:
+                    return _filter
 
                 y = torch.conv2d(x, _filter,
                             stride=self.stride,
@@ -905,7 +918,6 @@ class MixedLiftingConv2dV2(torch.nn.Module):
                             dilation=self.dilation,
                             bias=_bias)
                 
-                #lift to out.shape[0] x -1 x groupsize(self.groups[layer]) x out.shape[-2] x out.shape[-1] to reorder if needed
                 out += alphas[layer]*y
 
         return out
@@ -945,11 +957,15 @@ class MixedGroupConv2dV2(torch.nn.Module):
                     size=(out_c, in_c, groupsize(g), kernel_size, kernel_size)), requires_grad=True)
                 self.norms.data[len(self.weights)] = torch.linalg.norm(weights)
                 self.weights.append(weights)
-                #setattr(self, 'weights%d' % (len(self.groups)), weights)
                 self.groups.append(g)
-                self.outchannelorders.append(list(range(self.out_channels)))
-                self.inchannelapply.append([])
-                self.inchannelorders.append(list(range(self.in_channels)))
+                if not discrete and self.group == (0,2) and g != (0,2):
+                    self.outchannelorders.append(sum([[4*c,4*c+2,4*c+1,4*c+3] for c in range(int(self.out_channels/4))], start=[]))
+                    self.inchannelapply.append([2*c+1 for c in range(int(self.out_channels/2))])
+                    self.inchannelorders.append(sum([[4*c+3,4*c+2,4*c+1,4*c] for c in range(int(self.out_channels/4))], start=[]))
+                else:
+                    self.outchannelorders.append(list(range(self.out_channels)))
+                    self.inchannelapply.append([])
+                    self.inchannelorders.append(list(range(self.in_channels)))
                 if bias:
                     self.bias.append(torch.nn.Parameter(torch.zeros(out_c), requires_grad=True))
         skip_weights = torch.zeros(size=(0,))
@@ -990,19 +1006,9 @@ class MixedGroupConv2dV2(torch.nn.Module):
                     _bias = None
 
                 _filter = _filter.reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
-                # if self.groups[layer] == (1,1):
-                #     o_inds = sum([[8*c+2, 8*c+3, 8*c+6, 8*c+7] for c in range(_filter.shape[0]//8)], start = [])
-                #     i_inds = sum([[8*c+7, 8*c+6, 8*c+5, 8*c+4, 8*c+3, 8*c+2, 8*c+1, 8*c] for c in range(_filter.shape[1]//8)], start=[])
-                #     _filter[o_inds] = _filter[o_inds][:,i_inds]
                     
                 _filter[self.inchannelapply[layer]] = _filter[self.inchannelapply[layer]][:,self.inchannelorders[layer]]
                 _filter = _filter[self.outchannelorders[layer]]
-
-                
-                # if self.groups[layer] == (1,1):
-                #     o_inds = sum([[8*c+4, 8*c+5, 8*c+6, 8*c+7] for c in range(_filter.shape[0]//8)], start = [])
-                #     i_inds = sum([[4*c+1, 4*c+2, 4*c+3, 4*c] for c in range(_filter.shape[1]//4)], start=[])
-                #     _filter[o_inds] = _filter[o_inds][:,i_inds]
 
                 if len(x.shape)<=1:
                     return _filter
@@ -1102,13 +1108,13 @@ class DEANASNet(torch.nn.Module):
                 yield param
 
     def offspring(self, i, groupnew, verbose = False):
-        #print(i)
+        #print(i, groupnew, self.gs)
         assert all([sum(a > -np.inf) >= 2 for a in self.alphas()])
         offspring = DEANASNet(alphalr = self.alphalr, weightlr = self.weightlr, superspace = self.superspace, basechannels = self.basechannels, stages = self.stages, stagedepth = self.stagedepth, pools = self.pools, kernel = self.kernel, indim = self.indim, outdim = self.outdim, prior = self.prior, discrete=self.discrete)
         offspring.load_state_dict(self.state_dict())
         offspring.parent = self.uuid
         offspring.gs = [g for g in self.gs]
-        if i < 0:
+        if i < 0 or any([groupnew[j]>self.gs[i][j] for j in range(len(groupnew))]):
             return offspring
         offspring.gs[i] = groupnew            
         indold = np.argmax(list(offspring.alphas())[i].data[:-1])
@@ -1139,7 +1145,6 @@ class DEANASNet(torch.nn.Module):
         if groupold[0] == 1:
             order = [(r,f) for f in range(subgroupsize(groupold, 0)//subgroupsize(groupnew, 0)) for r in range(subgroupsize(groupold, 1)//subgroupsize(groupnew, 1))]
             #order = [(r,f) for r in range(subgroupsize(groupold, 1)//subgroupsize(groupnew, 1)) for f in range(subgroupsize(groupold, 0)//subgroupsize(groupnew, 0))]
-            #print(order)
             if i == 0:
                 weightmats = [rotateflip_n(weights, r, subgroupsize(groupold, 1), f, subgroupsize(groupold, 0)) for (r,f) in order]
             else:
@@ -1178,7 +1183,7 @@ class DEANASNet(torch.nn.Module):
 
         offspring.blocks[i]._modules["0"].outchannelorders[indnew] = self.blocks[i]._modules["0"].outchannelorders[indold]
         offspring.blocks[i]._modules["0"].inchannelapply[indnew] = self.blocks[i]._modules["0"].inchannelapply[indold]
-        offspring.blocks[i]._modules["0"].inchannelorders[indnew] = self.blocks[i]._modules["0"].inchannelorders[indold]
+        offspring.blocks[i]._modules["0"].inchannelorders[indnew] = self.blocks[i]._modules["0"].inchannelorders[indold][:offspring.blocks[i]._modules["0"].in_channels]
         if groupold[1] == 2 and groupnew == (0,1):
             offspring.blocks[i]._modules["0"].outchannelorders[indnew] = sum([[4*c,4*c+2,4*c+1,4*c+3] for c in range(int(semi_filter.shape[0]*semi_filter.shape[2]/4))], start=[])
             offspring.blocks[i]._modules["0"].inchannelapply[indnew] = [2*c+1 for c in range(int(semi_filter.shape[0]*semi_filter.shape[2]/2))]
@@ -1206,7 +1211,9 @@ class DEANASNet(torch.nn.Module):
                 #offspring.blocks[i]._modules["0"].outchannelorders[indnew] = sum([[8*c,8*c+4,8*c+1,8*c+5,8*c+2,8*c+6,8*c+3,8*c+7] for c in range(int(semi_filter.shape[0]*semi_filter.shape[2]/8))], start=[])
                 #offspring.blocks[i]._modules["0"].inchannelorders[indnew] = sum([[8*c+5,8*c+6,8*c+7,8*c+4,8*c+1,8*c+2,8*c+3,8*c] for c in range(int(semi_filter.shape[0]*semi_filter.shape[2]/8))], start=[])
                 pass
-            
+        #print(offspring.blocks[i]._modules["0"].inchannelapply[indnew])
+        #offspring.blocks[i]._modules["0"].inchannelapply[indnew] = [ica for ica in self.blocks[i]._modules["0"].inchannelapply[indnew] if ica < offspring.blocks[i]._modules["0"].out_channels]
+        #print(offspring.blocks[i]._modules["0"].inchannelapply[indnew])
 
         if verbose:
             print("new weights", offspring.blocks[i]._modules["0"].weights[indnew][0,:,:,1,1])
