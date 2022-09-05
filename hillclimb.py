@@ -10,7 +10,7 @@ import copy
 import pathlib
 
 class HillClimber(object):
-    def __init__(self, reset = True, reg = False, skip = False, baselines = False, lr = 0.1, path = "..", d16 = False, popsize = 10, seed = -1, dea = False):
+    def __init__(self, reset = True, reg = False, skip = False, baselines = False, lr = 0.1, path = "..", d16 = False, c4 = False, popsize = 10, seed = -1, dea = False):
         self.seed = seed
         if seed != -1:
             torch.manual_seed(seed)
@@ -31,6 +31,8 @@ class HillClimber(object):
         self.reg = reg
         if d16:
             self.g = (1,4)
+        elif c4:
+            self.g = (0,2)
         else:
             self.g = (1,2)
         if dea:
@@ -296,11 +298,12 @@ if __name__ == "__main__":
     parser.add_argument('--skip', action='store_true', default=False, help='use model with skips')
     parser.add_argument('--data', "-d", type=pathlib.Path, default="..", help='datapath')
     parser.add_argument('--d16', action='store_true', default=False, help='use d16 equivariance instead of default d4')
+    parser.add_argument('--c4', action='store_true', default=False, help='use c4 equivariance instead of default d4')
     parser.add_argument('--seed', type=int, default=-1, help='random seed (-1 for unseeded)')
     parser.add_argument('--dea', action='store_true', default=False, help='use DEANAS backbone')
     args = parser.parse_args()
     print(args)
-    hillclimb = HillClimber(reg=args.reg, skip=args.skip, baselines=args.baselines, lr=args.lr, path=args.data, popsize=args.popsize, d16=args.d16, dea=args.dea, seed=args.seed)
+    hillclimb = HillClimber(reg=args.reg, skip=args.skip, baselines=args.baselines, lr=args.lr, path=args.data, popsize=args.popsize, d16=args.d16, c4=args.c4, dea=args.dea, seed=args.seed)
     hillclimb.saveargs(vars(args))
     if args.baselines:
         hillclimb.baselines(iterations=args.iterations, epochs=args.epochs, lr=args.lr)

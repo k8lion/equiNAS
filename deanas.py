@@ -44,7 +44,7 @@ def DEANASearch(args):
         args.kernel = 7
         args.stages = 4
         args.hidden = 128
-    model = models.DEANASNet(superspace = (1,4) if args.d16 else (1,2), 
+    model = models.DEANASNet(superspace = (1,4) if args.d16 else (0,2) if args.c4 else (1,2), 
                              weightlr = args.weightlr, alphalr = args.alphalr, 
                              prior = not args.equalize, indim = args.indim, 
                              outdim = args.outdim, stages = args.stages, pools = args.pools, 
@@ -125,6 +125,7 @@ if __name__ == "__main__":
     parser.add_argument('--task', "-t", type=str, default="mnist", help='task')
     parser.add_argument('--seed', "-s", type=int, default=-1, help='random seed (-1 for unseeded)')
     parser.add_argument('--d16', action='store_true', default=False, help='use d16 equivariance instead of default d4')
+    parser.add_argument('--c4', action='store_true', default=False, help='use c4 equivariance instead of default d4') 
     args = parser.parse_args()
     print(args)
     DEANASearch(args)
