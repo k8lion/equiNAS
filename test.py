@@ -407,7 +407,7 @@ class Test(unittest.TestCase):
         model = models.DEANASNet(superspace=(0,2), stages = 2, basechannels=1, discrete=True)
         for i in range(len(model.channels)-1):
             model = model.offspring(len(model.channels)-1-i, (0,1))
-        child = model.offspring(0, (0,1))
+        child = model.offspring(0, (0,1), verbose=True)
         xmodel = torch.randn(16, 1, 29, 29)
         xchild = xmodel.clone()
         for i in range(len(model.blocks)):

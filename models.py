@@ -883,14 +883,18 @@ class MixedLiftingConv2dV2(torch.nn.Module):
 
         alphas = torch.softmax(self.alphas, dim=0)
 
-        if self.in_channels == self.out_channels :
+        if self.in_channels == self.out_channels:
             out = alphas[-1]*x
-        else:
+        elif len(x.shape)>1:
             out = torch.zeros(x.shape[0], self.out_channels, x.shape[-2], x.shape[-1]).to(x.device)
 
         for layer in range(len(self.groups)-1):
             if alphas[layer] > 0:
-                weights = self.weights[layer]/torch.linalg.norm(self.weights[layer])*self.norms[layer]
+                if len(x.shape)>1:
+                    weights = self.weights[layer]/torch.linalg.norm(self.weights[layer])*self.norms[layer]
+                else:
+                    weights = self.weights[layer]
+                    print(weights[:,:,0,0])
 
                 if self.groups[layer][0] == 1:
                     order = [(i,j) for j in range(subgroupsize(self.groups[layer], 0)) for i in range(subgroupsize(self.groups[layer], 1))]
@@ -906,8 +910,8 @@ class MixedLiftingConv2dV2(torch.nn.Module):
 
                 _filter = _filter.reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
                 #print(self.inchannelapply[layer], self.inchannelorders[layer])
-                _filter[self.inchannelapply[layer]] = _filter[self.inchannelapply[layer]][:,self.inchannelorders[layer]]
-                _filter = _filter[self.outchannelorders[layer]]
+                #_filter[self.inchannelapply[layer]] = _filter[self.inchannelapply[layer]][:,self.inchannelorders[layer]]
+                #_filter = _filter[self.outchannelorders[layer]]
 
                 if len(x.shape)<=1:
                     return _filter
@@ -1137,10 +1141,12 @@ class DEANASNet(torch.nn.Module):
                                     self.blocks[i]._modules["0"].weights[indold].data[a,b,c,d,e] = (a*10**4+b*10**3+c*10**2)*1+d*10+e
                                     offspring.blocks[i]._modules["0"].weights[indold].data[a,b,c,d,e] = (a*10**4+b*10**3+c*10**2)*1+d*10+e
                             else:
-                                self.blocks[i]._modules["0"].weights[indold].data[a,b,c,d] = (a*10**4+b*10**3+c*10**2)*1+d
-                                offspring.blocks[i]._modules["0"].weights[indold].data[a,b,c,d] = (a*10**4+b*10**3+c*10**2)*1+d
+                                self.blocks[i]._modules["0"].weights[indold].data[a,b,c,d] = (a*10**4+b*10**3+c*10**2)//10+d
+                                offspring.blocks[i]._modules["0"].weights[indold].data[a,b,c,d] = (a*10**4+b*10**3+c*10**2)//10+d
         #print(indnew, offspring.blocks[i]._modules["0"].weights[indnew][0,0,0,:,:])
         weights = self.blocks[i]._modules["0"].weights[indold]
+        #if verbose:
+        #    print(i, indold, indnew, groupold, groupnew, weights)
         #weights = weightprint(roty.numel()-roty.nonzero().size(0))s.reshape(weights.shape[0], weights.shape[1]*groupdifference(groupold,groupnew), -1, *weights.shape[3:])
         if groupold[0] == 1:
             order = [(r,f) for f in range(subgroupsize(groupold, 0)//subgroupsize(groupnew, 0)) for r in range(subgroupsize(groupold, 1)//subgroupsize(groupnew, 1))]
@@ -1154,7 +1160,7 @@ class DEANASNet(torch.nn.Module):
                 weightmats = [rotate_n(weights, r, groupsize(groupold)) for r in range(subgroupsize(groupold, 1)//subgroupsize(groupnew, 1))]
             else:
                 weightmats = [rotatestack_n(weights, r, groupsize(groupold)) for r in range(subgroupsize(groupold, 1)//subgroupsize(groupnew, 1))]
-        if verbose:
+        if verbose and i > 0:
             print([w.shape for w in weightmats])
             print([weightmats[0][0,0,:,:,1]])
             print([weightmats[1][0,0,:,:,1]])
@@ -1167,13 +1173,13 @@ class DEANASNet(torch.nn.Module):
             bias = torch.stack([self.blocks[i]._modules["0"].bias[indold] for _ in range(groupdifference(groupold, groupnew))], dim = 1).reshape(-1)
             offspring.blocks[i]._modules["0"].bias[indnew] = torch.nn.Parameter(bias)
         #filter[:,i,:,j,(x,y)] = weights[:,:,(j+i)%4, g_j(x,y)]
-        if verbose:
+        if verbose and i > 0:
             print(semi_filter[0,1,0,:,0,1])
             #semi_filter = semi_filter.reshape(*semi_filter.shape[:3], 2, 4, *semi_filter.shape[4:])
             #semi_filter[:,1] = torch.flip(semi_filter[:,1], dims=(3,))
             print(weights.shape, offspring.blocks[i]._modules["0"].weights[indnew].shape, semi_filter.shape)
         semi_filter = semi_filter.reshape(offspring.blocks[i]._modules["0"].weights[indnew].shape)
-        if verbose:
+        if verbose and i > 0:
             print(semi_filter[:,:,2,4,3])
             #semi_filter[1::2] = torch.rot90(semi_filter[1::2], 2, dims=(3,4))
             print(semi_filter[:,:,2,4,3])
@@ -1184,42 +1190,46 @@ class DEANASNet(torch.nn.Module):
         offspring.blocks[i]._modules["0"].outchannelorders[indnew] = self.blocks[i]._modules["0"].outchannelorders[indold]
         offspring.blocks[i]._modules["0"].inchannelapply[indnew] = self.blocks[i]._modules["0"].inchannelapply[indold]
         offspring.blocks[i]._modules["0"].inchannelorders[indnew] = self.blocks[i]._modules["0"].inchannelorders[indold][:offspring.blocks[i]._modules["0"].in_channels]
+        inchannels = semi_filter.shape[0]*semi_filter.shape[2]
+        #if i == 0:
+        #    inchannels //= groupsize(self.superspace)
         if groupold[1] == 2 and groupnew == (0,1):
             offspring.blocks[i]._modules["0"].outchannelorders[indnew] = sum([[4*c,4*c+2,4*c+1,4*c+3] for c in range(int(semi_filter.shape[0]*semi_filter.shape[2]/4))], start=[])
-            offspring.blocks[i]._modules["0"].inchannelapply[indnew] = [2*c+1 for c in range(int(semi_filter.shape[0]*semi_filter.shape[2]/2))]
+            offspring.blocks[i]._modules["0"].inchannelapply[indnew] = [2*c+1 for c in range(int(inchannels/2))]
             offspring.blocks[i]._modules["0"].inchannelorders[indnew] = sum([[4*c+3,4*c+2,4*c+1,4*c] for c in range(int(semi_filter.shape[1]*semi_filter.shape[2]/4))], start=[])
         elif groupold == (1,2):
-            offspring.blocks[i]._modules["0"].inchannelapply[indnew] = [2*c+1 for c in range(int(semi_filter.shape[0]*semi_filter.shape[2]/2))]
+            offspring.blocks[i]._modules["0"].inchannelapply[indnew] = [2*c+1 for c in range(int(inchannels/2))]
             if groupnew == (1,0):
                 offspring.blocks[i]._modules["0"].outchannelorders[indnew] = sum([[8*c,8*c+2,8*c+4,8*c+6,8*c+1,8*c+7,8*c+5,8*c+3] for c in range(int(semi_filter.shape[0]*semi_filter.shape[2]/8))], start=[])
-                offspring.blocks[i]._modules["0"].inchannelorders[indnew] = sum([[8*c+5,8*c+6,8*c+7,8*c+4,8*c+1,8*c+2,8*c+3,8*c] for c in range(int(semi_filter.shape[0]*semi_filter.shape[2]/8))], start=[])
+                offspring.blocks[i]._modules["0"].inchannelorders[indnew] = sum([[8*c+5,8*c+6,8*c+7,8*c+4,8*c+1,8*c+2,8*c+3,8*c] for c in range(int(inchannels/8))], start=[])
             elif groupnew == (1,1):
                 offspring.blocks[i]._modules["0"].outchannelorders[indnew] = sum([[8*c,8*c+4,8*c+1,8*c+5,8*c+2,8*c+7,8*c+3,8*c+6] for c in range(int(semi_filter.shape[0]*semi_filter.shape[2]/8))], start=[])
-                offspring.blocks[i]._modules["0"].inchannelapply[indnew] = sum([[8*c+2,8*c+3,8*c+6,8*c+7] for c in range(int(semi_filter.shape[0]*semi_filter.shape[2]/8))], start=[])
-                offspring.blocks[i]._modules["0"].inchannelorders[indnew] = sum([[8*c+5,8*c+6,8*c+7,8*c+4,8*c+1,8*c+2,8*c+3,8*c] for c in range(int(semi_filter.shape[0]*semi_filter.shape[2]/8))], start=[])
+                offspring.blocks[i]._modules["0"].inchannelapply[indnew] = sum([[8*c+2,8*c+3,8*c+6,8*c+7] for c in range(int(inchannels/8))], start=[])
+                offspring.blocks[i]._modules["0"].inchannelorders[indnew] = sum([[8*c+5,8*c+6,8*c+7,8*c+4,8*c+1,8*c+2,8*c+3,8*c] for c in range(int(inchannels/8))], start=[])
         elif groupold == (1,1):
             if groupnew == (1,0):
                 #offspring.blocks[i]._modules["0"].outchannelorders[indnew] = sum([[8*c,8*c+4,8*c+2,8*c+6,8*c+1,8*c+7,8*c+3,8*c+5] for c in range(int(semi_filter.shape[0]*semi_filter.shape[2]/8))], start=[])
-                offspring.blocks[i]._modules["0"].inchannelapply[indnew] = [2*c+1 for c in range(int(semi_filter.shape[0]*semi_filter.shape[2]/2))]
-                offspring.blocks[i]._modules["0"].inchannelorders[indnew] = sum([[8*c+5,8*c+6,8*c+7,8*c+4,8*c+1,8*c+2,8*c+3,8*c] for c in range(int(semi_filter.shape[0]*semi_filter.shape[2]/8))], start=[])
+                offspring.blocks[i]._modules["0"].inchannelapply[indnew] = [2*c+1 for c in range(int(inchannels/2))]
+                offspring.blocks[i]._modules["0"].inchannelorders[indnew] = sum([[8*c+5,8*c+6,8*c+7,8*c+4,8*c+1,8*c+2,8*c+3,8*c] for c in range(int(inchannels/8))], start=[])
             elif groupnew == (0,1):
                 pass
                 #offspring.blocks[i]._modules["0"].outchannelorders[indnew] = sum([[8*c,8*c+4,8*c+1,8*c+5,8*c+2,8*c+7,8*c+3,8*c+6] for c in range(int(semi_filter.shape[0]*semi_filter.shape[2]/8))], start=[])
-                #offspring.blocks[i]._modules["0"].inchannelapply[indnew] = sum([[8*c+7,8*c+4,8*c+5,8*c+6] for c in range(int(semi_filter.shape[0]*semi_filter.shape[2]/8))], start=[])
-                #offspring.blocks[i]._modules["0"].inchannelorders[indnew] = sum([[8*c+5,8*c+6,8*c+7,8*c+4,8*c+1,8*c+2,8*c+3,8*c] for c in range(int(semi_filter.shape[0]*semi_filter.shape[2]/8))], start=[])
+                #offspring.blocks[i]._modules["0"].inchannelapply[indnew] = sum([[8*c+7,8*c+4,8*c+5,8*c+6] for c in range(int(inchannels/8))], start=[])
+                #offspring.blocks[i]._modules["0"].inchannelorders[indnew] = sum([[8*c+5,8*c+6,8*c+7,8*c+4,8*c+1,8*c+2,8*c+3,8*c] for c in range(int(inchannels/8))], start=[])
             else:
                 #offspring.blocks[i]._modules["0"].outchannelorders[indnew] = sum([[8*c,8*c+4,8*c+1,8*c+5,8*c+2,8*c+6,8*c+3,8*c+7] for c in range(int(semi_filter.shape[0]*semi_filter.shape[2]/8))], start=[])
-                #offspring.blocks[i]._modules["0"].inchannelorders[indnew] = sum([[8*c+5,8*c+6,8*c+7,8*c+4,8*c+1,8*c+2,8*c+3,8*c] for c in range(int(semi_filter.shape[0]*semi_filter.shape[2]/8))], start=[])
+                #offspring.blocks[i]._modules["0"].inchannelorders[indnew] = sum([[8*c+5,8*c+6,8*c+7,8*c+4,8*c+1,8*c+2,8*c+3,8*c] for c in range(int(inchannels/8))], start=[])
                 pass
         #print(offspring.blocks[i]._modules["0"].inchannelapply[indnew])
         #offspring.blocks[i]._modules["0"].inchannelapply[indnew] = [ica for ica in self.blocks[i]._modules["0"].inchannelapply[indnew] if ica < offspring.blocks[i]._modules["0"].out_channels]
         #print(offspring.blocks[i]._modules["0"].inchannelapply[indnew])
 
         if verbose:
-            print("new weights", offspring.blocks[i]._modules["0"].weights[indnew][0,:,:,1,1])
-            print("old weights", self.blocks[i]._modules["0"].weights[indold][0,:,:,1,1])
-            print(offspring.blocks[i]._modules["0"](torch.Tensor([]))[0:10,0:6,0,1])
-            print(self.blocks[i]._modules["0"](torch.Tensor([]))[0:10,0:6,0,1])
+            if i != 0:
+                print("new weights", offspring.blocks[i]._modules["0"].weights[indnew][0,:,:,1,1])
+                print("old weights", self.blocks[i]._modules["0"].weights[indold][0,:,:,1,1])
+                print(offspring.blocks[i]._modules["0"](torch.Tensor([]))[0:10,0:6,0,1])
+                print(self.blocks[i]._modules["0"](torch.Tensor([]))[0:10,0:6,0,1])
             # if i != 0:
             #     print(offspring.blocks[i]._modules["0"](torch.Tensor([]))[0:10,0,:,3])
             #     print(self.blocks[i]._modules["0"](torch.Tensor([]))[0:10,0,:,3])
