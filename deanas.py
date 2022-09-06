@@ -46,7 +46,7 @@ def DEANASearch(args):
         args.hidden = 128
     model = models.DEANASNet(superspace = (1,4) if args.d16 else (0,2) if args.c4 else (1,2), 
                              weightlr = args.weightlr, alphalr = args.alphalr, 
-                             prior = not args.equalize, indim = args.indim, 
+                             prior = not args.equalize, indim = args.indim, baseline = args.baseline,
                              outdim = args.outdim, stages = args.stages, pools = args.pools, 
                              kernel = args.kernel).to(device)
     history = {'args': args,
@@ -90,10 +90,11 @@ def DEANASearch(args):
                     if phase == 'train':
                         loss.backward()
                         model.optimizer.step()
-                        outputs_search = model(inputs_search)
-                        loss_search = model.loss_function(outputs_search, labels_search)
-                        loss_search.backward()
-                        model.alphaopt.step()
+                        if not args.baseline:
+                            outputs_search = model(inputs_search)
+                            loss_search = model.loss_function(outputs_search, labels_search)
+                            loss_search.backward()
+                            model.alphaopt.step()
                 running_loss += loss.item() * inputs.size(0)
                 running_corrects += torch.sum(preds == labels.data).item()
                 running_count += inputs.size(0)
@@ -122,6 +123,7 @@ if __name__ == "__main__":
     parser.add_argument('--alphalr', "-a", type=float, default="1e-3", help='alpha learning rate')
     parser.add_argument('--path', "-p", type=pathlib.Path, default="..", help='datapath')
     parser.add_argument('--equalize', action='store_true', default=False, help='eqaulize initial alphas')
+    parser.add_argument('--baseline', action='store_true', default=False, help='lock network to C1+skip')
     parser.add_argument('--task', "-t", type=str, default="mnist", help='task')
     parser.add_argument('--seed', "-s", type=int, default=-1, help='random seed (-1 for unseeded)')
     parser.add_argument('--d16', action='store_true', default=False, help='use d16 equivariance instead of default d4')
