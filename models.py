@@ -1035,7 +1035,7 @@ class MixedGroupConv2dV2(torch.nn.Module):
 
 class DEANASNet(torch.nn.Module):
 
-    def __init__(self, alphalr = 1e-3, weightlr = 1e-3, baseline: bool = False, superspace: tuple = (1,2), basechannels: int = 4, stages: int = 2, stagedepth: int = 4, pools: int = 4, kernel: int = 5, indim: int = 1, outdim: int = 10, hidden: int = 64, prior: bool = True, discrete: bool = False):
+    def __init__(self, alphalr = 1e-3, weightlr = 1e-3, baseline: bool = False, superspace: tuple = (1,2), basechannels: int = 16, stages: int = 2, stagedepth: int = 4, pools: int = 4, kernel: int = 5, indim: int = 1, outdim: int = 10, hidden: int = 64, prior: bool = True, discrete: bool = False):
         
         super(DEANASNet, self).__init__()
         self.alphalr = alphalr
