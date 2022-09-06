@@ -688,7 +688,6 @@ class MixedLiftingConv2dV1(torch.nn.Module):
         if bias:
             self.bias.append(torch.nn.Parameter(torch.zeros(out_c), requires_grad=True))
         self.groups.append((-1,-1))
-        print("alphas", self.alphas.shape, self.alphas)
         self.test = False
 
     def learnable_weights(self):
@@ -838,7 +837,7 @@ class MixedLiftingConv2dV2(torch.nn.Module):
         self.alphas = torch.nn.Parameter(torch.zeros(np.prod([g+1 for g in group])+1), requires_grad=True)
         if discrete:
             self.alphas.data[:-2] = -np.inf
-        if prior: 
+        elif prior: 
             self.alphas.data[:-2] = -2
         self.norms = torch.nn.Parameter(torch.zeros(np.prod([g+1 for g in group])+1), requires_grad=False)
         self.weights = torch.nn.ParameterList()
@@ -880,7 +879,6 @@ class MixedLiftingConv2dV2(torch.nn.Module):
         self.groups.append((-1,-1))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-
         alphas = torch.softmax(self.alphas, dim=0)
 
         if self.in_channels == self.out_channels:
@@ -894,7 +892,6 @@ class MixedLiftingConv2dV2(torch.nn.Module):
                     weights = self.weights[layer]/torch.linalg.norm(self.weights[layer])*self.norms[layer]
                 else:
                     weights = self.weights[layer]
-                    print(weights[:,:,0,0])
 
                 if self.groups[layer][0] == 1:
                     order = [(i,j) for j in range(subgroupsize(self.groups[layer], 0)) for i in range(subgroupsize(self.groups[layer], 1))]
@@ -909,11 +906,11 @@ class MixedLiftingConv2dV2(torch.nn.Module):
                     _bias = None
 
                 _filter = _filter.reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
-                #print(self.inchannelapply[layer], self.inchannelorders[layer])
                 #_filter[self.inchannelapply[layer]] = _filter[self.inchannelapply[layer]][:,self.inchannelorders[layer]]
                 #_filter = _filter[self.outchannelorders[layer]]
 
                 if len(x.shape)<=1:
+                    #print("_filter", _filter[:,0,:,1])
                     return _filter
 
                 y = torch.conv2d(x, _filter,
@@ -1010,13 +1007,13 @@ class MixedGroupConv2dV2(torch.nn.Module):
                     _bias = None
 
                 _filter = _filter.reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
-                    
+                #print(_filter.shape, self.out_channels, self.inchannelapply[layer], self.inchannelorders[layer])
                 _filter[self.inchannelapply[layer]] = _filter[self.inchannelapply[layer]][:,self.inchannelorders[layer]]
                 _filter = _filter[self.outchannelorders[layer]]
 
                 if len(x.shape)<=1:
                     return _filter
-
+                
                 y = torch.conv2d(x, _filter,
                             stride=self.stride,
                             padding=self.padding,
@@ -1113,9 +1110,13 @@ class DEANASNet(torch.nn.Module):
 
     def offspring(self, i, groupnew, verbose = False):
         #print(i, groupnew, self.gs)
-        assert all([sum(a > -np.inf) >= 2 for a in self.alphas()])
+        assert all([sum(a > -np.inf) <= 2 for a in self.alphas()])
         offspring = DEANASNet(alphalr = self.alphalr, weightlr = self.weightlr, superspace = self.superspace, basechannels = self.basechannels, stages = self.stages, stagedepth = self.stagedepth, pools = self.pools, kernel = self.kernel, indim = self.indim, outdim = self.outdim, prior = self.prior, discrete=self.discrete)
         offspring.load_state_dict(self.state_dict())
+        for j in range(len(self.channels)):
+            offspring.blocks[j]._modules["0"].outchannelorders = self.blocks[j]._modules["0"].outchannelorders
+            offspring.blocks[j]._modules["0"].inchannelapply = self.blocks[j]._modules["0"].inchannelapply
+            offspring.blocks[j]._modules["0"].inchannelorders = self.blocks[j]._modules["0"].inchannelorders
         offspring.parent = self.uuid
         offspring.gs = [g for g in self.gs]
         if i < 0 or any([groupnew[j]>self.gs[i][j] for j in range(len(groupnew))]):
@@ -1131,26 +1132,23 @@ class DEANASNet(torch.nn.Module):
             return offspring
         list(offspring.alphas())[i].data[indnew] = list(self.alphas())[i].data[indold]
         list(offspring.alphas())[i].data[indold] = list(self.alphas())[i].data[indnew]
-        if verbose:
-            for a in range(offspring.blocks[i]._modules["0"].weights[indold].shape[0]):
-                for b in range(offspring.blocks[i]._modules["0"].weights[indold].shape[1]):
-                    for c in range(offspring.blocks[i]._modules["0"].weights[indold].shape[2]):
-                        for d in range(offspring.blocks[i]._modules["0"].weights[indold].shape[3]):
-                            if len(offspring.blocks[i]._modules["0"].weights[indold].shape) > 4:
-                                for e in range(offspring.blocks[i]._modules["0"].weights[indold].shape[4]):
-                                    self.blocks[i]._modules["0"].weights[indold].data[a,b,c,d,e] = (a*10**4+b*10**3+c*10**2)*1+d*10+e
-                                    offspring.blocks[i]._modules["0"].weights[indold].data[a,b,c,d,e] = (a*10**4+b*10**3+c*10**2)*1+d*10+e
-                            else:
-                                self.blocks[i]._modules["0"].weights[indold].data[a,b,c,d] = (a*10**4+b*10**3+c*10**2)//10+d
-                                offspring.blocks[i]._modules["0"].weights[indold].data[a,b,c,d] = (a*10**4+b*10**3+c*10**2)//10+d
-        #print(indnew, offspring.blocks[i]._modules["0"].weights[indnew][0,0,0,:,:])
+        # if verbose:
+        #     for a in range(offspring.blocks[i]._modules["0"].weights[indold].shape[0]):
+        #         for b in range(offspring.blocks[i]._modules["0"].weights[indold].shape[1]):
+        #             for c in range(offspring.blocks[i]._modules["0"].weights[indold].shape[2]):
+        #                 for d in range(offspring.blocks[i]._modules["0"].weights[indold].shape[3]):
+        #                     if len(offspring.blocks[i]._modules["0"].weights[indold].shape) > 4:
+        #                         for e in range(offspring.blocks[i]._modules["0"].weights[indold].shape[4]):
+        #                             self.blocks[i]._modules["0"].weights[indold].data[a,b,c,d,e] = (a*10**4+b*10**3+c*10**2)*1+d*10+e
+        #                             offspring.blocks[i]._modules["0"].weights[indold].data[a,b,c,d,e] = (a*10**4+b*10**3+c*10**2)*1+d*10+e
+        #                     else:
+        #                         self.blocks[i]._modules["0"].weights[indold].data[a,b,c,d] = (a*10**4+b*10**3+c*10**2)//10+d
+        #                         offspring.blocks[i]._modules["0"].weights[indold].data[a,b,c,d] = (a*10**4+b*10**3+c*10**2)//10+d
         weights = self.blocks[i]._modules["0"].weights[indold]
-        #if verbose:
-        #    print(i, indold, indnew, groupold, groupnew, weights)
-        #weights = weightprint(roty.numel()-roty.nonzero().size(0))s.reshape(weights.shape[0], weights.shape[1]*groupdifference(groupold,groupnew), -1, *weights.shape[3:])
+        if verbose:
+            print(i, indold, indnew, groupold, groupnew)
         if groupold[0] == 1:
             order = [(r,f) for f in range(subgroupsize(groupold, 0)//subgroupsize(groupnew, 0)) for r in range(subgroupsize(groupold, 1)//subgroupsize(groupnew, 1))]
-            #order = [(r,f) for r in range(subgroupsize(groupold, 1)//subgroupsize(groupnew, 1)) for f in range(subgroupsize(groupold, 0)//subgroupsize(groupnew, 0))]
             if i == 0:
                 weightmats = [rotateflip_n(weights, r, subgroupsize(groupold, 1), f, subgroupsize(groupold, 0)) for (r,f) in order]
             else:
@@ -1160,10 +1158,14 @@ class DEANASNet(torch.nn.Module):
                 weightmats = [rotate_n(weights, r, groupsize(groupold)) for r in range(subgroupsize(groupold, 1)//subgroupsize(groupnew, 1))]
             else:
                 weightmats = [rotatestack_n(weights, r, groupsize(groupold)) for r in range(subgroupsize(groupold, 1)//subgroupsize(groupnew, 1))]
-        if verbose and i > 0:
-            print([w.shape for w in weightmats])
-            print([weightmats[0][0,0,:,:,1]])
-            print([weightmats[1][0,0,:,:,1]])
+        # if verbose:
+        #     print([w.shape for w in weightmats])
+        #     if i > 0:
+        #         print([weightmats[0][0,0,:,:,1]])
+        #         print([weightmats[1][0,0,:,:,1]])
+        #     else:
+        #         print([weightmats[0][0,0,:,:]])
+        #         print([weightmats[1][0,0,:,:]])
         #weightmats[1] = torch.flip(weightmats[1], dims=(3,))
         semi_filter = torch.stack(weightmats, dim = -5)
         #if len(semi_filter.shape) == 5:
@@ -1179,14 +1181,19 @@ class DEANASNet(torch.nn.Module):
             #semi_filter[:,1] = torch.flip(semi_filter[:,1], dims=(3,))
             print(weights.shape, offspring.blocks[i]._modules["0"].weights[indnew].shape, semi_filter.shape)
         semi_filter = semi_filter.reshape(offspring.blocks[i]._modules["0"].weights[indnew].shape)
-        if verbose and i > 0:
-            print(semi_filter[:,:,2,4,3])
-            #semi_filter[1::2] = torch.rot90(semi_filter[1::2], 2, dims=(3,4))
-            print(semi_filter[:,:,2,4,3])
+        # if verbose and i > 0:
+        #     print(semi_filter[:,:,2,4,3])
+        #     #semi_filter[1::2] = torch.rot90(semi_filter[1::2], 2, dims=(3,4))
+        #     print(semi_filter[:,:,2,4,3])
+        # if verbose and i==0:
+        #     print("self", self.blocks[i]._modules["0"].norms, [torch.linalg.norm(wi.data) for wi in self.blocks[i]._modules["0"].weights])
+        #     print("offspring", offspring.blocks[i]._modules["0"].norms, [torch.linalg.norm(wi.data) for wi in offspring.blocks[i]._modules["0"].weights])
         offspring.blocks[i]._modules["0"].weights[indnew] = torch.nn.Parameter(semi_filter)
-        #offspring.blocks[i]._modules["0"].weights[indnew] *= torch.linalg.norm(offspring.blocks[i]._modules["0"].weights[indnew])/torch.linalg.norm(offspring.blocks[i]._modules["0"].weights[indold])
-        offspring.blocks[i]._modules["0"].norms[indnew] = self.blocks[i]._modules["0"].norms[indold]*torch.linalg.norm(offspring.blocks[i]._modules["0"].weights[indnew].data)/torch.linalg.norm(offspring.blocks[i]._modules["0"].weights[indold].data)
-
+        #print(self.blocks[i]._modules["0"].norms[indold], torch.linalg.norm(offspring.blocks[i]._modules["0"].weights[indnew].data), torch.linalg.norm(offspring.blocks[i]._modules["0"].weights[indold].data))
+        #offspring.blocks[i]._modules["0"].norms[indnew] = self.blocks[i]._modules["0"].norms[indold]*torch.linalg.norm(offspring.blocks[i]._modules["0"].weights[indnew].data)/torch.linalg.norm(offspring.blocks[i]._modules["0"].weights[indold].data)
+        #print(offspring.blocks[i]._modules["0"].norms[indnew])
+        offspring.blocks[i]._modules["0"].norms[indnew] = torch.linalg.norm(offspring.blocks[i]._modules["0"].weights[indnew].data)
+        #print(offspring.blocks[i]._modules["0"].norms[indnew])
         offspring.blocks[i]._modules["0"].outchannelorders[indnew] = self.blocks[i]._modules["0"].outchannelorders[indold]
         offspring.blocks[i]._modules["0"].inchannelapply[indnew] = self.blocks[i]._modules["0"].inchannelapply[indold]
         offspring.blocks[i]._modules["0"].inchannelorders[indnew] = self.blocks[i]._modules["0"].inchannelorders[indold][:offspring.blocks[i]._modules["0"].in_channels]
@@ -1221,7 +1228,8 @@ class DEANASNet(torch.nn.Module):
                 #offspring.blocks[i]._modules["0"].inchannelorders[indnew] = sum([[8*c+5,8*c+6,8*c+7,8*c+4,8*c+1,8*c+2,8*c+3,8*c] for c in range(int(inchannels/8))], start=[])
                 pass
         #print(offspring.blocks[i]._modules["0"].inchannelapply[indnew])
-        #offspring.blocks[i]._modules["0"].inchannelapply[indnew] = [ica for ica in self.blocks[i]._modules["0"].inchannelapply[indnew] if ica < offspring.blocks[i]._modules["0"].out_channels]
+        offspring.blocks[i]._modules["0"].inchannelapply[indnew] = [ica for ica in self.blocks[i]._modules["0"].inchannelapply[indnew] if ica < offspring.blocks[i]._modules["0"].out_channels]
+        offspring.blocks[i]._modules["0"].inchannelorders[indnew] = [ica for ica in self.blocks[i]._modules["0"].inchannelorders[indnew] if ica < offspring.blocks[i]._modules["0"].in_channels]
         #print(offspring.blocks[i]._modules["0"].inchannelapply[indnew])
 
         if verbose:
@@ -1230,13 +1238,17 @@ class DEANASNet(torch.nn.Module):
                 print("old weights", self.blocks[i]._modules["0"].weights[indold][0,:,:,1,1])
                 print(offspring.blocks[i]._modules["0"](torch.Tensor([]))[0:10,0:6,0,1])
                 print(self.blocks[i]._modules["0"](torch.Tensor([]))[0:10,0:6,0,1])
-            # if i != 0:
-            #     print(offspring.blocks[i]._modules["0"](torch.Tensor([]))[0:10,0,:,3])
-            #     print(self.blocks[i]._modules["0"](torch.Tensor([]))[0:10,0,:,3])
-            # else:
-            #     print(offspring.blocks[i]._modules["0"](torch.Tensor([])))
-            #     print(self.blocks[i]._modules["0"](torch.Tensor([])))
-            if not torch.allclose(offspring.blocks[i]._modules["0"](torch.Tensor([])), offspring.blocks[i]._modules["0"](torch.Tensor([]))):
+            else:
+                print("new weights", offspring.blocks[i]._modules["0"].weights[indnew].shape)
+                print("old weights", self.blocks[i]._modules["0"].weights[indold].shape)
+
+                print("child _filter:", offspring.blocks[i]._modules["0"](torch.Tensor([])).shape, offspring.blocks[i]._modules["0"](torch.Tensor([]))[:,0,:,1])
+                print("parent _filter:", self.blocks[i]._modules["0"](torch.Tensor([])).shape, self.blocks[i]._modules["0"](torch.Tensor([]))[:,0,:,1])
+            if i < len(self.channels)-1:
+                print("next")
+                print(offspring.blocks[i+1]._modules["0"](torch.Tensor([]))[0:10,0:6,0,1])
+                print(self.blocks[i+1]._modules["0"](torch.Tensor([]))[0:10,0:6,0,1])
+            if not torch.allclose(offspring.blocks[i]._modules["0"](torch.Tensor([])), self.blocks[i]._modules["0"](torch.Tensor([]))):
                 print("not close")
         return offspring
     
