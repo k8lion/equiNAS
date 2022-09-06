@@ -962,7 +962,7 @@ class MixedGroupConv2dV2(torch.nn.Module):
                 if not discrete and self.group == (0,2) and g != (0,2):
                     self.outchannelorders.append(sum([[4*c,4*c+2,4*c+1,4*c+3] for c in range(int(self.out_channels/4))], start=[]))
                     self.inchannelapply.append([2*c+1 for c in range(int(self.out_channels/2))])
-                    self.inchannelorders.append(sum([[4*c+3,4*c+2,4*c+1,4*c] for c in range(int(self.out_channels/4))], start=[]))
+                    self.inchannelorders.append(sum([[4*c+3,4*c+2,4*c+1,4*c] for c in range(int(self.in_channels/4))], start=[]))
                 else:
                     self.outchannelorders.append(list(range(self.out_channels)))
                     self.inchannelapply.append([])
