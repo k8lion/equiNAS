@@ -10,7 +10,7 @@ import os
 from ray import tune
 from ray.air import session
 from ray.tune.schedulers import ASHAScheduler
-from ray.tune.search.optuna import OptunaSearch
+#from ray.tune.search.optuna import OptunaSearch
 
 
 
@@ -29,7 +29,7 @@ def DEANASearch_tune(args):
         max_t=args.epochs,
         grace_period=1,
         reduction_factor=2)
-    algo = OptunaSearch()
+    #algo = OptunaSearch()
     tuner = tune.Tuner(
         tune.with_parameters(DEANASearch_train, args=args),
         tune_config=tune.TuneConfig(
@@ -37,7 +37,7 @@ def DEANASearch_tune(args):
             mode="min",
             scheduler=scheduler,
             num_samples=100,
-            search_alg = algo,
+            #search_alg = algo,
         ),
         param_space=config,
     )
