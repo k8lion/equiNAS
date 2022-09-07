@@ -10,6 +10,8 @@ import os
 from ray import tune
 from ray.air import session
 from ray.tune.schedulers import ASHAScheduler
+from ray.tune.search.optuna import OptunaSearch
+
 
 
 def DEANASearch_tune(args):
@@ -19,7 +21,7 @@ def DEANASearch_tune(args):
         "hidden": tune.sample_from(lambda _: 2 ** np.random.randint(5, 10)),
         "alphalr": tune.choice([3e-4, 1e-3, 3e-3, 1e-2, 3e-2, 1e-1, 3e-1]),
         "weightlr": tune.choice([3e-4, 1e-3, 3e-3, 1e-2, 3e-2, 1e-1, 3e-1]),
-        "batch_size": tune.choice([2, 4, 8, 16, 32, 64, 128]),
+        "batch_size": tune.choice([8, 16, 32, 64, 128]),
         "basechannels": tune.sample_from(lambda _: 2 ** np.random.randint(3, 8)),
         "kernel": tune.choice([3, 5, 7, 9]),
     }
@@ -27,16 +29,15 @@ def DEANASearch_tune(args):
         max_t=args.epochs,
         grace_period=1,
         reduction_factor=2)
+    algo = OptunaSearch()
     tuner = tune.Tuner(
-        tune.with_resources(
-            tune.with_parameters(DEANASearch_train, args=args),
-            resources={"cpu": 2, "gpu": 1}
-        ),
+        tune.with_parameters(DEANASearch_train, args=args),
         tune_config=tune.TuneConfig(
             metric="loss",
             mode="min",
             scheduler=scheduler,
             num_samples=100,
+            search_alg = algo,
         ),
         param_space=config,
     )
