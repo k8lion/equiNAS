@@ -36,7 +36,7 @@ def DEANASearch_tune(args):
             metric="loss",
             mode="min",
             scheduler=scheduler,
-            num_samples=1,
+            num_samples=100,
         ),
         param_space=config,
     )
