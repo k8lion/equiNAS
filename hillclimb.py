@@ -208,12 +208,12 @@ class HillClimber(object):
         with open(self.filename, 'wb') as f:
             pickle.dump(self.history, f)
 
-    def hillclimb(self, iterations = -1, epochs = 5.0, lr = 5e-4):
+    def hillclimb(self, iterations = -1, epochs = 5.0):
         self.train(epochs = epochs, start = 0)
         for iter in range(iterations):
             self.generate()
             print("Iteration ", iter)
-            self.train(epochs = epochs, start = iter+1, lr = lr)
+            self.train(epochs = epochs, start = iter+1)
             self.select()
             self.save()
 
