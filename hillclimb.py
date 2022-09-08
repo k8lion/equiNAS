@@ -238,6 +238,6 @@ if __name__ == "__main__":
     hillclimb = HillClimber(reg=args.reg, skip=args.skip, baselines=args.baselines, lr=args.lr, path=args.data, popsize=args.popsize, d16=args.d16, c4=args.c4, dea=args.dea, seed=args.seed)
     hillclimb.saveargs(vars(args))
     if args.baselines:
-        hillclimb.baselines(iterations=args.iterations, epochs=args.epochs, lr=args.lr)
+        hillclimb.baselines(iterations=args.iterations, epochs=args.epochs)
     else:
-        hillclimb.hillclimb(iterations=args.iterations, epochs=args.epochs, lr=args.lr)
+        hillclimb.hillclimb(iterations=args.iterations, epochs=args.epochs)
