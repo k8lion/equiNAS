@@ -130,8 +130,6 @@ def DEANASearch(args):
     history['alphas'].append([torch.softmax(a, dim=0).detach().tolist() for a in model.alphas()])
     for epoch in range(args.epochs):
         for phase in ['train', 'validation']:
-            if tune and phase == 'validation' and epoch < args.epochs-1:
-                continue
             batch = []
             if phase == 'train':
                 model.train()
@@ -167,21 +165,24 @@ def DEANASearch(args):
                 running_count += inputs.size(0)
                 if phase == 'train':
                     batch.append(running_count)
-                    history['train']['batchloss'].append(loss.detach().item())
+                    if not tune:
+                        history['train']['batchloss'].append(loss.detach().item())
             epoch_loss = running_loss / running_count
             epoch_acc = running_corrects / running_count
-            print('{} {} Loss: {:.4f} Acc: {:.4f}'.format(epoch, phase, epoch_loss, epoch_acc))
-            history[phase]['loss'].append(epoch_loss)
-            history[phase]['accuracy'].append(epoch_acc)
-            if phase == 'train':
-                history["trainsteps"] += [epoch + b / running_count for b in batch]
-            elif tune:
+            if not tune:
+                print('{} {} Loss: {:.4f} Acc: {:.4f}'.format(epoch, phase, epoch_loss, epoch_acc))
+                history[phase]['loss'].append(epoch_loss)
+                history[phase]['accuracy'].append(epoch_acc)
+                if phase == 'train':
+                    history["trainsteps"] += [epoch + b / running_count for b in batch]
+            elif phase == "validation":
                 session.report({"loss": epoch_loss, "accuracy": epoch_acc})
-        history['alphas'].append([torch.softmax(a, dim=0).detach().tolist() for a in model.alphas()])
+        if not tune:
+            history['alphas'].append([torch.softmax(a, dim=0).detach().tolist() for a in model.alphas()])
         scheduler.step()
-
-    with open(filename, 'wb') as f:
-        pickle.dump(history, f)
+    if not tune:
+        with open(filename, 'wb') as f:
+            pickle.dump(history, f)
 
 
 if __name__ == "__main__":
