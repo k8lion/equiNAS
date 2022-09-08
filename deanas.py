@@ -162,11 +162,11 @@ def DEANASearch(args):
                 running_count += inputs.size(0)
                 if phase == 'train':
                     batch.append(running_count)
-                    if not tune:
+                    if not args.tune:
                         history['train']['batchloss'].append(loss.detach().item())
             epoch_loss = running_loss / running_count
             epoch_acc = running_corrects / running_count
-            if not tune:
+            if not args.tune:
                 print('{} {} Loss: {:.4f} Acc: {:.4f}'.format(epoch, phase, epoch_loss, epoch_acc))
                 history[phase]['loss'].append(epoch_loss)
                 history[phase]['accuracy'].append(epoch_acc)
@@ -174,10 +174,10 @@ def DEANASearch(args):
                     history["trainsteps"] += [epoch + b / running_count for b in batch]
             elif phase == "validation":
                 session.report({"loss": epoch_loss, "accuracy": epoch_acc})
-        if not tune:
+        if not args.tune:
             history['alphas'].append([torch.softmax(a, dim=0).detach().tolist() for a in model.alphas()])
         scheduler.step()
-    if not tune:
+    if not args.tune:
         with open(filename, 'wb') as f:
             pickle.dump(history, f)
 
@@ -191,7 +191,7 @@ if __name__ == "__main__":
     parser.add_argument('--basechannels', "-c", type=int, default="-1", help='base number of channels')
     parser.add_argument('--kernel', "-k", type=int, default="-1", help='kernel size')
     parser.add_argument('--path', "-p", type=pathlib.Path, default="..", help='datapath')
-    parser.add_argument('--equalize', action='store_true', default=False, help='eqaulize initial alphas')
+    parser.add_argument('--equalize', action='store_true', default=False, help='equalize initial alphas')
     parser.add_argument('--baseline', action='store_true', default=False, help='lock network to C1+skip')
     parser.add_argument('--task', "-t", type=str, default="mnist", help='task')
     parser.add_argument('--seed', "-s", type=int, default=-1, help='random seed (-1 for unseeded)')
