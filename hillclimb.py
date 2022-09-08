@@ -71,9 +71,10 @@ class HillClimber(object):
                               'ghistory': []}
                 else:
                     self.history[model.uuid] = copy.deepcopy(self.history[model.parent])
-            self.history[model.uuid]["epochsteps"] += np.linspace(start, start+1, epochs, endpoint=False).tolist()
+            self.history[model.uuid]["epochsteps"] += np.linspace(start, start+1, int(np.ceil(epochs)), endpoint=False).tolist()
             self.history[model.uuid]["ghistory"].append(model.gs)
-            for _ in range(epochs):
+            counter = 0
+            for _ in range(int(np.ceil(epochs))):
                 for phase in ['train', 'validation']:
                     batch = []
                     if phase == 'train':
@@ -95,7 +96,7 @@ class HillClimber(object):
                             model.optimizer.zero_grad()
                             loss.backward()
                             model.optimizer.step()
-
+                            counter += 1
                         _, preds = torch.max(outputs, 1)
                         running_loss += loss.detach() * inputs.size(0)
                         running_corrects += torch.sum(preds == labels.data)
@@ -103,6 +104,8 @@ class HillClimber(object):
                         if phase == "train":
                             batch.append(running_count)
                             self.history[model.uuid][phase]['batchloss'].append(loss.detach().item())
+                            if counter > len(dataloaders[phase])*epochs:
+                                break
                     epoch_loss = running_loss / running_count
                     epoch_acc = running_corrects.float() / running_count
 
@@ -206,7 +209,7 @@ class HillClimber(object):
         with open(self.filename, 'wb') as f:
             pickle.dump(self.history, f)
 
-    def hillclimb(self, iterations = -1, epochs = 5, lr = 5e-4):
+    def hillclimb(self, iterations = -1, epochs = 5.0, lr = 5e-4):
         self.train(epochs = epochs, start = 0)
         for iter in range(iterations):
             self.generate()
@@ -218,7 +221,7 @@ class HillClimber(object):
             
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Run hillclimber algorithm')
-    parser.add_argument('--epochs', "-e", type=int, default="1", help='number of epochs per child')
+    parser.add_argument('--epochs', "-e", type=float, default="1.0", help='number of epochs per child')
     parser.add_argument('--iterations', "-i", type=int, default="50", help='number of generations')
     parser.add_argument('--lr', "-l", type=float, default="5e-4", help='learning rate')
     parser.add_argument('--allkids', action='store_true', default=False, help='expand children tree')
