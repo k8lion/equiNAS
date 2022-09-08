@@ -29,7 +29,7 @@ def DEANASearch_tune(args):
         reduction_factor=2)
     #algo = OptunaSearch()
     tuner = tune.Tuner(
-        tune.with_parameters(DEANASearch_train, args=args),
+        tune.with_resources(tune.with_parameters(DEANASearch_train, args=args), {"cpu": 2, "gpu": 1}),
         tune_config=tune.TuneConfig(
             metric="loss",
             mode="min",
