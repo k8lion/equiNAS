@@ -71,7 +71,7 @@ def DEANASearch(args):
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     print(args.task)
     if args.task == "mnist":
-        train_loader, validation_loader, _ = utilities.get_mnist_dataloaders(path_to_dir=args.path, validation_split=0.5, batch_size=args.batch_size)
+        train_loader, validation_loader, test_loader = utilities.get_mnist_dataloaders(path_to_dir=args.path, validation_split=0.5, batch_size=args.batch_size)
         args.indim = 1
         args.outdim = 10
         args.pools = 4
@@ -83,7 +83,7 @@ def DEANASearch(args):
         if args.basechannels < 0:
             args.basechannels = 16
     elif args.task == "isic":
-        train_loader, validation_loader, _ = utilities.get_isic_dataloaders(path_to_dir=args.path, validation_split=0.5, batch_size=args.batch_size)
+        train_loader, validation_loader, test_loader = utilities.get_isic_dataloaders(path_to_dir=args.path, validation_split=0.5, batch_size=args.batch_size)
         args.indim = 3
         args.outdim = 9
         args.pools = 8
@@ -95,7 +95,7 @@ def DEANASearch(args):
         if args.basechannels < 0:
             args.basechannels = 64
     elif args.task == "galaxy10":
-        train_loader, validation_loader, _ = utilities.get_galaxy10_dataloaders(path_to_dir=args.path, validation_split=0.5, batch_size=args.batch_size)
+        train_loader, validation_loader, test_loader = utilities.get_galaxy10_dataloaders(path_to_dir=args.path, validation_split=0.5, batch_size=args.batch_size)
         args.indim = 3
         args.outdim = 10
         args.pools = 8
@@ -177,6 +177,24 @@ def DEANASearch(args):
         if not args.tune:
             history['alphas'].append([torch.softmax(a, dim=0).detach().tolist() for a in model.alphas()])
         scheduler.step()
+    if args.test:
+        model.eval()
+        running_loss = 0.0
+        running_corrects = 0
+        running_count = 0
+        for inputs, labels in test_loader:
+            inputs = inputs.to(device)
+            labels = labels.to(device)
+            outputs = model(inputs)
+            _, preds = torch.max(outputs, 1)
+            loss = model.loss_function(outputs, labels)
+            running_loss += loss.item() * inputs.size(0)
+            running_corrects += torch.sum(preds == labels.data).item()
+            running_count += inputs.size(0)
+        epoch_loss = running_loss / running_count
+        epoch_acc = running_corrects / running_count
+        print('Test Loss: {:.4f} Acc: {:.4f}'.format(epoch_loss, epoch_acc))
+        history['test'] = {'loss': epoch_loss, 'accuracy': epoch_acc}
     if not args.tune:
         with open(filename, 'wb') as f:
             pickle.dump(history, f)
@@ -199,6 +217,7 @@ if __name__ == "__main__":
     parser.add_argument('--d16', action='store_true', default=False, help='use d16 equivariance instead of default d4')
     parser.add_argument('--c4', action='store_true', default=False, help='use c4 equivariance instead of default d4') 
     parser.add_argument('--tune', action='store_true', default=False, help='tune hyperparameters') 
+    parser.add_argument('--test', action='store_true', default=False, help='evaluate on test set') 
     args = parser.parse_args()
     print(args)
     if args.tune:
