@@ -50,10 +50,9 @@ class HillClimber(object):
         self.popsize = popsize
         self.history = {}
 
-    def train(self, epochs = 1, start = 0, lr = 5e-4):
+    def train(self, epochs = 1, start = 0):
         for model in self.options:
             model = model.to(self.device)
-            #model.optimizer = torch.optim.SGD(model.parameters(), lr=lr)
             dataloaders = {
                 "train": self.train_loader,
                 "validation": self.validation_loader
@@ -114,7 +113,7 @@ class HillClimber(object):
                     model.score = epoch_acc.item()
 
                     if phase == "train":
-                        self.history[model.uuid]["trainsteps"] += [b / (running_count+epochs) + start for b in batch]
+                        self.history[model.uuid]["trainsteps"] += [b / running_count + start for b in batch]
                     #else:
                     #    print(epoch_acc.item())
             model = model.to("cpu")
