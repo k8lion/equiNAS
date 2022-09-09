@@ -12,8 +12,6 @@ from ray.air import session
 from ray.tune.schedulers import ASHAScheduler
 #from ray.tune.search.optuna import OptunaSearch
 
-
-
 def DEANASearch_tune(args):
     if str(args.path)[0] != '/':
         args.path = os.getcwd() / args.path

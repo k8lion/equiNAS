@@ -200,7 +200,7 @@ if __name__ == "__main__":
     parser.add_argument('--dea', action='store_true', default=False, help='use DEANAS backbone')
     args = parser.parse_args()
     print(args)
-    hillclimb = HillClimber(reg=args.reg, skip=args.skip, baselines=args.baselines, lr=args.lr, path=args.data, popsize=args.popsize, d16=args.d16, c4=args.c4, dea=args.dea, seed=args.seed)
+    hillclimb = HillClimber(baselines=args.baselines, lr=args.lr, path=args.data, popsize=args.popsize, d16=args.d16, c4=args.c4, dea=args.dea, seed=args.seed)
     hillclimb.saveargs(vars(args))
     if args.baselines:
         hillclimb.baselines(iterations=args.iterations, epochs=args.epochs)
