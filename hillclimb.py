@@ -37,13 +37,8 @@ class HillClimber(object):
             self.g = (1,2)
         if dea:
             model = models.DEANASNet(superspace=self.g, discrete=True, alphalr=lr, weightlr=lr)
-        elif reg:
-            if skip:
-                model = models.SkipEquiCNN(gs=[self.g for _ in range(8)], ordered = self.ordered, lr = lr, superspace = self.g)
-            else:
-                model = models.TDRegEquiCNN(gs=[self.g for _ in range(8)], ordered = self.ordered, lr = lr)
         else:
-            model = models.EquiCNN(reset)
+            model = models.SkipEquiCNN(gs=[self.g for _ in range(8)], ordered = self.ordered, lr = lr, superspace = self.g)
         self.skip = True
         self.options = [model]
         self.allkids = popsize < 0
@@ -114,8 +109,6 @@ class HillClimber(object):
 
                     if phase == "train":
                         self.history[model.uuid]["trainsteps"] += [b / running_count + start for b in batch]
-                    #else:
-                    #    print(epoch_acc.item())
             model = model.to("cpu")
 
     def validate(self, model):
@@ -144,38 +137,12 @@ class HillClimber(object):
 
         return acc.item()
 
-    def test(self, model1, model2):
-        model1 = model1.to(self.device)
-        model2 = model2.to(self.device)
-        dataloaders = {
-            "validation": self.validation_loader
-        }
-        phase = "validation"
-        model1.eval()
-        model2.eval()
-
-        if model1.gs == model2.gs:
-            for inputs, labels in dataloaders[phase]:
-                inputs = inputs.to(self.device)
-                labels = labels.to(self.device)
-                outputs1 = model1(inputs)
-                outputs2 = model2(inputs)
-
-                assert torch.allclose(outputs1, outputs2, atol=1e-5, rtol=1e-5)
-    
     def saveargs(self, args):
         self.history["args"] = args
     
     def generate(self):
         children = []
-        #children += self.model.generate()
-        # print("parent:", self.model.gs, self.validate(self.model))
-        # for child in self.model.generate():
-        #     print("child:", child.gs, self.validate(child))
-        #     self.test(self.model, child)
-        #     children.append(child)
         for model in self.options:
-            #children += model.generate()
             print("parent:", model.gs, self.validate(model))
             model = model.cpu()
             for child in model.generate():
@@ -226,8 +193,6 @@ if __name__ == "__main__":
     parser.add_argument('--allkids', action='store_true', default=False, help='expand children tree')
     parser.add_argument('--popsize', "-p", type=int, default="10", help='population size')
     parser.add_argument('--baselines', action='store_true', default=False, help='measure baselines')
-    parser.add_argument('--reg', action='store_true', default=False, help='reg group convs')
-    parser.add_argument('--skip', action='store_true', default=False, help='use model with skips')
     parser.add_argument('--data', "-d", type=pathlib.Path, default="..", help='datapath')
     parser.add_argument('--d16', action='store_true', default=False, help='use d16 equivariance instead of default d4')
     parser.add_argument('--c4', action='store_true', default=False, help='use c4 equivariance instead of default d4')
