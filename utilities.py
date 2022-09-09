@@ -8,7 +8,7 @@ from PIL import Image
 import torch
 from torch.utils.data import Dataset, DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
-from torchvision.transforms import RandomRotation, Pad, Resize, ToTensor, Compose
+from torchvision.transforms import Normalize, Resize, ToTensor, Compose
 from torchvision.transforms.functional import InterpolationMode
 
 
@@ -25,6 +25,7 @@ class MnistRotDataset(Dataset):
         self.transform = transform
 
         data = np.loadtxt(os.path.expanduser(file), delimiter=' ')
+        print(np.mean(data[:, :-1]), np.std(data[:, :-1]), np.max(data[:, :-1]), np.min(data[:, :-1]))
             
         self.images = data[:, :-1].reshape(-1, 28, 28).astype(np.float32)
         self.labels = data[:, -1].astype(np.int64)
@@ -48,8 +49,9 @@ class Galaxy10Dataset(Dataset):
             file = str(path_to_dir)+"/data/Galaxy10_DECals_test.h5"
         
         f = h5py.File(file, 'r')
-        print(f.keys())
         labels, images = f['labels'], f['images']
+        print(type(images))
+        print(np.mean(images), np.std(images))
 
         self.x = images
         self.y = torch.from_numpy(labels[:]).long()
@@ -114,11 +116,12 @@ def get_mnist_dataloaders(path_to_dir = "~", validation_split=0.2, batch_size=64
     if batch_size < 0:
         batch_size = 64
     totensor = ToTensor()
-    test_transform = Compose([
+    transform = Compose([
+        Normalize(0.12996, 0.29698),
         totensor,
     ])
 
-    mnist_train = MnistRotDataset(mode='train', transform=test_transform, path_to_dir=path_to_dir)
+    mnist_train = MnistRotDataset(mode='train', transform=transform, path_to_dir=path_to_dir)
 
     shuffle_dataset = True
     random_seed = 42
@@ -141,7 +144,7 @@ def get_mnist_dataloaders(path_to_dir = "~", validation_split=0.2, batch_size=64
         validation_loader = DataLoader(mnist_train, batch_size=batch_size,
                                                         sampler=valid_sampler)
 
-    mnist_test = MnistRotDataset(mode='test', transform=test_transform, path_to_dir=path_to_dir)
+    mnist_test = MnistRotDataset(mode='test', transform=transform, path_to_dir=path_to_dir)
     test_loader = DataLoader(mnist_test, batch_size=batch_size)
 
     return train_loader, validation_loader, test_loader
@@ -161,7 +164,6 @@ def get_galaxy10_dataloaders(path_to_dir = "~", validation_split=0.2, test_split
     test_transform = Compose([
         totensor,
     ])
-
     galaxy10_train = Galaxy10Dataset(mode='train', transform=test_transform, path_to_dir=path_to_dir)
 
     shuffle_dataset = True
