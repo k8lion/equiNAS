@@ -21,7 +21,7 @@ class MnistRotDataset(Dataset):
             file = str(path_to_dir)+"/data/mnist_rotation_new/mnist_all_rotation_normalized_float_train_valid.amat"
         else:
             file = str(path_to_dir)+"/data/mnist_rotation_new/mnist_all_rotation_normalized_float_test.amat"
-        print("file",file)
+
         self.transform = transform
 
         data = np.loadtxt(os.path.expanduser(file), delimiter=' ')
