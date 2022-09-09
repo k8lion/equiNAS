@@ -25,7 +25,6 @@ class MnistRotDataset(Dataset):
         self.transform = transform
 
         data = np.loadtxt(os.path.expanduser(file), delimiter=' ')
-        print(np.mean(data[:, :-1]), np.std(data[:, :-1]), np.max(data[:, :-1]), np.min(data[:, :-1]))
             
         self.images = data[:, :-1].reshape(-1, 28, 28).astype(np.float32)
         self.labels = data[:, -1].astype(np.int64)
@@ -117,8 +116,8 @@ def get_mnist_dataloaders(path_to_dir = "~", validation_split=0.2, batch_size=64
         batch_size = 64
     totensor = ToTensor()
     transform = Compose([
-        Normalize(0.12996, 0.29698),
         totensor,
+        Normalize(0.12996, 0.29698),
     ])
 
     mnist_train = MnistRotDataset(mode='train', transform=transform, path_to_dir=path_to_dir)
