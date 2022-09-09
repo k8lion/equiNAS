@@ -17,8 +17,8 @@ def DEANASearch_tune(args):
         args.path = os.getcwd() / args.path
     config = {
         "hidden": tune.sample_from(lambda _: 2 ** np.random.randint(5, 9)),
-        "alphalr": tune.choice([3e-3, 1e-2, 3e-2, 1e-1, 3e-1]),
-        "weightlr": tune.choice([3e-3, 1e-2, 3e-2, 1e-1, 3e-1]),
+        "alphalr": tune.choice([1e-3, 3e-3, 5e-3, 1e-2, 3e-2]),
+        "weightlr": tune.choice([1e-3, 3e-3, 5e-3, 1e-2, 3e-2]),
         "basechannels": tune.sample_from(lambda _: 2 ** np.random.randint(4, 8)),
     }
     scheduler = ASHAScheduler(
