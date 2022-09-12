@@ -132,11 +132,9 @@ def get_mnist_dataloaders(path_to_dir = "~", validation_split=0.2, batch_size=64
         np.random.shuffle(indices)
     train_indices, val_indices = indices[split:], indices[:split]
 
-    # Creating PT data samplers and loaders:
     train_sampler = SubsetRandomSampler(train_indices)
     valid_sampler = SubsetRandomSampler(val_indices)
 
-    #train_loader = torch.utils.data.DataLoader(mnist_train, batch_size=64)
     with FileLock(os.path.expanduser("~/.data.lock")):
         train_loader = DataLoader(mnist_train, batch_size=batch_size, 
                                                 sampler=train_sampler)
@@ -149,10 +147,9 @@ def get_mnist_dataloaders(path_to_dir = "~", validation_split=0.2, batch_size=64
     return train_loader, validation_loader, test_loader
 
 
-def get_galaxy10_dataloaders(path_to_dir = "~", validation_split=0.2, test_split = 0.1, batch_size=8):
+def get_galaxy10_dataloaders(path_to_dir = "~", validation_split=0.2, batch_size=8):
     if batch_size < 0:
         batch_size = 8
-    make_galaxy10_traintest(path_to_dir)
     if not os.path.exists(str(path_to_dir)+"/data/Galaxy10_DECals_trainval.h5"):
         if os.path.exists(str(path_to_dir)+"/data/Galaxy10_DECals.h5"):
             make_galaxy10_traintest(path_to_dir)

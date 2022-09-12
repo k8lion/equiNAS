@@ -19,7 +19,7 @@ def DEANASearch_tune(args):
         "hidden": tune.sample_from(lambda _: 2 ** np.random.randint(5, 9)),
         "alphalr": tune.choice([1e-3, 3e-3, 5e-3, 1e-2, 3e-2]),
         "weightlr": tune.choice([1e-3, 3e-3, 5e-3, 1e-2, 3e-2]),
-        "basechannels": tune.sample_from(lambda _: 2 ** np.random.randint(4, 8)),
+        "basechannels": tune.sample_from(lambda _: 2 ** np.random.randint(4, 7)),
     }
     scheduler = ASHAScheduler(
         max_t=args.epochs,
@@ -64,7 +64,18 @@ def DEANASearch(args):
         torch.backends.cudnn.benchmark = False
         torch.cuda.manual_seed(args.seed)
         torch.cuda.manual_seed_all(args.seed)
-    filename = str(args.path) +'/equiNAS/out/logsdea_'+datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")+'.pkl'
+    trial = "/logsdea_"
+    if args.baseline:
+        if args.equalize:
+            trial+="blC1_"
+        else:
+            if args.c4:
+                trial+="blC4_"
+            elif args.d16:
+                trial+="blD16_"
+            else:
+                trial+="blD4_"
+    filename = str(args.path) +'/equiNAS/out'+args.folder+trial+datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")+'.pkl'
     print(filename)
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     print(args.task)
@@ -72,10 +83,10 @@ def DEANASearch(args):
         train_loader, validation_loader, test_loader = utilities.get_mnist_dataloaders(path_to_dir=args.path, validation_split=0.5, batch_size=args.batch_size)
         args.indim = 1
         args.outdim = 10
-        args.pools = 4
         if args.kernel < 0:
             args.kernel = 5
         args.stages = 2
+        args.pools = args.stages*2
         if args.hidden < 0:
             args.hidden = 64
         if args.basechannels < 0:
@@ -84,10 +95,10 @@ def DEANASearch(args):
         train_loader, validation_loader, test_loader = utilities.get_isic_dataloaders(path_to_dir=args.path, validation_split=0.5, batch_size=args.batch_size)
         args.indim = 3
         args.outdim = 9
-        args.pools = 8
         if args.kernel < 0:
             args.kernel = 7
         args.stages = 4
+        args.pools = args.stages*2
         if args.hidden < 0:
             args.hidden = 256
         if args.basechannels < 0:
@@ -96,10 +107,10 @@ def DEANASearch(args):
         train_loader, validation_loader, test_loader = utilities.get_galaxy10_dataloaders(path_to_dir=args.path, validation_split=0.5, batch_size=args.batch_size)
         args.indim = 3
         args.outdim = 10
-        args.pools = 8
         if args.kernel < 0:
             args.kernel = 7
         args.stages = 4
+        args.pools = args.stages*4
         if args.hidden < 0:
             args.hidden = 128
         if args.basechannels < 0:
@@ -216,6 +227,7 @@ if __name__ == "__main__":
     parser.add_argument('--c4', action='store_true', default=False, help='use c4 equivariance instead of default d4') 
     parser.add_argument('--tune', action='store_true', default=False, help='tune hyperparameters') 
     parser.add_argument('--test', action='store_true', default=False, help='evaluate on test set') 
+    parser.add_argument('--folder', "-f", type=str, default="", help='folder to stpre results')
     args = parser.parse_args()
     print(args)
     if args.tune:
