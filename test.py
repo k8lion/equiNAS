@@ -406,7 +406,7 @@ class Test(unittest.TestCase):
         torch.manual_seed(0)
         torch.set_printoptions(sci_mode=False)
         if upper is None:
-            upper = (1,1)
+            upper = (1,2)
         if lower is None:
             lower = (0,1)
         model = models.DEANASNet(superspace=(1,2), stages = 2, basechannels=1, discrete=True)
