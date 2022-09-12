@@ -50,7 +50,7 @@ class Galaxy10Dataset(Dataset):
         f = h5py.File(file, 'r')
         labels, images = f['labels'], f['images']
         print(type(images))
-        print(np.mean(images), np.std(images))
+        print(np.mean(images, axis = (0,1,2)), np.std(images, axis = (0,1,2)))
 
         self.x = images
         self.y = torch.from_numpy(labels[:]).long()
@@ -98,6 +98,17 @@ class ISICDataset(Dataset):
             
     def __len__(self):
         return len(self.data_df)
+    
+    def get_stats(self):
+        mean = np.zeros(3)
+        std = np.zeros(3)
+        for i in range(len(self.data_df)):
+            x, _ = self.__getitem__(i)
+            mean += x.numpy().mean(axis=(1, 2))
+            std += x.numpy().std(axis=(1, 2))
+        mean /= len(self.data_df)
+        std /= len(self.data_df)
+        return mean, std
     
     def center_crop(self, pil_img):
         img_width, img_height = pil_img.size
@@ -157,11 +168,12 @@ def get_galaxy10_dataloaders(path_to_dir = "~", validation_split=0.2, batch_size
             print("No data found")
             return None, None, None
     totensor = ToTensor()
-    test_transform = Compose([
+    transform = Compose([
         totensor,
+        Normalize([42.70899344, 41.46352323, 40.52334547], [32.81805034, 30.10008284, 28.462431]),
     ])
-    galaxy10_train = Galaxy10Dataset(mode='train', transform=test_transform, path_to_dir=path_to_dir)
-
+    galaxy10_train = Galaxy10Dataset(mode='train', transform=transform, path_to_dir=path_to_dir)
+    print(galaxy10_train.get_stats())
     shuffle_dataset = True
     random_seed = 42
     dataset_size = galaxy10_train.num_samples
@@ -180,7 +192,7 @@ def get_galaxy10_dataloaders(path_to_dir = "~", validation_split=0.2, batch_size
     validation_loader = DataLoader(galaxy10_train, batch_size=batch_size,
                                                     sampler=valid_sampler)
 
-    galaxy10_test = Galaxy10Dataset(mode='test', transform=test_transform, path_to_dir=path_to_dir)
+    galaxy10_test = Galaxy10Dataset(mode='test', transform=transform, path_to_dir=path_to_dir)
     test_loader = DataLoader(galaxy10_test, batch_size=batch_size)
 
     return train_loader, validation_loader, test_loader
