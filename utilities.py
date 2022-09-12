@@ -173,7 +173,6 @@ def get_galaxy10_dataloaders(path_to_dir = "~", validation_split=0.2, batch_size
         Normalize([42.70899344, 41.46352323, 40.52334547], [32.81805034, 30.10008284, 28.462431]),
     ])
     galaxy10_train = Galaxy10Dataset(mode='train', transform=transform, path_to_dir=path_to_dir)
-    print(galaxy10_train.get_stats())
     shuffle_dataset = True
     random_seed = 42
     dataset_size = galaxy10_train.num_samples
@@ -212,6 +211,7 @@ def get_isic_dataloaders(path_to_dir = "..", validation_split=0.2, batch_size=8)
     #classes = ["MEL", "NV", "BCC", "AK", "BKL", "DF", "VASC", "SCC"]
 
     isic_train = ISICDataset(train_gt, path_to_dir, input_size=256)
+    print(isic_train.get_stats())
 
     shuffle_dataset = True
     random_seed = 42
