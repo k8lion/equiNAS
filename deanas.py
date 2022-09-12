@@ -57,6 +57,7 @@ def DEANASearch_train(config, args):
 
 def DEANASearch(args):
     import torch
+    trial = "/logsdea_"
     if args.seed != -1:
         torch.manual_seed(args.seed)
         np.random.seed(args.seed)
@@ -64,7 +65,7 @@ def DEANASearch(args):
         torch.backends.cudnn.benchmark = False
         torch.cuda.manual_seed(args.seed)
         torch.cuda.manual_seed_all(args.seed)
-    trial = "/logsdea_"
+        trial += str(args.seed) + "_"
     if args.baseline:
         if args.equalize:
             trial+="blC1_"
