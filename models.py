@@ -1113,7 +1113,7 @@ class DEANASNet(torch.nn.Module):
         count = 0
         for i in range(len(self.blocks)):
             for key in self.blocks[i]._modules.keys():
-                if isinstance(self.blocks[i]._modules[key], MixedGroupConv2dV2) or isinstance(self.blocks[i]._modules[key], LiftingGroupConv2dV2):
+                if isinstance(self.blocks[i]._modules[key], MixedGroupConv2dV2) or isinstance(self.blocks[i]._modules[key], MixedLiftingConv2dV2):
                     count += self.blocks[i]._modules[key].countparams()
                 else:
                     count += sum(p.numel() for p in self.blocks[i]._modules[key].parameters())

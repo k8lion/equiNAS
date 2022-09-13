@@ -52,6 +52,7 @@ class HillClimber(object):
             model = models.DEANASNet(superspace=self.g, discrete=True, alphalr=lr, weightlr=lr)
         else:
             model = models.SkipEquiCNN(gs=[self.g for _ in range(8)], ordered = self.ordered, lr = lr, superspace = self.g)
+        self.lr = lr
         self.skip = True
         self.options = [model]
         self.allkids = popsize < 0
@@ -183,12 +184,15 @@ class HillClimber(object):
                     self.options.remove(child)
             print(len(self.options))
         else:
-            if pareto:
-                costs = np.zeros(len(self.options),2)
+            if self.pareto:
+                costs = np.zeros((len(self.options),2))
                 for i, model in enumerate(self.options):
                     costs[i,0] = model.score
                     costs[i,1] = model.countparams()
-                self.options = self.options[is_pareto_efficient(costs)]
+                self.options = [self.options[ind] for ind in np.where(is_pareto_efficient(costs))[0]]
+                print("Pareto front:", len(self.options))
+                for child in sorted(self.options, key=attrgetter('score'), reverse=True):
+                    print(child.gs, child.countparams(), child.score)
             else:
                 self.options = sorted(self.options, key=attrgetter('score'), reverse=True)[:min(len(self.options),self.popsize)]
 
@@ -204,6 +208,13 @@ class HillClimber(object):
             self.train(epochs = epochs, start = iter+1)
             self.select()
             self.save()
+
+    def baselines(self, iterations = -1, epochs = 5.0):
+        self.options += models.DEANASNet(superspace=(0,2), discrete=True, alphalr=self.lr, weightlr=self.lr)
+        self.options += models.DEANASNet(superspace=(0,0), discrete=True, alphalr=self.lr, weightlr=self.lr)
+        self.train(epochs = epochs, start = 0)
+        self.select()
+        self.save()
 
             
 if __name__ == "__main__":
