@@ -9,8 +9,21 @@ import argparse
 import copy
 import pathlib
 
+def is_pareto_efficient(costs):
+    """
+    Find the pareto-efficient points
+    :param costs: An (n_points, n_costs) array
+    :return: A (n_points, ) boolean array, indicating whether each point is Pareto efficient
+    """
+    is_efficient = np.ones(costs.shape[0], dtype = bool)
+    for i, c in enumerate(costs):
+        if is_efficient[i]:
+            is_efficient[is_efficient] = np.any(costs[is_efficient]<c, axis=1) 
+            is_efficient[i] = True 
+    return is_efficient
+
 class HillClimber(object):
-    def __init__(self, reset = True, reg = False, skip = False, baselines = False, lr = 0.1, path = "..", d16 = False, c4 = False, popsize = 10, seed = -1, dea = False):
+    def __init__(self, reset = True, reg = False, skip = False, baselines = False, pareto = False, lr = 0.1, path = "..", d16 = False, c4 = False, popsize = 10, seed = -1, dea = False):
         self.seed = seed
         if seed != -1:
             torch.manual_seed(seed)
@@ -43,6 +56,7 @@ class HillClimber(object):
         self.options = [model]
         self.allkids = popsize < 0
         self.popsize = popsize
+        self.pareto = pareto
         self.history = {}
 
     def train(self, epochs = 1, start = 0):
@@ -155,7 +169,7 @@ class HillClimber(object):
 
     def select(self):
         for child in sorted(self.options, key=attrgetter('score'), reverse=True):
-            print(child.gs, sum(p.numel() for p in child.parameters() if p.requires_grad), child.score)
+            print(child.gs, child.countparams(), child.score)
         #self.model = max(self.options, key=attrgetter("score"))
         if self.allkids:
             bests = {}
@@ -169,7 +183,14 @@ class HillClimber(object):
                     self.options.remove(child)
             print(len(self.options))
         else:
-            self.options =  sorted(self.options, key=attrgetter('score'), reverse=True)[:min(len(self.options),self.popsize)]
+            if pareto:
+                costs = np.zeros(len(self.options),2)
+                for i, model in enumerate(self.options):
+                    costs[i,0] = model.score
+                    costs[i,1] = model.countparams()
+                self.options = self.options[is_pareto_efficient(costs)]
+            else:
+                self.options = sorted(self.options, key=attrgetter('score'), reverse=True)[:min(len(self.options),self.popsize)]
 
     def save(self):
         with open(self.filename, 'wb') as f:
@@ -198,9 +219,10 @@ if __name__ == "__main__":
     parser.add_argument('--c4', action='store_true', default=False, help='use c4 equivariance instead of default d4')
     parser.add_argument('--seed', type=int, default=-1, help='random seed (-1 for unseeded)')
     parser.add_argument('--dea', action='store_true', default=False, help='use DEANAS backbone')
+    parser.add_argument('--pareto', action='store_true', default=False, help='use pareto front')
     args = parser.parse_args()
     print(args)
-    hillclimb = HillClimber(baselines=args.baselines, lr=args.lr, path=args.data, popsize=args.popsize, d16=args.d16, c4=args.c4, dea=args.dea, seed=args.seed)
+    hillclimb = HillClimber(baselines=args.baselines, lr=args.lr, path=args.data, popsize=args.popsize, d16=args.d16, c4=args.c4, dea=args.dea, seed=args.seed, pareto=args.pareto)
     hillclimb.saveargs(vars(args))
     if args.baselines:
         hillclimb.baselines(iterations=args.iterations, epochs=args.epochs)

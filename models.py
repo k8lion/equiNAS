@@ -746,6 +746,9 @@ class MixedLiftingConv2dV2(torch.nn.Module):
                 out += alphas[layer]*y
 
         return out
+    
+    def countparams(self):
+        return sum([torch.numel(w) for a, w in zip(torch.softmax(self.alphas, dim=0),self.weights) if a > 0])
 
 
 class MixedGroupConv2dV2(torch.nn.Module):
@@ -856,7 +859,9 @@ class MixedGroupConv2dV2(torch.nn.Module):
                 out += alphas[layer]*y
   
         return out
-        
+    
+    def countparams(self):
+        return sum([torch.numel(w) for a, w in zip(torch.softmax(self.alphas, dim=0),self.weights) if a > 0])
 
 class DEANASNet(torch.nn.Module):
 
@@ -1103,6 +1108,16 @@ class DEANASNet(torch.nn.Module):
             if not torch.allclose(offspring.blocks[i]._modules["0"](torch.Tensor([])), self.blocks[i]._modules["0"](torch.Tensor([]))):
                 print("not close")
         return offspring
+    
+    def countparams(self):
+        count = 0
+        for i in range(len(self.blocks)):
+            for key in self.blocks[i]._modules.keys():
+                if isinstance(self.blocks[i]._modules[key], MixedGroupConv2dV2) or isinstance(self.blocks[i]._modules[key], LiftingGroupConv2dV2):
+                    count += self.blocks[i]._modules[key].countparams()
+                else:
+                    count += sum(p.numel() for p in self.blocks[i]._modules[key].parameters())
+        return count
     
     def generate(self):
         candidates = [self.offspring(-1, self.gs[0])]
