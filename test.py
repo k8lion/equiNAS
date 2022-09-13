@@ -228,7 +228,7 @@ class Test(unittest.TestCase):
         S = 3
         for group in [(1,0), (0,0), (1,1), (0,1), (1,2), (0,2), (1,3), (0,3), (1,4), (0,4)]:
         #for group in [(1,2)]:
-            layer = models.MixedGroupConv2dV2(group, in_channels=in_channels, out_channels=out_channels, kernel_size = kernel_size, padding=int(kernel_size//2), bias=True)#, test=True)
+            layer = models.MixedGroupConv2d(group, in_channels=in_channels, out_channels=out_channels, kernel_size = kernel_size, padding=int(kernel_size//2), bias=True)#, test=True)
             layer.eval()
             
             x = torch.rand(batchsize, in_channels*models.groupsize(group), S, S)
@@ -480,7 +480,7 @@ class Test(unittest.TestCase):
         torch.set_printoptions(sci_mode=False)
         mf = 1
         mr = 2
-        model = models.DEANASNet(superspace=(mf,mr), stages = 2, basechannels=2, discrete=True)
+        model = models.DEANASNet(superspace=(mf,mr), stages = 2, basechannels=8, discrete=True)
         while max(mf, mr) > 0:
             for f in range(mf+1):
                 for r in range(mr+1):
@@ -494,7 +494,7 @@ class Test(unittest.TestCase):
             model = model.offspring(len(model.channels)-1, (mf,mr))
         mf = 1
         mr = 2
-        model = models.DEANASNet(superspace=(mf,mr), stages = 2, basechannels=2, discrete=True)
+        model = models.DEANASNet(superspace=(mf,mr), stages = 2, basechannels=8, discrete=True)
         while max(mf, mr) > 0:
             for f in range(mf+1):
                 for r in range(mr+1):
@@ -510,7 +510,7 @@ class Test(unittest.TestCase):
             model = model.offspring(len(model.channels)-1, (mf,mr))
         mf = 1
         mr = 2
-        model = models.DEANASNet(superspace=(mf,mr), stages = 2, basechannels=2, discrete=True)
+        model = models.DEANASNet(superspace=(mf,mr), stages = 2, basechannels=8, discrete=True)
         while max(mf, mr) > 0:
             for f in range(mf+1):
                 for r in range(mr+1):

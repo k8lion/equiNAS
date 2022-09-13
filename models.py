@@ -645,9 +645,9 @@ class SkipEquiCNN(torch.nn.Module):
 def order(subgroupsize: int):
     return [int('{:0{width}b}'.format(n, width=int(np.log2(subgroupsize)))[::-1], 2) for n in range(subgroupsize)]
 
-class MixedLiftingConv2dV2(torch.nn.Module):
-    def __init__(self, group: tuple, in_channels: int, out_channels: int, kernel_size: int, padding: int = 0, bias: bool = True, baseline: bool = False, prior: bool = True, discrete: bool = False, norm: bool = True):
-        super(MixedLiftingConv2dV2, self).__init__()
+class MixedLiftingConv2d(torch.nn.Module):
+    def __init__(self, group: tuple, in_channels: int, out_channels: int, kernel_size: int, padding: int = 0, bias: bool = True, baseline: bool = False, prior: bool = True, discrete: bool = False, norm: bool = True, skip: bool = False):
+        super(MixedLiftingConv2d, self).__init__()
         self.group = group
         self.kernel_size = kernel_size
         self.stride = 1
@@ -667,6 +667,10 @@ class MixedLiftingConv2dV2(torch.nn.Module):
             else:
                 self.alphas.data[0] = 0
             self.alphas.data[-1] = 0
+        if skip:
+            self.alphas.data[-1] = 0
+        else:
+            self.alphas.data[-1] = -np.inf
         self.norm = norm
         self.norms = torch.nn.Parameter(torch.zeros(np.prod([g+1 for g in group])+1), requires_grad=False)
         self.weights = torch.nn.ParameterList()
@@ -746,11 +750,14 @@ class MixedLiftingConv2dV2(torch.nn.Module):
                 out += alphas[layer]*y
 
         return out
+    
+    def countparams(self):
+        return sum([torch.numel(w) for a, w in zip(torch.softmax(self.alphas, dim=0),self.weights) if a > 0])
 
 
-class MixedGroupConv2dV2(torch.nn.Module):
-    def __init__(self, group: tuple, in_channels: int, out_channels: int, kernel_size: int, padding: int = 0, bias: bool = True, baseline: bool = False, prior: bool = True, discrete: bool = False, norm: bool = True):
-        super(MixedGroupConv2dV2, self).__init__()
+class MixedGroupConv2d(torch.nn.Module):
+    def __init__(self, group: tuple, in_channels: int, out_channels: int, kernel_size: int, padding: int = 0, bias: bool = True, baseline: bool = False, prior: bool = True, discrete: bool = False, norm: bool = True, skip: bool = True):
+        super(MixedGroupConv2d, self).__init__()
         self.group = group
         self.kernel_size = kernel_size
         self.stride = 1
@@ -769,7 +776,10 @@ class MixedGroupConv2dV2(torch.nn.Module):
                 self.alphas.data[-2] = 0
             else:
                 self.alphas.data[0] = 0
+        if skip:
             self.alphas.data[-1] = 0
+        else:
+            self.alphas.data[-1] = -np.inf
         self.norm = norm
         self.norms = torch.nn.Parameter(torch.zeros(np.prod([g+1 for g in group])+1), requires_grad=False)
         self.weights = torch.nn.ParameterList()
@@ -856,11 +866,13 @@ class MixedGroupConv2dV2(torch.nn.Module):
                 out += alphas[layer]*y
   
         return out
-        
+    
+    def countparams(self):
+        return sum([torch.numel(w) for a, w in zip(torch.softmax(self.alphas, dim=0),self.weights) if a > 0])
 
 class DEANASNet(torch.nn.Module):
 
-    def __init__(self, alphalr = 1e-3, weightlr = 1e-3, baseline: bool = False, superspace: tuple = (1,2), basechannels: int = 16, stages: int = 2, stagedepth: int = 4, pools: int = 4, kernel: int = 5, indim: int = 1, outdim: int = 10, hidden: int = 64, prior: bool = True, discrete: bool = False, norm: bool = True):
+    def __init__(self, alphalr = 1e-3, weightlr = 1e-3, baseline: bool = False, superspace: tuple = (1,2), basechannels: int = 16, stages: int = 2, stagedepth: int = 4, pools: int = 4, kernel: int = 5, indim: int = 1, outdim: int = 10, hidden: int = 64, prior: bool = True, discrete: bool = False, norm: bool = True, skip: bool = True):
         
         super(DEANASNet, self).__init__()
         self.alphalr = alphalr
@@ -875,12 +887,13 @@ class DEANASNet(torch.nn.Module):
         self.hidden = hidden
         self.outdim = outdim
         self.prior = prior
+        self.skip = skip
         self.norm = norm
         self.discrete = discrete
         self.channels = [basechannels*2**i for i in range(stages) for _ in range(stagedepth)]
         self.kernels = [kernel for _ in range(len(self.channels))]
         self.blocks = torch.nn.ModuleList([])
-        mlc = MixedLiftingConv2dV2(baseline=baseline, in_channels=indim, out_channels=self.channels[0], group=self.superspace, kernel_size=self.kernels[0], padding=self.kernels[0]//2, prior=prior, discrete=discrete, norm=norm)
+        mlc = MixedLiftingConv2d(baseline=baseline, in_channels=indim, out_channels=self.channels[0], group=self.superspace, kernel_size=self.kernels[0], padding=self.kernels[0]//2, prior=prior, discrete=discrete, norm=norm, skip=skip)
         self.groups = mlc.groups
         self.blocks.append(torch.nn.Sequential(
             mlc,
@@ -889,7 +902,7 @@ class DEANASNet(torch.nn.Module):
             ))
         for i in range(1,len(self.channels)):
             self.blocks.append(torch.nn.Sequential(
-                MixedGroupConv2dV2(baseline=baseline, in_channels=self.channels[i-1], out_channels=self.channels[i], group=self.superspace, kernel_size=self.kernels[i], padding=self.kernels[i]//2, prior=prior, discrete=discrete, norm=norm),
+                MixedGroupConv2d(baseline=baseline, in_channels=self.channels[i-1], out_channels=self.channels[i], group=self.superspace, kernel_size=self.kernels[i], padding=self.kernels[i]//2, prior=prior, discrete=discrete, norm=norm, skip=skip),
                 torch.nn.BatchNorm2d(self.channels[i]*groupsize(self.superspace)),
                 torch.nn.ReLU(inplace=True)
                 ))
@@ -1103,6 +1116,16 @@ class DEANASNet(torch.nn.Module):
             if not torch.allclose(offspring.blocks[i]._modules["0"](torch.Tensor([])), self.blocks[i]._modules["0"](torch.Tensor([]))):
                 print("not close")
         return offspring
+    
+    def countparams(self):
+        count = 0
+        for i in range(len(self.blocks)):
+            for key in self.blocks[i]._modules.keys():
+                if isinstance(self.blocks[i]._modules[key], MixedGroupConv2d) or isinstance(self.blocks[i]._modules[key], MixedLiftingConv2d):
+                    count += self.blocks[i]._modules[key].countparams()
+                else:
+                    count += sum(p.numel() for p in self.blocks[i]._modules[key].parameters())
+        return count
     
     def generate(self):
         candidates = [self.offspring(-1, self.gs[0])]

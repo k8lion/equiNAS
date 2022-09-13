@@ -67,15 +67,26 @@ def DEANASearch(args):
         torch.cuda.manual_seed_all(args.seed)
         trial += str(args.seed) + "_"
     if args.baseline:
+        trial += "bl_"
         if args.equalize:
-            trial+="blC1_"
+            trial+="C1"
         else:
             if args.c4:
-                trial+="blC4_"
+                trial+="blC4"
             elif args.d16:
-                trial+="blD16_"
+                trial+="blD16"
             else:
-                trial+="blD4_"
+                trial+="blD4"
+        if args.noskip:
+            trial+="ns"
+        trial+="_"
+    else:
+        trial+="dea"
+        if args.equalize:
+            trial+="eq"
+        if args.noskip:
+            trial+="ns"
+        trial+="_"
     filename = str(args.path) +'/equiNAS/out'+args.folder+trial+datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")+'.pkl'
     print(filename)
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
