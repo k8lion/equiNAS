@@ -23,7 +23,7 @@ def is_pareto_efficient(costs):
     return is_efficient
 
 class HillClimber(object):
-    def __init__(self, reset = True, reg = False, skip = False, baselines = False, pareto = False, lr = 0.1, path = "..", d16 = False, c4 = False, popsize = 10, seed = -1, dea = False):
+    def __init__(self, reset = True, reg = False, skip = False, baselines = False, pareto = False, lr = 0.1, path = "..", d16 = False, c4 = False, popsize = 10, seed = -1, dea = False, noskip = False):
         self.seed = seed
         if seed != -1:
             torch.manual_seed(seed)
@@ -49,11 +49,11 @@ class HillClimber(object):
         else:
             self.g = (1,2)
         if dea:
-            model = models.DEANASNet(superspace=self.g, discrete=True, alphalr=lr, weightlr=lr)
+            model = models.DEANASNet(superspace=self.g, discrete=True, alphalr=lr, weightlr=lr, skip=not noskip)
         else:
             model = models.SkipEquiCNN(gs=[self.g for _ in range(8)], ordered = self.ordered, lr = lr, superspace = self.g)
         self.lr = lr
-        self.skip = True
+        self.skip = not args.noskip
         self.options = [model]
         self.allkids = popsize < 0
         self.popsize = popsize
@@ -232,10 +232,11 @@ if __name__ == "__main__":
     parser.add_argument('--c4', action='store_true', default=False, help='use c4 equivariance instead of default d4')
     parser.add_argument('--seed', type=int, default=-1, help='random seed (-1 for unseeded)')
     parser.add_argument('--dea', action='store_true', default=False, help='use DEANAS backbone')
+    parser.add_argument('--noskip', action='store_true', default=False, help='turn off skip connections')
     parser.add_argument('--pareto', action='store_true', default=False, help='use pareto front')
     args = parser.parse_args()
     print(args)
-    hillclimb = HillClimber(baselines=args.baselines, lr=args.lr, path=args.data, popsize=args.popsize, d16=args.d16, c4=args.c4, dea=args.dea, seed=args.seed, pareto=args.pareto)
+    hillclimb = HillClimber(baselines=args.baselines, lr=args.lr, path=args.data, popsize=args.popsize, d16=args.d16, c4=args.c4, dea=args.dea, seed=args.seed, pareto=args.pareto, noskip=args.noskip)
     hillclimb.saveargs(vars(args))
     if args.baselines:
         hillclimb.baselines(iterations=args.iterations, epochs=args.epochs)
