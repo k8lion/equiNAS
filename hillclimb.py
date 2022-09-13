@@ -11,7 +11,9 @@ import pathlib
 
 
 class HillClimber(object):
-    def __init__(self, reset = True, reg = False, skip = False, baselines = False, pareto = False, lr = 0.1, path = "..", d16 = False, c4 = False, popsize = 10, seed = -1, dea = False, noskip = False, test = False, epochs = 5.0, iterations = -1, filename = "hillclimber.pkl", device = "cpu", folder = ""):
+    def __init__(self, reset = True, reg = False, skip = False, baselines = False, pareto = False, lr = 0.1, 
+                 path = "..", d16 = False, c4 = False, popsize = 10, seed = -1, dea = False, noskip = False,
+                 test = False, folder = "", task = "mnist"):
         self.seed = seed
         if seed != -1:
             torch.manual_seed(seed)
@@ -24,11 +26,16 @@ class HillClimber(object):
             exp = "bs"
         else:
             exp = "hc"
-        self.filename = str(path) +'/equiNAS/out'+args.folder+'/logs'+exp+'_'+datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")+'.pkl'
+        self.filename = str(path) +'/equiNAS/out'+folder+'/logs'+exp+'_'+datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")+'.pkl'
         print(self.filename)
         self.ordered = True
         self.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
-        self.train_loader, self.validation_loader, self.test_loader = utilities.get_mnist_dataloaders(path_to_dir=path)
+        if args.task == "mnist":
+            self.train_loader, self.validation_loader, self.test_loader = utilities.get_mnist_dataloaders(path_to_dir=path)
+        elif args.task == "isic":
+            self.train_loader, self.validation_loader, self.test_loader = utilities.get_isic_dataloaders(path_to_dir=path)
+        elif args.task == "galaxy10":
+            self.train_loader, self.validation_loader, self.test_loader = utilities.get_galaxy10_dataloaders(path_to_dir=path)
         self.reg = reg
         if d16:
             self.g = (1,4)
@@ -252,9 +259,12 @@ if __name__ == "__main__":
     parser.add_argument('--pareto', action='store_true', default=False, help='use pareto front')
     parser.add_argument('--test', action='store_true', default=False, help='evaluate on test set') 
     parser.add_argument('--folder', "-f", type=str, default="", help='folder to store results')
+    parser.add_argument('--task', "-t", type=str, default="mnist", help='task')
     args = parser.parse_args()
     print(args)
-    hillclimb = HillClimber(baselines=args.baselines, lr=args.lr, path=args.data, popsize=args.popsize, d16=args.d16, c4=args.c4, dea=args.dea, seed=args.seed, pareto=args.pareto, noskip=args.noskip, test=args.test, folder=args.folder)
+    hillclimb = HillClimber(baselines=args.baselines, lr=args.lr, path=args.data, popsize=args.popsize, 
+                            d16=args.d16, c4=args.c4, dea=args.dea, seed=args.seed, pareto=args.pareto, 
+                            noskip=args.noskip, test=args.test, folder=args.folder, task=args.task)
     hillclimb.saveargs(vars(args))
     if args.baselines:
         hillclimb.baselines(iterations=args.iterations, epochs=args.epochs)
