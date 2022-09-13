@@ -71,7 +71,7 @@ class ISICDataset(Dataset):
     """ISIC dataset."""
     # classes = {'NV': 0, 'MEL': 1, 'BKL': 2, 'DF': 3, 'SCC': 4, 'BCC': 5, 'VASC': 6, 'AK': 7}
     
-    def __init__(self, data_df, path_to_dir, input_size=256, transform=transforms.ToTensor()):
+    def __init__(self, data_df, path_to_dir, input_size=256, transform=ToTensor()):
 
         self.input_size = input_size
         self.data_df = data_df
