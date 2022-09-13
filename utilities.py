@@ -71,7 +71,7 @@ class ISICDataset(Dataset):
     """ISIC dataset."""
     # classes = {'NV': 0, 'MEL': 1, 'BKL': 2, 'DF': 3, 'SCC': 4, 'BCC': 5, 'VASC': 6, 'AK': 7}
     
-    def __init__(self, data_df, path_to_dir, input_size=256):
+    def __init__(self, data_df, path_to_dir, input_size=256, transform=transforms.ToTensor()):
 
         self.input_size = input_size
         self.data_df = data_df
@@ -84,7 +84,7 @@ class ISICDataset(Dataset):
         #                                  transforms.ToTensor()])
         # elif split == "val":
         self.trans = Compose([Resize(self.input_size),
-                              ToTensor()])
+                              transform])
         
     
     def __getitem__(self, idx):
@@ -210,7 +210,12 @@ def get_isic_dataloaders(path_to_dir = "..", validation_split=0.2, batch_size=8)
     train_gt["target"] = train_gt.apply(lambda x: np.argmax(x[["MEL", "NV", "BCC", "AK", "BKL", "DF", "VASC", "SCC"]]), axis=1)
     #classes = ["MEL", "NV", "BCC", "AK", "BKL", "DF", "VASC", "SCC"]
 
-    isic_train = ISICDataset(train_gt, path_to_dir, input_size=256)
+    transform = Compose([
+        totensor,
+        Normalize([0.68411015, 0.53133843, 0.5259248], [0.12060131, 0.14048626, 0.15317468]),
+    ])
+
+    isic_train = ISICDataset(train_gt, path_to_dir, input_size=256, transform=transform)
     print(isic_train.get_stats())
 
     shuffle_dataset = True
