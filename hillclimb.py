@@ -210,8 +210,8 @@ class HillClimber(object):
             self.save()
 
     def baselines(self, iterations = -1, epochs = 5.0):
-        self.options += models.DEANASNet(superspace=(0,2), discrete=True, alphalr=self.lr, weightlr=self.lr)
-        self.options += models.DEANASNet(superspace=(0,0), discrete=True, alphalr=self.lr, weightlr=self.lr)
+        self.options.append(models.DEANASNet(superspace=(0,2), discrete=True, alphalr=self.lr, weightlr=self.lr))
+        self.options.append(models.DEANASNet(superspace=(0,0), discrete=True, alphalr=self.lr, weightlr=self.lr))
         self.train(epochs = epochs, start = 0)
         for iteration in range(iterations):
             print("Iteration ", iteration)
