@@ -76,6 +76,10 @@ def DEANASearch(args):
                 trial+="blD16_"
             else:
                 trial+="blD4_"
+    elif args.equalize:
+        trial+="deaeq_"
+    else:
+        trial+="dea_"
     filename = str(args.path) +'/equiNAS/out'+args.folder+trial+datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")+'.pkl'
     print(filename)
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
