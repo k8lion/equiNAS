@@ -8,8 +8,10 @@ from PIL import Image
 import torch
 from torch.utils.data import Dataset, DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
+import torchvision.datasets as datasets
 from torchvision.transforms import Normalize, Resize, ToTensor, Compose
 from torchvision.transforms.functional import InterpolationMode
+    
 
 
 class MnistRotDataset(Dataset):
@@ -122,37 +124,69 @@ class ISICDataset(Dataset):
                              (img_height + crop_size) // 2))
 
 
-def get_mnist_dataloaders(path_to_dir = "~", validation_split=0.2, batch_size=64):
+def get_mnist_dataloaders(path_to_dir = "~", validation_split=0.2, batch_size=64, train_rot=True, val_rot=True, test_rot=True):
     if batch_size < 0:
         batch_size = 64
     totensor = ToTensor()
-    transform = Compose([
+    transform_rot = Compose([
         totensor,
         Normalize(0.12996, 0.29698),
     ])
+    transform = Compose([
+        totensor,
+        Normalize(0.1307, 0.3081),
+    ])
 
-    mnist_train = MnistRotDataset(mode='train', transform=transform, path_to_dir=path_to_dir)
+    if train_rot == val_rot:
+        if train_rot:
+            mnist_train = MnistRotDataset(mode='train', transform=transform_rot, path_to_dir=path_to_dir)
+        else:
+            mnist_train = datasets.MNIST(root=str(path_to_dir)+"/data", train=True, download=True, transform=transform)
 
-    shuffle_dataset = True
-    random_seed = 42
-    dataset_size = mnist_train.num_samples
-    indices = list(range(dataset_size))
-    split = int(np.floor(validation_split * dataset_size))
-    if shuffle_dataset :
-        np.random.seed(random_seed)
-        np.random.shuffle(indices)
-    train_indices, val_indices = indices[split:], indices[:split]
+        shuffle_dataset = True
+        random_seed = 42
+        dataset_size = len(mnist_train)
+        indices = list(range(dataset_size))
+        split = int(np.floor(validation_split * dataset_size))
+        if shuffle_dataset :
+            np.random.seed(random_seed)
+            np.random.shuffle(indices)
+        train_indices, val_indices = indices[split:], indices[:split]
 
-    train_sampler = SubsetRandomSampler(train_indices)
-    valid_sampler = SubsetRandomSampler(val_indices)
+        train_sampler = SubsetRandomSampler(train_indices)
+        valid_sampler = SubsetRandomSampler(val_indices)
 
-    with FileLock(os.path.expanduser("~/.data.lock")):
-        train_loader = DataLoader(mnist_train, batch_size=batch_size, 
-                                                sampler=train_sampler)
-        validation_loader = DataLoader(mnist_train, batch_size=batch_size,
-                                                        sampler=valid_sampler)
+        with FileLock(os.path.expanduser("~/.data.lock")):
+            train_loader = DataLoader(mnist_train, batch_size=batch_size, 
+                                                    sampler=train_sampler)
+            validation_loader = DataLoader(mnist_train, batch_size=batch_size,
+                                                            sampler=valid_sampler)
+    else:
+        if train_rot:
+            mnist_train = MnistRotDataset(mode='train', transform=transform_rot, path_to_dir=path_to_dir)
+        else:
+            mnist_train = datasets.MNIST(root=str(path_to_dir)+"/data", train=True, download=True, transform=transform)
+        train_loader = DataLoader(mnist_train, batch_size=batch_size, shuffle=True)
+        if val_rot:
+            mnist_val = MnistRotDataset(mode='val', transform=transform_rot, path_to_dir=path_to_dir)
+        else:
+            mnist_val = datasets.MNIST(root=str(path_to_dir)+"/data", train=False, download=True, transform=transform)
+        shuffle_dataset = True
+        random_seed = 42
+        indices = list(range(len(mnist_val)))
+        split = int(np.floor((1/(1-validation_split)-1) * len(mnist_train)))
+        if shuffle_dataset :
+            np.random.seed(random_seed)
+            np.random.shuffle(indices)
+        val_indices = indices[:split]
 
-    mnist_test = MnistRotDataset(mode='test', transform=transform, path_to_dir=path_to_dir)
+        valid_sampler = SubsetRandomSampler(val_indices)
+        validation_loader = DataLoader(mnist_val, batch_size=batch_size, sampler=valid_sampler)
+
+    if test_rot:
+        mnist_test = MnistRotDataset(mode='test', transform=transform_rot, path_to_dir=path_to_dir)
+    else:
+        mnist_test = datasets.MNIST(root=str(path_to_dir)+"/data", train=False, download=True, transform=transform)
     test_loader = DataLoader(mnist_test, batch_size=batch_size)
 
     return train_loader, validation_loader, test_loader
