@@ -416,6 +416,8 @@ class Test(unittest.TestCase):
         for i in range(len(model.channels)-1):
             model = model.offspring(len(model.channels)-1-i, lower)
         child = model.offspring(0, lower, verbose=verbose)
+        print(model.gs)
+        print(child.gs)
         xmodel = torch.randn(16, 1, 29, 29)
         xchild = xmodel.clone()
         if not verbose:
