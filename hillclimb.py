@@ -23,7 +23,7 @@ def is_pareto_efficient(costs):
     return is_efficient
 
 class HillClimber(object):
-    def __init__(self, reset = True, reg = False, skip = False, baselines = False, pareto = False, lr = 0.1, path = "..", d16 = False, c4 = False, popsize = 10, seed = -1, dea = False, noskip = False):
+    def __init__(self, reset = True, reg = False, skip = False, baselines = False, pareto = False, lr = 0.1, path = "..", d16 = False, c4 = False, popsize = 10, seed = -1, dea = False, noskip = False, test = False, epochs = 5.0, iterations = -1, filename = "hillclimber.pkl", device = "cpu"):
         self.seed = seed
         if seed != -1:
             torch.manual_seed(seed)
@@ -58,6 +58,7 @@ class HillClimber(object):
         self.allkids = popsize < 0
         self.popsize = popsize
         self.pareto = pareto
+        self.test = test
         self.history = {}
 
     def train(self, epochs = 1, start = 0):
@@ -151,6 +152,23 @@ class HillClimber(object):
         model = model.cpu()
 
         return acc.item()
+    
+    def test(self):
+        for model in self.options:
+            model = model.to(self.device)
+            model.eval()
+            running_corrects = 0
+            running_count = 0
+            for inputs, labels in self.test_loader:
+                inputs = inputs.to(self.device)
+                labels = labels.to(self.device)
+                outputs = model(inputs)
+                _, preds = torch.max(outputs, 1)
+                running_corrects += torch.sum(preds == labels.data)
+                running_count += inputs.size(0)
+            acc = running_corrects.float() / running_count
+            model = model.cpu()
+            self.history[model.uuid]["test"] = acc.item()
 
     def saveargs(self, args):
         self.history["args"] = args
@@ -208,6 +226,10 @@ class HillClimber(object):
             self.train(epochs = epochs, start = iteration+1)
             self.select()
             self.save()
+        if self.test:
+            self.test()
+            self.save()
+
 
     def baselines(self, iterations = -1, epochs = 5.0):
         self.options.append(models.DEANASNet(superspace=(0,2), discrete=True, alphalr=self.lr, weightlr=self.lr))
@@ -216,6 +238,9 @@ class HillClimber(object):
         for iteration in range(iterations):
             print("Iteration ", iteration)
             self.train(epochs = epochs, start = iteration+1)
+            self.save()
+        if self.test:
+            self.test()
             self.save()
 
             
@@ -234,9 +259,10 @@ if __name__ == "__main__":
     parser.add_argument('--dea', action='store_true', default=False, help='use DEANAS backbone')
     parser.add_argument('--noskip', action='store_true', default=False, help='turn off skip connections')
     parser.add_argument('--pareto', action='store_true', default=False, help='use pareto front')
+    parser.add_argument('--test', action='store_true', default=False, help='evaluate on test set') 
     args = parser.parse_args()
     print(args)
-    hillclimb = HillClimber(baselines=args.baselines, lr=args.lr, path=args.data, popsize=args.popsize, d16=args.d16, c4=args.c4, dea=args.dea, seed=args.seed, pareto=args.pareto, noskip=args.noskip)
+    hillclimb = HillClimber(baselines=args.baselines, lr=args.lr, path=args.data, popsize=args.popsize, d16=args.d16, c4=args.c4, dea=args.dea, seed=args.seed, pareto=args.pareto, noskip=args.noskip, test=args.test)
     hillclimb.saveargs(vars(args))
     if args.baselines:
         hillclimb.baselines(iterations=args.iterations, epochs=args.epochs)
