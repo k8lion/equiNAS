@@ -202,10 +202,10 @@ class HillClimber(object):
 
     def hillclimb(self, iterations = -1, epochs = 5.0):
         self.train(epochs = epochs, start = 0)
-        for iter in range(iterations):
+        for iteration in range(iterations):
             self.generate()
-            print("Iteration ", iter)
-            self.train(epochs = epochs, start = iter+1)
+            print("Iteration ", iteration)
+            self.train(epochs = epochs, start = iteration+1)
             self.select()
             self.save()
 
@@ -213,8 +213,10 @@ class HillClimber(object):
         self.options += models.DEANASNet(superspace=(0,2), discrete=True, alphalr=self.lr, weightlr=self.lr)
         self.options += models.DEANASNet(superspace=(0,0), discrete=True, alphalr=self.lr, weightlr=self.lr)
         self.train(epochs = epochs, start = 0)
-        self.select()
-        self.save()
+        for iteration in range(iterations):
+            print("Iteration ", iteration)
+            self.train(epochs = epochs, start = iteration+1)
+            self.save()
 
             
 if __name__ == "__main__":
