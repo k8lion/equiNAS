@@ -754,6 +754,23 @@ class MixedLiftingConv2d(torch.nn.Module):
     def countparams(self):
         return sum([torch.numel(w) for a, w in zip(torch.softmax(self.alphas, dim=0),self.weights) if a > 0])
 
+    def regularization_loss(self, L2=True, reg_conv=0.0, reg_group=0.0, reg_alphas=0.0)
+        weightsum = 0.0
+        alphas = torch.softmax(self.alphas, dim=0)
+        coeffs = torch.ones_like(alphas)*reg_group
+        coeffs[0] = reg_conv
+        for i in range(len(alphas)-1):
+            if alphas[i] > 0:
+                if L2:
+                    weightsum += coeffs[i]*self.weights.pow(2).sum()
+                else:
+                    weightsum += coeffs[i]*self.weights.abs().sum()
+        if L2:
+            weightsum += reg_alphas*self.alphas.pow(2).sum()
+        else:
+            weightsum += reg_alphas*self.alphas.abs().sum()
+        return weightsum
+
 
 class MixedGroupConv2d(torch.nn.Module):
     def __init__(self, group: tuple, in_channels: int, out_channels: int, kernel_size: int, padding: int = 0, bias: bool = True, baseline: bool = False, prior: bool = True, discrete: bool = False, norm: bool = True, skip: bool = True):
@@ -849,7 +866,7 @@ class MixedGroupConv2d(torch.nn.Module):
                     _bias = None
 
                 _filter = _filter.reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
-                #print(_filter.shape, self.out_channels, self.inchannelapply[layer], self.inchannelorders[layer])
+
                 for (apply, order) in zip(self.inchannelapply[layer], self.inchannelorders[layer]):
                     _filter[apply] = _filter[apply][:,order]
                 _filter = _filter[self.outchannelorders[layer]]
@@ -869,14 +886,36 @@ class MixedGroupConv2d(torch.nn.Module):
     
     def countparams(self):
         return sum([torch.numel(w) for a, w in zip(torch.softmax(self.alphas, dim=0),self.weights) if a > 0])
+    
+    def regularization_loss(self, L2=True, reg_conv=0.0, reg_group=0.0, reg_alphas=0.0)
+        weightsum = 0.0
+        alphas = torch.softmax(self.alphas, dim=0)
+        coeffs = torch.ones_like(alphas)*reg_group
+        coeffs[0] = reg_conv
+        for i in range(len(alphas)-1):
+            if alphas[i] > 0:
+                if L2:
+                    weightsum += coeffs[i]*self.weights.pow(2).sum()
+                else:
+                    weightsum += coeffs[i]*self.weights.abs().sum()
+        if L2:
+            weightsum += reg_alphas*self.alphas.pow(2).sum()
+        else:
+            weightsum += reg_alphas*self.alphas.abs().sum()
+        return weightsum
 
 class DEANASNet(torch.nn.Module):
 
-    def __init__(self, alphalr = 1e-3, weightlr = 1e-3, baseline: bool = False, superspace: tuple = (1,2), basechannels: int = 16, stages: int = 2, stagedepth: int = 4, pools: int = 4, kernel: int = 5, indim: int = 1, outdim: int = 10, hidden: int = 64, prior: bool = True, discrete: bool = False, norm: bool = True, skip: bool = True):
+    def __init__(self, alphalr = 1e-3, weightlr = 1e-3, baseline: bool = False, superspace: tuple = (1,2), basechannels: int = 16, 
+                 stages: int = 2, stagedepth: int = 4, pools: int = 4, kernel: int = 5, indim: int = 1, outdim: int = 10, 
+                 hidden: int = 64, prior: bool = True, discrete: bool = False, norm: bool = True, skip: bool = True, reg_conv:float = 0.0, 
+                 reg_group: float = 0.0):
         
         super(DEANASNet, self).__init__()
         self.alphalr = alphalr
         self.weightlr = weightlr
+        self.reg_conv = L2_conv
+        self.reg_group = L2_group
         self.superspace = superspace
         self.basechannels = basechannels
         self.stages = stages
@@ -927,7 +966,6 @@ class DEANASNet(torch.nn.Module):
         self.uuid = uuid.uuid4()
         self.parent = None
 
-
     def forward(self, x: torch.Tensor):
         for i, block in enumerate(self.blocks):
             x = block(x)
@@ -954,9 +992,26 @@ class DEANASNet(torch.nn.Module):
         for name, param in self.named_parameters():
             if "norms" not in name and not name.endswith("."+str(np.prod([g+1 for g in self.superspace]))):
                 yield param
+    
+    def regularization_loss(self, L2 == True):
+        weightsum = 0.0
+        for i in range(len(self.blocks)):
+            for key in self.blocks[i]._modules.keys():
+                if isinstance(self.blocks[i]._modules[key], MixedGroupConv2d) or isinstance(self.blocks[i]._modules[key], MixedLiftingConv2d):
+                    count += self.blocks[i]._modules[key].regularization_loss(L2=L2, reg_conv=self.reg_conv, reg_group=self.reg_group)
+        return count
+
+    def countparams(self):
+        count = 0
+        for i in range(len(self.blocks)):
+            for key in self.blocks[i]._modules.keys():
+                if isinstance(self.blocks[i]._modules[key], MixedGroupConv2d) or isinstance(self.blocks[i]._modules[key], MixedLiftingConv2d):
+                    count += self.blocks[i]._modules[key].countparams()
+                else:
+                    count += sum(p.numel() for p in self.blocks[i]._modules[key].parameters())
+        return count
 
     def offspring(self, i, groupnew, verbose = False):
-        #print(i, groupnew, self.gs)
         assert all([sum(a > -np.inf) <= 2 for a in self.alphas()])
         offspring = DEANASNet(alphalr = self.alphalr, weightlr = self.weightlr, superspace = self.superspace, basechannels = self.basechannels, stages = self.stages, stagedepth = self.stagedepth, pools = self.pools, kernel = self.kernel, indim = self.indim, outdim = self.outdim, prior = self.prior, discrete=self.discrete)
         offspring.load_state_dict(self.state_dict())
@@ -1079,28 +1134,17 @@ class DEANASNet(torch.nn.Module):
                         offspring.blocks[i]._modules["0"].outchannelorders[indnew] = sum([[8*c,8*c+1,8*c+4,8*c+5,8*c+2,8*c+7,8*c+6,8*c+3] for c in range(int(outchannels/8))], start=[])
                 else:
                     offspring.blocks[i]._modules["0"].outchannelorders[indnew] = sum([[4*c,4*c+2,4*c+1,4*c+3] for c in range(int(outchannels/4))], start=[])
-                    #offspring.blocks[i]._modules["0"].outchannelorders[indnew] = sum([[8*c,8*c+4,8*c+1,8*c+5,8*c+2,8*c+7,8*c+3,8*c+6] for c in range(int(outchannels/8))], start=[])
                     if i != 0:
                         offspring.blocks[i]._modules["0"].inchannelapply[indnew] = [sum([[8*c+7,8*c+4,8*c+5,8*c+6] for c in range(int(outchannels/8))], start=[]),]
                         offspring.blocks[i]._modules["0"].inchannelorders[indnew] = [sum([[8*c+5,8*c+6,8*c+7,8*c+4,8*c+1,8*c+2,8*c+3,8*c] for c in range(int(inchannels/8))], start=[]),]
-            else:
-                #offspring.blocks[i]._modules["0"].outchannelorders[indnew] = sum([[8*c,8*c+4,8*c+1,8*c+5,8*c+2,8*c+6,8*c+3,8*c+7] for c in range(int(outchannels/8))], start=[])
-                #offspring.blocks[i]._modules["0"].inchannelorders[indnew] = [sum([[8*c+5,8*c+6,8*c+7,8*c+4,8*c+1,8*c+2,8*c+3,8*c] for c in range(int(inchannels/8))], start=[]),]
-                pass
         offspring.blocks[i]._modules["0"].outchannelorders[indnew] = [oco for oco in offspring.blocks[i]._modules["0"].outchannelorders[indnew] if oco < offspring.blocks[i]._modules["0"].out_channels]
         if i != 0:
-            #print("inchannelapply", offspring.blocks[i]._modules["0"].inchannelapply[indnew], "inchannelorders", offspring.blocks[i]._modules["0"].inchannelorders[indnew])
             for j in range(len(offspring.blocks[i]._modules["0"].inchannelapply[indnew])):
                 offspring.blocks[i]._modules["0"].inchannelapply[indnew][j] = [ica for ica in offspring.blocks[i]._modules["0"].inchannelapply[indnew][j] if ica < offspring.blocks[i]._modules["0"].out_channels]
             for j in range(len(offspring.blocks[i]._modules["0"].inchannelorders[indnew])):
                 offspring.blocks[i]._modules["0"].inchannelorders[indnew][j] = [ico for ico in offspring.blocks[i]._modules["0"].inchannelorders[indnew][j] if ico < offspring.blocks[i]._modules["0"].in_channels]
         if verbose:
             if i != 0:
-                #print("new weights", offspring.blocks[i]._modules["0"].weights[indnew][:,:,:,0,1])
-                #print("new weights", offspring.blocks[i]._modules["0"].weights[indnew][:,:,:,1,-1])
-                #print("new weights", offspring.blocks[i]._modules["0"].weights[indnew][:,:,:,0,1])
-                #print("new weights", offspring.blocks[i]._modules["0"].weights[indnew][:,:,:,1,-1])
-                #print("old weights", self.blocks[i]._modules["0"].weights[indold][:,1,:,0,1])
                 print(offspring.blocks[i]._modules["0"](torch.Tensor([]))[0:8,0:6,0,1])
                 print(self.blocks[i]._modules["0"](torch.Tensor([]))[0:8,0:6,0,1])
             else:
@@ -1116,16 +1160,6 @@ class DEANASNet(torch.nn.Module):
             if not torch.allclose(offspring.blocks[i]._modules["0"](torch.Tensor([])), self.blocks[i]._modules["0"](torch.Tensor([]))):
                 print("not close")
         return offspring
-    
-    def countparams(self):
-        count = 0
-        for i in range(len(self.blocks)):
-            for key in self.blocks[i]._modules.keys():
-                if isinstance(self.blocks[i]._modules[key], MixedGroupConv2d) or isinstance(self.blocks[i]._modules[key], MixedLiftingConv2d):
-                    count += self.blocks[i]._modules[key].countparams()
-                else:
-                    count += sum(p.numel() for p in self.blocks[i]._modules[key].parameters())
-        return count
     
     def generate(self):
         candidates = [self.offspring(-1, self.gs[0])]
