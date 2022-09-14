@@ -67,16 +67,16 @@ def DEANASearch(args):
         torch.cuda.manual_seed_all(args.seed)
         trial += str(args.seed) + "_"
     if args.baseline:
-        trial += "bl_"
+        trial += "bl"
         if args.equalize:
             trial+="C1"
         else:
             if args.c4:
-                trial+="blC4"
+                trial+="C4"
             elif args.d16:
-                trial+="blD16"
+                trial+="D16"
             else:
-                trial+="blD4"
+                trial+="D4"
         if args.noskip:
             trial+="ns"
         trial+="_"
@@ -87,7 +87,7 @@ def DEANASearch(args):
         if args.noskip:
             trial+="ns"
         trial+="_"
-    filename = str(args.path) +'/equiNAS/out'+args.folder+trial+datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")+'.pkl'
+    filename = str(args.path) +'/equiNAS/out'+args.folder+trial+args.name+'.pkl'
     print(filename)
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     print(args.task)
@@ -231,7 +231,8 @@ if __name__ == "__main__":
     parser.add_argument('--kernel', "-k", type=int, default="-1", help='kernel size')
     parser.add_argument('--path', "-p", type=pathlib.Path, default="..", help='datapath')
     parser.add_argument('--equalize', action='store_true', default=False, help='equalize initial alphas')
-    parser.add_argument('--noskip', action='store_true', default=False, help='turnoff skip connections') 
+    parser.add_argument('--noskip', action='store_true', default=False, help='turn off skip connections') 
+    #RPP
     parser.add_argument('--baseline', action='store_true', default=False, help='lock network to C1+skip')
     parser.add_argument('--task', "-t", type=str, default="mnist", help='task')
     parser.add_argument('--seed', "-s", type=int, default=-1, help='random seed (-1 for unseeded)')
@@ -241,6 +242,7 @@ if __name__ == "__main__":
     parser.add_argument('--tune', action='store_true', default=False, help='tune hyperparameters') 
     parser.add_argument('--test', action='store_true', default=False, help='evaluate on test set') 
     parser.add_argument('--folder', "-f", type=str, default="", help='folder to store results')
+    parser.add_argument('--name', "-n", type=str, default="test", help='name of experiment')
     args = parser.parse_args()
     print(args)
     if args.tune:
