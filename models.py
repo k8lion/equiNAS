@@ -993,7 +993,7 @@ class DEANASNet(torch.nn.Module):
             if "norms" not in name and not name.endswith("."+str(np.prod([g+1 for g in self.superspace]))):
                 yield param
     
-    def regularization_loss(self, L2 == True):
+    def regularization_loss(self, L2 = True):
         weightsum = 0.0
         for i in range(len(self.blocks)):
             for key in self.blocks[i]._modules.keys():
