@@ -239,7 +239,7 @@ if __name__ == "__main__":
     parser.add_argument('--c4', action='store_true', default=False, help='use c4 equivariance instead of default d4') 
     parser.add_argument('--tune', action='store_true', default=False, help='tune hyperparameters') 
     parser.add_argument('--test', action='store_true', default=False, help='evaluate on test set') 
-    parser.add_argument('--folder', "-f", type=str, default="", help='folder to stpre results')
+    parser.add_argument('--folder', "-f", type=str, default="", help='folder to store results')
     args = parser.parse_args()
     print(args)
     if args.tune:

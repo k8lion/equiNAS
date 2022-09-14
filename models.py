@@ -979,18 +979,18 @@ class DEANASNet(torch.nn.Module):
             return offspring
         list(offspring.alphas())[i].data[indnew] = list(self.alphas())[i].data[indold]
         list(offspring.alphas())[i].data[indold] = list(self.alphas())[i].data[indnew]
-        if verbose:
-            for a in range(offspring.blocks[i]._modules["0"].weights[indold].shape[0]):
-                for b in range(offspring.blocks[i]._modules["0"].weights[indold].shape[1]):
-                    for c in range(offspring.blocks[i]._modules["0"].weights[indold].shape[2]):
-                        for d in range(offspring.blocks[i]._modules["0"].weights[indold].shape[3]):
-                            if len(offspring.blocks[i]._modules["0"].weights[indold].shape) > 4:
-                                for e in range(offspring.blocks[i]._modules["0"].weights[indold].shape[4]):
-                                    self.blocks[i]._modules["0"].weights[indold].data[a,b,c,d,e] = (a*10**4+b*10**3+c*10**2)*1+d*10+e
-                                    offspring.blocks[i]._modules["0"].weights[indold].data[a,b,c,d,e] = (a*10**4+b*10**3+c*10**2)*1+d*10+e
-                            else:
-                                self.blocks[i]._modules["0"].weights[indold].data[a,b,c,d] = (a*10**4+b*10**3+c*10**2)//10+d
-                                offspring.blocks[i]._modules["0"].weights[indold].data[a,b,c,d] = (a*10**4+b*10**3+c*10**2)//10+d
+        # if verbose:
+        #     for a in range(offspring.blocks[i]._modules["0"].weights[indold].shape[0]):
+        #         for b in range(offspring.blocks[i]._modules["0"].weights[indold].shape[1]):
+        #             for c in range(offspring.blocks[i]._modules["0"].weights[indold].shape[2]):
+        #                 for d in range(offspring.blocks[i]._modules["0"].weights[indold].shape[3]):
+        #                     if len(offspring.blocks[i]._modules["0"].weights[indold].shape) > 4:
+        #                         for e in range(offspring.blocks[i]._modules["0"].weights[indold].shape[4]):
+        #                             self.blocks[i]._modules["0"].weights[indold].data[a,b,c,d,e] = (a*10**4+b*10**3+c*10**2)*1+d*10+e
+        #                             offspring.blocks[i]._modules["0"].weights[indold].data[a,b,c,d,e] = (a*10**4+b*10**3+c*10**2)*1+d*10+e
+        #                     else:
+        #                         self.blocks[i]._modules["0"].weights[indold].data[a,b,c,d] = (a*10**4+b*10**3+c*10**2)//10+d
+        #                         offspring.blocks[i]._modules["0"].weights[indold].data[a,b,c,d] = (a*10**4+b*10**3+c*10**2)//10+d
         weights = self.blocks[i]._modules["0"].weights[indold]
         if verbose:
             print(i, indold, indnew, groupold, groupnew)

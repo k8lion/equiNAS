@@ -406,7 +406,7 @@ class Test(unittest.TestCase):
         torch.manual_seed(0)
         torch.set_printoptions(sci_mode=False)
         if upper is None:
-            upper = (1,1)
+            upper = (1,2)
         if lower is None:
             lower = (0,1)
         model = models.DEANASNet(superspace=(1,2), stages = 2, basechannels=1, discrete=True)
@@ -416,6 +416,8 @@ class Test(unittest.TestCase):
         for i in range(len(model.channels)-1):
             model = model.offspring(len(model.channels)-1-i, lower)
         child = model.offspring(0, lower, verbose=verbose)
+        print(model.gs)
+        print(child.gs)
         xmodel = torch.randn(16, 1, 29, 29)
         xchild = xmodel.clone()
         if not verbose:
