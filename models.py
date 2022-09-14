@@ -914,8 +914,8 @@ class DEANASNet(torch.nn.Module):
         super(DEANASNet, self).__init__()
         self.alphalr = alphalr
         self.weightlr = weightlr
-        self.reg_conv = L2_conv
-        self.reg_group = L2_group
+        self.reg_conv = reg_conv
+        self.reg_group = reg_group
         self.superspace = superspace
         self.basechannels = basechannels
         self.stages = stages
