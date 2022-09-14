@@ -754,7 +754,7 @@ class MixedLiftingConv2d(torch.nn.Module):
     def countparams(self):
         return sum([torch.numel(w) for a, w in zip(torch.softmax(self.alphas, dim=0),self.weights) if a > 0])
 
-    def regularization_loss(self, L2=True, reg_conv=0.0, reg_group=0.0, reg_alphas=0.0)
+    def regularization_loss(self, L2=True, reg_conv=0.0, reg_group=0.0, reg_alphas=0.0):
         weightsum = 0.0
         alphas = torch.softmax(self.alphas, dim=0)
         coeffs = torch.ones_like(alphas)*reg_group
@@ -887,7 +887,7 @@ class MixedGroupConv2d(torch.nn.Module):
     def countparams(self):
         return sum([torch.numel(w) for a, w in zip(torch.softmax(self.alphas, dim=0),self.weights) if a > 0])
     
-    def regularization_loss(self, L2=True, reg_conv=0.0, reg_group=0.0, reg_alphas=0.0)
+    def regularization_loss(self, L2=True, reg_conv=0.0, reg_group=0.0, reg_alphas=0.0):
         weightsum = 0.0
         alphas = torch.softmax(self.alphas, dim=0)
         coeffs = torch.ones_like(alphas)*reg_group
