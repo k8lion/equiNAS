@@ -216,12 +216,12 @@ class HillClimber(object):
         with open(self.filename, 'wb') as f:
             pickle.dump(self.history, f)
 
-    def hillclimb(self, iterations = -1, epochs = 5.0):
+    def hillclimb(self, generations = -1, epochs = 5.0):
         self.train(epochs = epochs, start = 0)
-        for iteration in range(iterations):
+        for generation in range(generations):
             self.generate()
-            print("Iteration ", iteration)
-            self.train(epochs = epochs, start = iteration+1)
+            print("Generation ", generation)
+            self.train(epochs = epochs, start = generation+1)
             self.select()
             self.save()
         if self.test:
@@ -229,13 +229,13 @@ class HillClimber(object):
             self.save()
 
 
-    def baselines(self, iterations = -1, epochs = 5.0):
+    def baselines(self, generations = -1, epochs = 5.0):
         self.options.append(models.DEANASNet(superspace=(0,2), discrete=True, alphalr=self.lr, weightlr=self.lr))
         self.options.append(models.DEANASNet(superspace=(0,0), discrete=True, alphalr=self.lr, weightlr=self.lr))
         self.train(epochs = epochs, start = 0)
-        for iteration in range(iterations):
-            print("Iteration ", iteration)
-            self.train(epochs = epochs, start = iteration+1)
+        for generation in range(generations):
+            print("Generation ", generation)
+            self.train(epochs = epochs, start = generation+1)
             self.save()
         if self.test:
             self.test()
@@ -244,11 +244,11 @@ class HillClimber(object):
             
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Run hillclimber algorithm')
-    parser.add_argument('--epochs', "-e", type=float, default="1.0", help='number of epochs per child')
-    parser.add_argument('--iterations', "-i", type=int, default="50", help='number of generations')
-    parser.add_argument('--lr', "-l", type=float, default="5e-4", help='learning rate')
+    parser.add_argument('--epochs', "-e", type=float, default="0.2", help='number of epochs per child')
+    parser.add_argument('--generations', "-i", type=int, default="100", help='number of generations')
+    parser.add_argument('--lr', "-l", type=float, default="0.05", help='learning rate')
     parser.add_argument('--allkids', action='store_true', default=False, help='expand children tree')
-    parser.add_argument('--popsize', "-p", type=int, default="10", help='population size')
+    parser.add_argument('--popsize', "-p", type=int, default="10", help='population size (if not pareto)')
     parser.add_argument('--baselines', action='store_true', default=False, help='measure baselines')
     parser.add_argument('--data', "-d", type=pathlib.Path, default="..", help='datapath')
     parser.add_argument('--d16', action='store_true', default=False, help='use d16 equivariance instead of default d4')
@@ -256,7 +256,7 @@ if __name__ == "__main__":
     parser.add_argument('--seed', type=int, default=-1, help='random seed (-1 for unseeded)')
     parser.add_argument('--dea', action='store_true', default=False, help='use DEANAS backbone')
     parser.add_argument('--noskip', action='store_true', default=False, help='turn off skip connections')
-    parser.add_argument('--pareto', action='store_true', default=False, help='use pareto front')
+    parser.add_argument('--pareto', action='store_true', default=False, help='use pareto front as parent selection')
     parser.add_argument('--test', action='store_true', default=False, help='evaluate on test set') 
     parser.add_argument('--folder', "-f", type=str, default="", help='folder to store results')
     parser.add_argument('--task', "-t", type=str, default="mnist", help='task')
@@ -267,6 +267,6 @@ if __name__ == "__main__":
                             noskip=args.noskip, test=args.test, folder=args.folder, task=args.task)
     hillclimb.saveargs(vars(args))
     if args.baselines:
-        hillclimb.baselines(iterations=args.iterations, epochs=args.epochs)
+        hillclimb.baselines(generations=args.generations, epochs=args.epochs)
     else:
-        hillclimb.hillclimb(iterations=args.iterations, epochs=args.epochs)
+        hillclimb.hillclimb(generations=args.generations, epochs=args.epochs)
