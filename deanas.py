@@ -231,6 +231,7 @@ if __name__ == "__main__":
     parser.add_argument('--kernel', "-k", type=int, default="-1", help='kernel size')
     parser.add_argument('--path', "-p", type=pathlib.Path, default="..", help='datapath')
     parser.add_argument('--equalize', action='store_true', default=False, help='equalize initial alphas')
+    parser.add_argument('--noskip', action='store_true', default=False, help='turnoff skip connections') 
     parser.add_argument('--baseline', action='store_true', default=False, help='lock network to C1+skip')
     parser.add_argument('--task', "-t", type=str, default="mnist", help='task')
     parser.add_argument('--seed', "-s", type=int, default=-1, help='random seed (-1 for unseeded)')
