@@ -262,7 +262,7 @@ class HillClimber(object):
             self.train(epochs = epochs, start = generation+1)
             self.save()
         if self.test:
-            self.test()
+            self.run_test()
             self.save()
 
             
