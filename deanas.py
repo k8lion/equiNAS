@@ -112,9 +112,9 @@ def DEANASearch(args):
         args.stages = 4
         args.pools = args.stages*2
         if args.hidden < 0:
-            args.hidden = 256
+            args.hidden = 128
         if args.basechannels < 0:
-            args.basechannels = 64
+            args.basechannels = 32
     elif args.task == "galaxy10":
         train_loader, validation_loader, test_loader = utilities.get_galaxy10_dataloaders(path_to_dir=args.path, validation_split=0.5, batch_size=args.batch_size)
         args.indim = 3
@@ -131,7 +131,7 @@ def DEANASearch(args):
                              weightlr = args.weightlr, alphalr = args.alphalr, basechannels = args.basechannels,
                              prior = not args.equalize, indim = args.indim, baseline = args.baseline,
                              outdim = args.outdim, stages = args.stages, pools = args.pools, 
-                             kernel = args.kernel).to(device)
+                             kernel = args.kernel, skip = not args.noskip).to(device)
     history = {'args': args,
                 'alphas': [],
                 'channels': model.channels,

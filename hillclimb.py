@@ -32,10 +32,31 @@ class HillClimber(object):
         self.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
         if args.task == "mnist":
             self.train_loader, self.validation_loader, self.test_loader = utilities.get_mnist_dataloaders(path_to_dir=path)
+            indim = 1
+            outdim = 10
+            kernel = 5
+            stages = 2
+            pools = stages*2
+            hidden = 64
+            basechannels = 16
         elif args.task == "isic":
             self.train_loader, self.validation_loader, self.test_loader = utilities.get_isic_dataloaders(path_to_dir=path)
+            indim = 3
+            outdim = 9
+            kernel = 7
+            stages = 4
+            pools = stages*2
+            hidden = 128
+            basechannels = 32
         elif args.task == "galaxy10":
             self.train_loader, self.validation_loader, self.test_loader = utilities.get_galaxy10_dataloaders(path_to_dir=path)
+            indim = 3
+            outdim = 10
+            kernel = 7
+            stages = 4
+            pools = stages*2
+            hidden = 128
+            basechannels = 32
         self.reg = reg
         if d16:
             self.g = (1,4)
@@ -44,7 +65,9 @@ class HillClimber(object):
         else:
             self.g = (1,2)
         if dea:
-            model = models.DEANASNet(superspace=self.g, discrete=True, alphalr=lr, weightlr=lr, skip=not noskip)
+            model = models.DEANASNet(superspace=self.g, discrete=True, alphalr=lr, weightlr=lr, 
+                                     skip=not noskip, hidden=hidden, indim=indim, outdim=outdim,
+                                     kernel=kernel, stages=stages, pools=pools, basechannels=basechannels)
         else:
             model = models.SkipEquiCNN(gs=[self.g for _ in range(8)], ordered = self.ordered, lr = lr, superspace = self.g)
         self.lr = lr
