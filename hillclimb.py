@@ -173,7 +173,7 @@ class HillClimber(object):
 
         return acc.item()
     
-    def test(self):
+    def run_test(self):
         for model in self.options:
             model = model.to(self.device)
             model.eval()
@@ -210,30 +210,30 @@ class HillClimber(object):
     def select(self):
         for child in sorted(self.options, key=attrgetter('score'), reverse=True):
             print(child.gs, child.countparams(), child.score)
-        #self.model = max(self.options, key=attrgetter("score"))
-        if self.allkids:
+        if self.allkids or self.unique:
             bests = {}
             for child in self.options:
                 if str(child.gs) not in bests or child.score > bests[str(child.gs)]["score"]:
                     bests[str(child.gs)] = {"uuid": child.uuid, "score": child.score}
             uuids = [bests[g]["uuid"] for g in bests.keys()]
-            print(len(self.options), len(uuids), end = " ")
+            print(len(self.options), len(uuids), end = " -> ")
             for child in self.options:
                 if child.uuid not in uuids:
                     self.options.remove(child)
             print(len(self.options))
+            if self.allkids:
+                return
+        if self.pareto:
+            costs = np.zeros((len(self.options),2))
+            for i, model in enumerate(self.options):
+                costs[i,0] = model.score
+                costs[i,1] = model.countparams()
+            self.options = [self.options[ind] for ind in np.where(utilities.is_pareto_efficient(costs))[0]]
+            print("Pareto front:", len(self.options))
+            for child in sorted(self.options, key=attrgetter('score'), reverse=True):
+                print(child.gs, child.countparams(), child.score)
         else:
-            if self.pareto:
-                costs = np.zeros((len(self.options),2))
-                for i, model in enumerate(self.options):
-                    costs[i,0] = model.score
-                    costs[i,1] = model.countparams()
-                self.options = [self.options[ind] for ind in np.where(utilities.is_pareto_efficient(costs))[0]]
-                print("Pareto front:", len(self.options))
-                for child in sorted(self.options, key=attrgetter('score'), reverse=True):
-                    print(child.gs, child.countparams(), child.score)
-            else:
-                self.options = sorted(self.options, key=attrgetter('score'), reverse=True)[:min(len(self.options),self.popsize)]
+            self.options = sorted(self.options, key=attrgetter('score'), reverse=True)[:min(len(self.options),self.popsize)]
 
     def save(self):
         with open(self.filename, 'wb') as f:
@@ -248,7 +248,7 @@ class HillClimber(object):
             self.select()
             self.save()
         if self.test:
-            self.test()
+            self.run_test()
             self.save()
 
 
@@ -271,7 +271,6 @@ if __name__ == "__main__":
     parser.add_argument('--epochs', "-e", type=float, default="0.2", help='number of epochs per child')
     parser.add_argument('--generations', "-i", type=int, default="100", help='number of generations')
     parser.add_argument('--lr', "-l", type=float, default="0.05", help='learning rate')
-    parser.add_argument('--allkids', action='store_true', default=False, help='expand children tree')
     parser.add_argument('--popsize', "-p", type=int, default="10", help='population size (if not pareto)')
     parser.add_argument('--baselines', action='store_true', default=False, help='measure baselines')
     parser.add_argument('--data', "-d", type=pathlib.Path, default="..", help='datapath')
@@ -282,6 +281,7 @@ if __name__ == "__main__":
     parser.add_argument('--dea', action='store_true', default=False, help='use DEANAS backbone')
     parser.add_argument('--noskip', action='store_true', default=False, help='turn off skip connections')
     parser.add_argument('--pareto', action='store_true', default=False, help='use pareto front as parent selection')
+    parser.add_argument('--unique', action='store_true', default=False, help='select unique architectures before selection')
     parser.add_argument('--test', action='store_true', default=False, help='evaluate on test set') 
     parser.add_argument('--folder', "-f", type=str, default="", help='folder to store results')
     parser.add_argument('--name', "-n", type=str, default="test", help='name of experiment')
@@ -290,8 +290,8 @@ if __name__ == "__main__":
     print(args)
     hillclimb = HillClimber(baselines=args.baselines, lr=args.lr, path=args.data, popsize=args.popsize, 
                             d16=args.d16, c4=args.c4, dea=args.dea, seed=args.seed, pareto=args.pareto, 
-                            noskip=args.noskip, test=args.test, folder=args.folder, name = args.name, 
-                            task=args.task)
+                            noskip=args.noskip, test=args.test, folder=args.folder, name=args.name, 
+                            task=args.task, unique=args.unique)
     hillclimb.saveargs(vars(args))
     if args.baselines:
         hillclimb.baselines(generations=args.generations, epochs=args.epochs)
