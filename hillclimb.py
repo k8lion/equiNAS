@@ -226,7 +226,7 @@ class HillClimber(object):
         if self.pareto:
             costs = np.zeros((len(self.options),2))
             for i, model in enumerate(self.options):
-                costs[i,0] = model.score
+                costs[i,0] = 1-model.score
                 costs[i,1] = model.countparams()
             self.options = [self.options[ind] for ind in np.where(utilities.is_pareto_efficient(costs))[0]]
             print("Pareto front:", len(self.options))
