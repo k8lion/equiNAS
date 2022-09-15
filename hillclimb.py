@@ -13,7 +13,7 @@ import pathlib
 class HillClimber(object):
     def __init__(self, reset = True, reg = False, skip = False, baselines = False, pareto = False, lr = 0.1, 
                  path = "..", d16 = False, c4 = False, popsize = 10, seed = -1, dea = False, noskip = False,
-                 test = False, folder = "", name = "", task = "mnist"):
+                 test = False, folder = "", name = "", task = "mnist", unique = False):
         self.seed = seed
         if seed != -1:
             torch.manual_seed(seed)
@@ -77,6 +77,7 @@ class HillClimber(object):
         self.popsize = popsize
         self.pareto = pareto
         self.test = test
+        self.unique = unique
         self.history = {}
 
     def train(self, epochs = 1, start = 0):
