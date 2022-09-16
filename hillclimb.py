@@ -270,7 +270,7 @@ class HillClimber(object):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Run hillclimber algorithm')
     parser.add_argument('--epochs', "-e", type=float, default="0.2", help='number of epochs per child')
-    parser.add_argument('--generations', "-i", type=int, default="100", help='number of generations')
+    parser.add_argument('--generations', "-i", type=int, default="50", help='number of generations')
     parser.add_argument('--lr', "-l", type=float, default="0.05", help='learning rate')
     parser.add_argument('--popsize', "-p", type=int, default="10", help='population size (if not pareto)')
     parser.add_argument('--baselines', action='store_true', default=False, help='measure baselines')
