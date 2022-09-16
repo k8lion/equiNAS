@@ -190,7 +190,6 @@ class HillClimber(object):
             acc = running_corrects.float() / running_count
             model = model.cpu()
             self.history[model.uuid]["test"] = acc.item()
-            print(model.gs, acc.item())
 
     def saveargs(self, args):
         self.history["args"] = args
@@ -250,6 +249,8 @@ class HillClimber(object):
             self.save()
         if self.test:
             self.run_test()
+            for model in self.options:
+                print(model.gs, model.score, self.history[model.uuid]["test"])
             self.save()
 
 
