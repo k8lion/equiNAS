@@ -255,8 +255,16 @@ class HillClimber(object):
 
 
     def baselines(self, generations = -1, epochs = 5.0):
-        self.options.append(models.DEANASNet(superspace=(0,2), discrete=True, alphalr=self.lr, weightlr=self.lr))
-        self.options.append(models.DEANASNet(superspace=(0,0), discrete=True, alphalr=self.lr, weightlr=self.lr))
+        self.options[0].name = "D4priorD4"
+        self.options.append(models.DEANASNet(name = "C4priorC4", superspace=(0,2), discrete=True, alphalr=self.lr, weightlr=self.lr))
+        self.options.append(models.DEANASNet(name = "C1priorC1", superspace=(0,0), discrete=True, alphalr=self.lr, weightlr=self.lr))
+        D4priorC1 = models.DEANASNet(name = "D4priorC1", superspace=(1,2), discrete=True, alphalr=self.lr, weightlr=self.lr)
+        D4priorC4 = models.DEANASNet(name = "D4priorC4", superspace=(1,2), discrete=True, alphalr=self.lr, weightlr=self.lr)
+        C4priorC1 = models.DEANASNet(name = "C4priorC1", superspace=(0,2), discrete=True, alphalr=self.lr, weightlr=self.lr)
+        for i in range(len(D4priorC1.channels)):
+                D4priorC1 = D4priorC1.offspring(len(D4priorC1.channels)-1-i, (0,0))
+                D4priorC4 = D4priorC4.offspring(len(D4priorC4.channels)-1-i, (0,2))
+                C4priorC1 = C4priorC1.offspring(len(C4priorC1.channels)-1-i, (0,0))
         #RPP
         self.train(epochs = epochs, start = 0)
         for generation in range(generations):
