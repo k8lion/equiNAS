@@ -10,7 +10,7 @@ from torch.utils.data import Dataset, DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
 import torchvision.datasets as datasets
 from torchvision.transforms import Normalize, Resize, ToTensor, Compose
-from torchvision.transforms.functional import InterpolationMode
+#from torchvision.transforms.functional import InterpolationMode
     
 
 
