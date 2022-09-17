@@ -743,9 +743,9 @@ class MixedLiftingConv2d(torch.nn.Module):
 
                 if self.groups[layer][0] == 1:
                     order = [(i,j) for j in range(subgroupsize(self.groups[layer], 0)) for i in range(subgroupsize(self.groups[layer], 1))]
-                    _filter = torch.stack([rotateflip_n(weights, i, subgroupsize(self.groups[layer], 1), j, subgroupsize(self.groups[layer], 0)) for (i,j) in order], dim = -3)
+                    _filter = torch.stack([rotateflip_n(weights, i, subgroupsize(self.groups[layer], 1), j, subgroupsize(self.groups[layer], 0)) for (i,j) in order], dim = -4)
                 else:
-                    _filter = torch.stack([rotate_n(weights, i, groupsize(self.groups[layer])) for i in range(subgroupsize(self.groups[layer], 1))], dim = -3)
+                    _filter = torch.stack([rotate_n(weights, i, groupsize(self.groups[layer])) for i in range(subgroupsize(self.groups[layer], 1))], dim = -4)
 
                 if self.bias is not None:
                     _bias = torch.stack([self.bias[layer] for _ in range(groupsize(self.groups[layer]))], dim = 1)
@@ -754,7 +754,7 @@ class MixedLiftingConv2d(torch.nn.Module):
                     _bias = None
 
                 _filter = _filter.reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
-                # print(self.outchannelorders[layer])
+                #print(self.outchannelorders[layer])
                 _filter = _filter[self.outchannelorders[layer]]
 
                 if len(x.shape)<=1:
@@ -802,33 +802,28 @@ class MixedLiftingConv2d(torch.nn.Module):
 
                 if self.groups[layer][0] == 1:
                     order = [(i,j) for j in range(subgroupsize(self.groups[layer], 0)) for i in range(subgroupsize(self.groups[layer], 1))]
-                    _filter = torch.stack([rotateflip_n(weights, i, subgroupsize(self.groups[layer], 1), j, subgroupsize(self.groups[layer], 0)) for (i,j) in order], dim = -5)
+                    _filter = torch.stack([rotateflip_n(weights, i, subgroupsize(self.groups[layer], 1), j, subgroupsize(self.groups[layer], 0)) for (i,j) in order], dim = -4)
                 else:
-                    _filter = torch.stack([rotate_n(weights, i, groupsize(self.groups[layer])) for i in range(subgroupsize(self.groups[layer], 1))], dim = -5)
-
+                    _filter = torch.stack([rotate_n(weights, i, groupsize(self.groups[layer])) for i in range(subgroupsize(self.groups[layer], 1))], dim = -4)
                 #use _filter from here?
 
                 _filter = _filter.reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
 
-                for (apply, order) in zip(self.inchannelapply[layer], self.inchannelorders[layer]):
-                    _filter[apply] = _filter[apply][:,order]
                 _filter = _filter[self.outchannelorders[layer]]
 
                 _filters += _filter*alphas[layer]
 
         copied_filters = _filters.clone()
-
         copied_filters = copied_filters.reshape(int(self.out_channels//groupsize(supergroup)), groupsize(supergroup), 
-                                                int(self.in_channels//groupsize(supergroup)), groupsize(supergroup), 
-                                                self.kernel_size, self.kernel_size)
+                                                self.in_channels, self.kernel_size, self.kernel_size)
         if supergroup != (1,2):
             raise NotImplementedError
         inv_order = [D4inverse((j,i)) for j in range(subgroupsize(supergroup, 0)) for i in range(subgroupsize(supergroup, 1))]
         for i in range(groupsize(supergroup)):
-            copied_filters[:,i] = rotateflipstack_n(copied_filters[:,i], inv_order[i][1], subgroupsize(supergroup, 1), inv_order[i][0], subgroupsize(supergroup, 0))
-        projected_weights = copied_filters.mean(dim=-5)
+            copied_filters[:,i] = rotateflip_n(copied_filters[:,i], inv_order[i][1], subgroupsize(supergroup, 1), inv_order[i][0], subgroupsize(supergroup, 0))
+        projected_weights = copied_filters.mean(dim=1)
         order = [(i,j) for j in range(subgroupsize(supergroup, 0)) for i in range(subgroupsize(supergroup, 1))]
-        projected_filters = torch.stack([rotateflipstack_n(projected_weights, i, subgroupsize(supergroup, 1), j, subgroupsize(supergroup, 0)) for (i,j) in order], dim = -5)
+        projected_filters = torch.stack([rotateflip_n(projected_weights, i, subgroupsize(supergroup, 1), j, subgroupsize(supergroup, 0)) for (i,j) in order], dim = -4)
         projected_filters = projected_filters.reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
         return torch.linalg.norm(projected_filters - _filters)
 
@@ -1195,7 +1190,9 @@ class DEANASNet(torch.nn.Module):
                 weightmats = [rotate_n(weights, r, groupsize(groupold)) for r in range(subgroupsize(groupold, 1)//subgroupsize(groupnew, 1))]
             else:
                 weightmats = [rotatestack_n(weights, r, groupsize(groupold)) for r in range(subgroupsize(groupold, 1)//subgroupsize(groupnew, 1))]
-        semi_filter = torch.stack(weightmats, dim = -5)
+        if verbose:
+            print(weightmats)
+        semi_filter = torch.stack(weightmats, dim = 1)
         if self.blocks[i]._modules["0"].bias is not None:
             bias = torch.stack([self.blocks[i]._modules["0"].bias[indold] for _ in range(groupdifference(groupold, groupnew))], dim = 1).reshape(-1)
             offspring.blocks[i]._modules["0"].bias[indnew] = torch.nn.Parameter(bias)
@@ -1211,10 +1208,11 @@ class DEANASNet(torch.nn.Module):
             offspring.blocks[i]._modules["0"].inchannelorders[indnew] = self.blocks[i]._modules["0"].inchannelorders[indold]
         inchannels = offspring.blocks[i]._modules["0"].in_channels
         outchannels = offspring.blocks[i]._modules["0"].out_channels
-        if groupold[1] == 2 and groupnew == (0,1) and i!=0:
+        if groupold[1] == 2 and groupnew == (0,1):
             offspring.blocks[i]._modules["0"].outchannelorders[indnew] = sum([[4*c,4*c+2,4*c+1,4*c+3] for c in range(int(outchannels/4))], start=[])
-            offspring.blocks[i]._modules["0"].inchannelapply[indnew] = [[2*c+1 for c in range(int(outchannels/2))],]
-            offspring.blocks[i]._modules["0"].inchannelorders[indnew] = [sum([[4*c+3,4*c+2,4*c+1,4*c] for c in range(int(inchannels/4))], start=[]),]
+            if i > 0:
+                offspring.blocks[i]._modules["0"].inchannelapply[indnew] = [[2*c+1 for c in range(int(outchannels/2))],]
+                offspring.blocks[i]._modules["0"].inchannelorders[indnew] = [sum([[4*c+3,4*c+2,4*c+1,4*c] for c in range(int(inchannels/4))], start=[]),]
         elif groupold == (1,2):
             if i != 0:
                 offspring.blocks[i]._modules["0"].inchannelapply[indnew] = [[2*c+1 for c in range(int(outchannels/2))],]
@@ -1223,7 +1221,7 @@ class DEANASNet(torch.nn.Module):
                     offspring.blocks[i]._modules["0"].outchannelorders[indnew] = sum([[8*c,8*c+2,8*c+4,8*c+6,8*c+1,8*c+7,8*c+5,8*c+3] for c in range(int(outchannels/8))], start=[])
                     offspring.blocks[i]._modules["0"].inchannelorders[indnew] = [sum([[8*c+5,8*c+6,8*c+7,8*c+4,8*c+1,8*c+2,8*c+3,8*c] for c in range(int(inchannels/8))], start=[]),]
                 else:
-                    offspring.blocks[i]._modules["0"].outchannelorders[indnew] = sum([[8*c,8*c+1,8*c+2,8*c+3,8*c+6,8*c+5,8*c+4,8*c+7] for c in range(int(outchannels/8))], start=[])
+                    offspring.blocks[i]._modules["0"].outchannelorders[indnew] = sum([[8*c,8*c+2,8*c+4,8*c+6,8*c+5,8*c+3,8*c+1,8*c+7] for c in range(int(outchannels/8))], start=[])
             elif groupnew == (1,1):
                 if i != 0:
                     offspring.blocks[i]._modules["0"].outchannelorders[indnew] = sum([[8*c,8*c+4,8*c+1,8*c+5,8*c+2,8*c+7,8*c+3,8*c+6] for c in range(int(outchannels/8))], start=[])
@@ -1234,11 +1232,10 @@ class DEANASNet(torch.nn.Module):
                     offspring.blocks[i]._modules["0"].inchannelapply[indnew].append(sum([[8*c+2,8*c+6] for c in range(int(outchannels/8))], start=[]))
                     offspring.blocks[i]._modules["0"].inchannelorders[indnew].append(sum([[8*c+1,8*c,8*c+3,8*c+2,8*c+5,8*c+4,8*c+7,8*c+6] for c in range(int(inchannels/8))], start=[]))
                 else:
-                    offspring.blocks[i]._modules["0"].outchannelorders[indnew] = sum([[8*c,8*c+1,8*c+2,8*c+3,8*c+4,8*c+7,8*c+6,8*c+5] for c in range(int(outchannels/8))], start=[])
-            elif groupnew == (0,1):
+                    offspring.blocks[i]._modules["0"].outchannelorders[indnew] = sum([[8*c,8*c+4,8*c+1,8*c+5,8*c+2,8*c+7,8*c+3,8*c+6] for c in range(int(outchannels/8))], start=[])
+                    #offspring.blocks[i]._modules["0"].outchannelorders[indnew] = sum([[8*c,8*c+1,8*c+2,8*c+3,8*c+4,8*c+5,8*c+6,8*c+7] for c in range(int(outchannels/8))], start=[])
+            elif groupnew == (0,1) and i != 0:
                 offspring.blocks[i]._modules["0"].outchannelorders[indnew] = sum([[8*c,8*c+1,8*c+4,8*c+5,8*c+2,8*c+3,8*c+6,8*c+7] for c in range(int(outchannels/8))], start=[])
-            elif groupnew == (0,2) and i == 0:
-                offspring.blocks[i]._modules["0"].outchannelorders[indnew] = sum([[8*c,8*c+2,8*c+4,8*c+6,8*c+1,8*c+3,8*c+5,8*c+7] for c in range(int(outchannels/8))], start=[])
         elif groupold == (1,1):
             if groupnew == (1,0):
                 if i != 0:
@@ -1252,7 +1249,7 @@ class DEANASNet(torch.nn.Module):
                     if i != 0:
                         offspring.blocks[i]._modules["0"].outchannelorders[indnew] = sum([[8*c,8*c+4,8*c+2,8*c+6,8*c+1,8*c+7,8*c+3,8*c+5] for c in range(int(outchannels/8))], start=[])
                     else:
-                        offspring.blocks[i]._modules["0"].outchannelorders[indnew] = sum([[8*c,8*c+1,8*c+2,8*c+3,8*c+6,8*c+5,8*c+4,8*c+7] for c in range(int(outchannels/8))], start=[])
+                        offspring.blocks[i]._modules["0"].outchannelorders[indnew] = sum([[8*c,8*c+4,8*c+2,8*c+6,8*c+3,8*c+5,8*c+1,8*c+7] for c in range(int(outchannels/8))], start=[])
                 else:
                     offspring.blocks[i]._modules["0"].outchannelorders[indnew] = sum([[4*c,4*c+2,4*c+1,4*c+3] for c in range(int(outchannels/4))], start=[])
             elif groupnew == (0,1):
@@ -1266,7 +1263,7 @@ class DEANASNet(torch.nn.Module):
                         offspring.blocks[i]._modules["0"].inchannelorders[indnew].append(sum([[8*c+5,8*c+6,8*c+7,8*c+4,8*c+1,8*c+2,8*c+3,8*c] for c in range(int(inchannels/8))], start=[]))
                         offspring.blocks[i]._modules["0"].outchannelorders[indnew] = sum([[8*c,8*c+4,8*c+1,8*c+5,8*c+2,8*c+7,8*c+3,8*c+6] for c in range(int(outchannels/8))], start=[])
                     else:
-                        offspring.blocks[i]._modules["0"].outchannelorders[indnew] = sum([[8*c,8*c+1,8*c+4,8*c+5,8*c+2,8*c+7,8*c+6,8*c+3] for c in range(int(outchannels/8))], start=[])
+                        offspring.blocks[i]._modules["0"].outchannelorders[indnew] = sum([[8*c,8*c+4,8*c+1,8*c+5,8*c+2,8*c+7,8*c+3,8*c+6] for c in range(int(outchannels/8))], start=[])
                 else:
                     offspring.blocks[i]._modules["0"].outchannelorders[indnew] = sum([[4*c,4*c+2,4*c+1,4*c+3] for c in range(int(outchannels/4))], start=[])
                     if i != 0:
@@ -1283,22 +1280,17 @@ class DEANASNet(torch.nn.Module):
                 print(offspring.blocks[i]._modules["0"](torch.Tensor([]))[0:8,0:6,0,1])
                 print(self.blocks[i]._modules["0"](torch.Tensor([]))[0:8,0:6,0,1])
             else:
-                print("new weights", offspring.blocks[i]._modules["0"].weights[indnew])
-                print("old weights", self.blocks[i]._modules["0"].weights[indold])
+                #print("new weights", offspring.blocks[i]._modules["0"].weights[indnew])
+                #print("old weights", self.blocks[i]._modules["0"].weights[indold])
 
                 print("child _filter:", offspring.blocks[i]._modules["0"](torch.Tensor([])).shape, offspring.blocks[i]._modules["0"](torch.Tensor([]))[:,0,:,1])
                 print("parent _filter:", self.blocks[i]._modules["0"](torch.Tensor([])).shape, self.blocks[i]._modules["0"](torch.Tensor([]))[:,0,:,1])
-            if i < len(self.channels)-1:
-                print("next")
-                print(offspring.blocks[i+1]._modules["0"](torch.Tensor([]))[0:10,0:6,0,1])
-                print(self.blocks[i+1]._modules["0"](torch.Tensor([]))[0:10,0:6,0,1])
+            # if i < len(self.channels)-1:
+            #     print("next")
+            #     print(offspring.blocks[i+1]._modules["0"](torch.Tensor([]))[0:10,0:6,0,1])
+            #     print(self.blocks[i+1]._modules["0"](torch.Tensor([]))[0:10,0:6,0,1])
             if not torch.allclose(offspring.blocks[i]._modules["0"](torch.Tensor([])), self.blocks[i]._modules["0"](torch.Tensor([]))):
-                print("not close")
-        if groupold == (1,2) and groupnew == (0,1):
-            layer = offspring.blocks[i]._modules["0"]
-            print(layer.outchannelorders)
-            print(layer.inchannelorders)
-            print(layer.inchannelapply)
+                print("not close")  
         return offspring
     
     def generate(self):
