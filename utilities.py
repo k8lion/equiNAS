@@ -243,7 +243,7 @@ def get_isic_dataloaders(path_to_dir = "..", validation_split=0.2, batch_size=8)
     train_gt = pd.read_csv(str(path_to_dir)+"/data/ISIC_2019/ISIC_2019_SplitTrain_GroundTruth.csv")
     train_gt["target"] = train_gt.apply(lambda x: np.argmax(x[["MEL", "NV", "BCC", "AK", "BKL", "DF", "VASC", "SCC"]]), axis=1)
     #classes = ["MEL", "NV", "BCC", "AK", "BKL", "DF", "VASC", "SCC"]
-
+    totensor = ToTensor()
     transform = Compose([
         totensor,
         Normalize([0.68411015, 0.53133843, 0.5259248], [0.12060131, 0.14048626, 0.15317468]),
