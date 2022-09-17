@@ -704,13 +704,13 @@ class MixedLiftingConv2d(torch.nn.Module):
                     self.outchannelorders.append(sum([[4*c,4*c+2,4*c+1,4*c+3] for c in range(int(self.out_channels/4))], start=[]))
                 elif not discrete and self.group == (1,2) and g != (1,2):
                     if g == (1,0):
-                        self.outchannelorders.append(sum([[8*c,8*c+1,8*c+2,8*c+3,8*c+6,8*c+5,8*c+4,8*c+7] for c in range(int(self.out_channels/8))], start=[]))
+                        self.outchannelorders.append(sum([[8*c,8*c+2,8*c+4,8*c+6,8*c+5,8*c+3,8*c+1,8*c+7] for c in range(int(self.out_channels/8))], start=[]))
                     elif g == (0,1):
-                        self.outchannelorders.append(list(range(self.out_channels)))
+                        self.outchannelorders.append(sum([[4*c,4*c+2,4*c+1,4*c+3] for c in range(int(self.out_channels/4))], start=[]))
                     elif g == (1,1):
-                        self.outchannelorders.append(sum([[8*c,8*c+1,8*c+2,8*c+3,8*c+4,8*c+7,8*c+6,8*c+5] for c in range(int(self.out_channels/8))], start=[]))
+                        self.outchannelorders.append(sum([[8*c,8*c+4,8*c+1,8*c+5,8*c+2,8*c+7,8*c+3,8*c+6] for c in range(int(self.out_channels/8))], start=[]))
                     elif g == (0,2):
-                        self.outchannelorders.append(sum([[8*c,8*c+2,8*c+4,8*c+6,8*c+1,8*c+3,8*c+5,8*c+7] for c in range(int(self.out_channels/8))], start=[]))
+                        self.outchannelorders.append(list(range(self.out_channels)))
                     elif g == (0,0):
                         self.outchannelorders.append(list(range(self.out_channels)))
                 else:
