@@ -206,7 +206,6 @@ class HillClimber(object):
                 children.append(child)
         self.options = children
 
-
     def select(self):
         for child in sorted(self.options, key=attrgetter('score'), reverse=True):
             print(child.gs, child.countparams(), child.score)
@@ -235,7 +234,12 @@ class HillClimber(object):
         else:
             self.options = sorted(self.options, key=attrgetter('score'), reverse=True)[:min(len(self.options),self.popsize)]
 
-    def save(self):
+    def save(self, end = False):
+        if end and self.test:
+            for child in self.options:
+                if "test" not in self.history[child.uuid]:
+                    self.run_test()
+                print(child.gs, child.countparams(), self.history[child.uuid]["test"])
         with open(self.filename, 'wb') as f:
             pickle.dump(self.history, f)
 
@@ -245,26 +249,31 @@ class HillClimber(object):
             self.generate()
             print("Generation ", generation)
             self.train(epochs = epochs, start = generation+1)
+            if generation == generations-1:
+                continue
             self.select()
             self.save()
         if self.test:
             self.run_test()
             for model in self.options:
                 print(model.gs, model.score, self.history[model.uuid]["test"])
-            self.save()
+            self.save(end=True)
 
 
     def baselines(self, generations = -1, epochs = 5.0):
-        self.options[0].name = "D4priorD4"
-        self.options.append(models.DEANASNet(name = "C4priorC4", superspace=(0,2), discrete=True, alphalr=self.lr, weightlr=self.lr))
-        self.options.append(models.DEANASNet(name = "C1priorC1", superspace=(0,0), discrete=True, alphalr=self.lr, weightlr=self.lr))
-        D4priorC1 = models.DEANASNet(name = "D4priorC1", superspace=(1,2), discrete=True, alphalr=self.lr, weightlr=self.lr)
-        D4priorC4 = models.DEANASNet(name = "D4priorC4", superspace=(1,2), discrete=True, alphalr=self.lr, weightlr=self.lr)
-        C4priorC1 = models.DEANASNet(name = "C4priorC1", superspace=(0,2), discrete=True, alphalr=self.lr, weightlr=self.lr)
+        self.options[0].name = "D4 (prior: D4)"
+        self.options.append(models.DEANASNet(name = "C4 (prior: C4)", superspace=(0,2), discrete=True, alphalr=self.lr, weightlr=self.lr))
+        self.options.append(models.DEANASNet(name = "C1 (prior: C1)", superspace=(0,0), discrete=True, alphalr=self.lr, weightlr=self.lr))
+        D4priorC1 = models.DEANASNet(name = "D4 (prior: C1)", superspace=(1,2), discrete=True, alphalr=self.lr, weightlr=self.lr)
+        D4priorC4 = models.DEANASNet(name = "D4 (prior: C4)", superspace=(1,2), discrete=True, alphalr=self.lr, weightlr=self.lr)
+        C4priorC1 = models.DEANASNet(name = "C4 (prior: C1)", superspace=(0,2), discrete=True, alphalr=self.lr, weightlr=self.lr)
         for i in range(len(D4priorC1.channels)):
                 D4priorC1 = D4priorC1.offspring(len(D4priorC1.channels)-1-i, (0,0))
                 D4priorC4 = D4priorC4.offspring(len(D4priorC4.channels)-1-i, (0,2))
                 C4priorC1 = C4priorC1.offspring(len(C4priorC1.channels)-1-i, (0,0))
+        self.options.append(D4priorC1)
+        self.options.append(D4priorC4)
+        self.options.append(C4priorC1)
         #RPP
         self.train(epochs = epochs, start = 0)
         for generation in range(generations):
@@ -273,7 +282,7 @@ class HillClimber(object):
             self.save()
         if self.test:
             self.run_test()
-            self.save()
+        self.save()
 
             
 if __name__ == "__main__":
