@@ -702,6 +702,17 @@ class MixedLiftingConv2d(torch.nn.Module):
                 self.groups.append(g)
                 if not discrete and self.group == (0,2) and g != (0,2):
                     self.outchannelorders.append(sum([[4*c,4*c+2,4*c+1,4*c+3] for c in range(int(self.out_channels/4))], start=[]))
+                elif not discrete and self.group == (1,2) and g != (1,2):
+                    if g == (1,0):
+                        self.outchannelorders.append(sum([[8*c,8*c+1,8*c+2,8*c+3,8*c+6,8*c+5,8*c+4,8*c+7] for c in range(int(self.out_channels/8))], start=[]))
+                    elif g == (0,1):
+                        self.outchannelorders.append(list(range(self.out_channels)))
+                    elif g == (1,1):
+                        self.outchannelorders.append(sum([[8*c,8*c+1,8*c+2,8*c+3,8*c+4,8*c+7,8*c+6,8*c+5] for c in range(int(self.out_channels/8))], start=[]))
+                    elif g == (0,2):
+                        self.outchannelorders.append(sum([[8*c,8*c+2,8*c+4,8*c+6,8*c+1,8*c+3,8*c+5,8*c+7] for c in range(int(self.out_channels/8))], start=[]))
+                    elif g == (0,0):
+                        self.outchannelorders.append(list(range(self.out_channels)))
                 else:
                     self.outchannelorders.append(list(range(self.out_channels)))
                 if bias:
@@ -846,6 +857,7 @@ class MixedGroupConv2d(torch.nn.Module):
             self.alphas.data[-1] = 0
         else:
             self.alphas.data[-1] = -np.inf
+        
         self.norm = norm
         self.norms = torch.nn.Parameter(torch.zeros(np.prod([g+1 for g in group])+1), requires_grad=False)
         self.weights = torch.nn.ParameterList()
@@ -871,6 +883,24 @@ class MixedGroupConv2d(torch.nn.Module):
                     self.outchannelorders.append(sum([[4*c,4*c+2,4*c+1,4*c+3] for c in range(int(self.out_channels/4))], start=[]))
                     self.inchannelapply.append([[2*c+1 for c in range(int(self.out_channels/2))],])
                     self.inchannelorders.append([sum([[4*c+3,4*c+2,4*c+1,4*c] for c in range(int(self.in_channels/4))], start=[]),])
+                elif not discrete and self.group == (1,2) and g != (1,2):
+                    if g == (1,0):
+                        self.outchannelorders.append(sum([[8*c,8*c+2,8*c+4,8*c+6,8*c+1,8*c+7,8*c+5,8*c+3] for c in range(int(self.out_channels/8))], start=[]))
+                        self.inchannelapply.append([[2*c+1 for c in range(int(self.out_channels/2))],])
+                        self.inchannelorders.append([sum([[8*c+5,8*c+6,8*c+7,8*c+4,8*c+1,8*c+2,8*c+3,8*c] for c in range(int(self.in_channels/8))], start=[]),])
+                    elif g == (0,1):
+                        #self.outchannelorders.append(sum([[8*c,8*c+1,8*c+4,8*c+5,8*c+2,8*c+3,8*c+6,8*c+7] for c in range(int(self.out_channels/8))], start=[]))
+                        self.outchannelorders.append(list(range(self.out_channels)))
+                        self.inchannelapply.append([[2*c+1 for c in range(int(self.out_channels/2))],])
+                        self.inchannelorders.append([sum([[4*c+3,4*c+2,4*c+1,4*c] for c in range(int(self.in_channels/4))], start=[]),])
+                    elif g == (1,1):
+                        self.outchannelorders.append(sum([[8*c,8*c+4,8*c+1,8*c+5,8*c+2,8*c+7,8*c+3,8*c+6] for c in range(int(self.out_channels/8))], start=[]))
+                        self.inchannelapply.append([sum([[8*c+2,8*c+3,8*c+6,8*c+7] for c in range(int(self.out_channels/8))], start=[]),sum([[8*c+1,8*c+5] for c in range(int(self.out_channels/8))], start=[]), sum([[8*c+2,8*c+6] for c in range(int(self.out_channels/8))], start=[])])
+                        self.inchannelorders.append([sum([[8*c+5,8*c+6,8*c+7,8*c+4,8*c+1,8*c+2,8*c+3,8*c] for c in range(int(self.in_channels/8))], start=[]),sum([[8*c+3,8*c+2,8*c+1,8*c,8*c+7,8*c+6,8*c+5,8*c+4] for c in range(int(self.in_channels/8))], start=[]), sum([[8*c+1,8*c,8*c+3,8*c+2,8*c+5,8*c+4,8*c+7,8*c+6] for c in range(int(self.in_channels/8))], start=[])])
+                    elif g == (0,2) or g == (0,0):
+                        self.outchannelorders.append(list(range(self.out_channels)))
+                        self.inchannelapply.append([])
+                        self.inchannelorders.append([])
                 else:
                     self.outchannelorders.append(list(range(self.out_channels)))
                     self.inchannelapply.append([])
@@ -1264,6 +1294,11 @@ class DEANASNet(torch.nn.Module):
                 print(self.blocks[i+1]._modules["0"](torch.Tensor([]))[0:10,0:6,0,1])
             if not torch.allclose(offspring.blocks[i]._modules["0"](torch.Tensor([])), self.blocks[i]._modules["0"](torch.Tensor([]))):
                 print("not close")
+        if groupold == (1,2) and groupnew == (0,1):
+            layer = offspring.blocks[i]._modules["0"]
+            print(layer.outchannelorders)
+            print(layer.inchannelorders)
+            print(layer.inchannelapply)
         return offspring
     
     def generate(self):
