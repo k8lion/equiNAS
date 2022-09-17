@@ -98,12 +98,14 @@ class HillClimber(object):
                                               'accuracy': []},
                               'epochsteps': [],
                               'ghistory': [],
-                              'paramcounts': []}
+                              'paramcounts': [],
+                              'distances': [],}
                 else:
                     self.history[model.uuid] = copy.deepcopy(self.history[model.parent])
             self.history[model.uuid]["epochsteps"] += np.linspace(start, start+1, int(np.ceil(epochs)), endpoint=False).tolist()
             self.history[model.uuid]["ghistory"].append(model.gs)
             self.history[model.uuid]["paramcounts"].append(model.countparams())
+            self.history[model.uuid]["distances"].append(model.distance())
             counter = 0
             for _ in range(int(np.ceil(epochs))):
                 for phase in ['train', 'validation']:
@@ -146,6 +148,7 @@ class HillClimber(object):
 
                     if phase == "train":
                         self.history[model.uuid]["trainsteps"] += [b / running_count + start for b in batch]
+                        start += 1
             model = model.to("cpu")
 
     def validate(self, model):
