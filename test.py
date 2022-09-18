@@ -218,36 +218,37 @@ class Test(unittest.TestCase):
         
         #print(bestperm, bestscore)
 
-    def test_mixedgroupconv(self):
+    def test_mixedgroupconv_discrete(self):
         torch.manual_seed(0)
         torch.set_printoptions(precision=2, sci_mode=False)
-        in_channels = 2
-        out_channels = 2
-        kernel_size = 3
+        #in_channels = 16
+        #out_channels = 16
+        #kernel_size = 3
         batchsize = 4
         S = 3
         for group in [(1,0), (0,0), (1,1), (0,1), (1,2), (0,2)]:#, (1,3), (0,3), (1,4), (0,4)]:
-        #for group in [(1,2)]:
-            layer = models.MixedGroupConv2d(group, in_channels=in_channels, out_channels=out_channels, kernel_size = kernel_size, padding=int(kernel_size//2), bias=True)#, test=True)
+            #layer = models.MixedGroupConv2d(group, in_channels=in_channels, out_channels=out_channels, kernel_size = kernel_size, padding=int(kernel_size//2), bias=True)#, test=True)
+            model = models.DEANASNet(superspace=(1,2), discrete=True, basechannels=4)
+            if group != (1,2):
+                for i in range(len(model.channels)):
+                    model = model.offspring(len(model.channels)-1-i, group)
+            layer = model.blocks[1]._modules["0"]
             layer.eval()
-            
-            x = torch.rand(batchsize, in_channels*models.groupsize(group), S, S)
+            x = torch.rand(batchsize, 32, S, S)
+            #x = torch.rand(batchsize, in_channels*models.groupsize(group), S, S)
             for flip in range(group[0]+1):
                 for rotation in range(group[1]+1):
-                    for k in range(len(layer.alphas)):
-                        if layer.groups[k][0] >= flip and layer.groups[k][1] >= rotation:
-                            layer.alphas.data[k] = 0
-                        else:
-                            layer.alphas.data[k] = -np.inf
-                    gx = models.rotateflipstack_n(x.clone().reshape(batchsize, in_channels, models.groupsize(group), S, S), 2**(group[1]-rotation)%2**group[1], 2**group[1], flip, 2**group[0]).reshape(batchsize, in_channels*models.groupsize(group), S, S)
+                    if flip == 0 and rotation == 0:
+                        continue
+                    gx = models.rotateflipstack_n(x.clone().reshape(batchsize, -1, models.groupsize(group), S, S), 2**(group[1]-rotation)%2**group[1], 2**group[1], flip, 2**group[0]).reshape(batchsize, -1, S, S)
 
                     psi_x = layer(x.clone())
                     psi_gx = layer(gx.clone())
 
-                    g_psi_x = models.rotateflipstack_n(psi_x.clone().reshape(batchsize, out_channels, models.groupsize(group), S, S), 2**(group[1]-rotation)%2**group[1], 2**group[1], flip, 2**group[0]).reshape(batchsize, out_channels*models.groupsize(group), S, S)
+                    g_psi_x = models.rotateflipstack_n(psi_x.clone().reshape(batchsize, -1, models.groupsize(group), S, S), 2**(group[1]-rotation)%2**group[1], 2**group[1], flip, 2**group[0]).reshape(batchsize, -1, S, S)
 
-                    self.assertTrue(psi_x.shape == g_psi_x.shape)
-                    self.assertTrue(psi_x.shape == (batchsize, out_channels*models.groupsize(group), S, S))
+                    self.assertTrue(psi_gx.shape == g_psi_x.shape)
+                    #self.assertTrue(psi_x.shape == (batchsize, out_channels*models.groupsize(group), S, S))
 
                     self.assertTrue(not torch.allclose(psi_x, torch.zeros_like(psi_x), atol=1e-4, rtol=1e-4))
 
@@ -258,45 +259,183 @@ class Test(unittest.TestCase):
                         print(group, (flip, rotation), (flip,2**(group[1]-rotation)%2**group[1]), "equivariant")
                     #self.assertTrue(torch.allclose(psi_gx, g_psi_x, atol=1e-4, rtol=1e-6))
     
-    def test_mixedliftingconv(self):
+    def test_mixedgroupconv_continuous(self):
         torch.manual_seed(0)
         torch.set_printoptions(precision=2, sci_mode=False)
-        in_channels = 2
-        out_channels = 2
-        kernel_size = 3
+        #in_channels = 16
+        #out_channels = 16
+        #kernel_size = 3
         batchsize = 4
         S = 3
-        for group in [(1,0), (0,0), (1,1), (0,1), (1,2), (0,2)]:#, (1,3), (0,3), (1,4), (0,4)]:
-        #for group in [(1,2)]:
-            layer = models.MixedLiftingConv2d(group, in_channels=in_channels, out_channels=out_channels, kernel_size = kernel_size, padding=int(kernel_size//2), bias=True)#, test=True)
+        for group in [(1,0), (1,1), (0,1), (1,2), (0,2)]:#, (1,3), (0,3), (1,4), (0,4)]:
+            #layer = models.MixedGroupConv2d(group, in_channels=in_channels, out_channels=out_channels, kernel_size = kernel_size, padding=int(kernel_size//2), bias=True)#, test=True)
+            model = models.DEANASNet(superspace=(1,2),basechannels=4)
+            layer = model.blocks[1]._modules["0"]
             layer.eval()
-            
-            x = torch.rand(batchsize, in_channels, S, S)
+            for k in range(len(layer.alphas)):
+                if layer.groups[k][0] >= group[0] and layer.groups[k][1] >= group[1]:
+                    layer.alphas.data[k] = 0
+                else:
+                    layer.alphas.data[k] = -np.inf
+            print("equivariance to", group, "- active layers:", [layer.groups[i] for i in torch.where(layer.alphas != -np.inf)[0]])
+            x = torch.rand(batchsize, 32, S, S)
+            #x = torch.rand(batchsize, in_channels*models.groupsize(group), S, S)
             for flip in range(group[0]+1):
                 for rotation in range(group[1]+1):
-                    for k in range(len(layer.alphas)):
-                        if layer.groups[k][0] >= flip and layer.groups[k][1] >= rotation:
-                            layer.alphas.data[k] = 0
-                        else:
-                            layer.alphas.data[k] = -np.inf
-                    gx = models.rotateflip_n(x.clone(), 2**(group[1]-rotation)%2**group[1], 2**group[1], flip, 2**group[0])
+                    if flip == 0 and rotation == 0:
+                        continue
+                    gx = models.rotateflipstack_n(x.clone().reshape(batchsize, -1, 8, S, S), rotation*2**(2-group[1]), 4, flip, 2).reshape(batchsize, -1, S, S)
 
                     psi_x = layer(x.clone())
                     psi_gx = layer(gx.clone())
 
-                    g_psi_x = models.rotateflipstack_n(psi_x.clone().reshape(batchsize, out_channels, models.groupsize(group), S, S), 2**(group[1]-rotation)%2**group[1], 2**group[1], flip, 2**group[0]).reshape(batchsize, out_channels*models.groupsize(group), S, S)
+                    g_psi_x = models.rotateflipstack_n(psi_x.clone().reshape(batchsize, -1, 8, S, S), rotation*2**(2-group[1]), 4, flip, 2).reshape(batchsize, -1, S, S)
 
-                    self.assertTrue(psi_x.shape == g_psi_x.shape)
-                    self.assertTrue(psi_x.shape == (batchsize, out_channels*models.groupsize(group), S, S))
+                    self.assertTrue(psi_gx.shape == g_psi_x.shape)
+
+                    self.assertTrue(not torch.allclose(psi_x, torch.zeros_like(psi_x), atol=1e-4, rtol=1e-4))
+
+                    print("action:", (flip,rotation*2**(2-group[1])), end = " ")
+                    if not torch.allclose(psi_gx, g_psi_x, atol=1e-4, rtol=1e-4):
+                        #print([torch.allclose(psi_gx[:,i,:,:],g_psi_x[:,i,:,:], atol=1e-4, rtol=1e-4) for i in range(psi_gx.shape[1])])
+                        print("failed")
+                        print(psi_gx[0,:8,:,0])
+                        print(g_psi_x[0,:8,:,0])
+                        #print(layer(torch.Tensor([]))[:8,0,:,0])
+                    else:
+                        print("equivariant")
+                    #self.assertTrue(torch.allclose(psi_gx, g_psi_x, atol=1e-4, rtol=1e-6))
+            
+    def test_mixedliftingconv_discrete(self):
+        torch.manual_seed(0)
+        torch.set_printoptions(precision=2, sci_mode=False)
+        #in_channels = 2
+        #out_channels = 2
+        #kernel_size = 3
+        batchsize = 4
+        S = 3
+        for group in [(1,0), (0,0), (1,1), (0,1), (1,2), (0,2)]:#, (1,3), (0,3), (1,4), (0,4)]:
+            #layer = models.MixedLiftingConv2d(group, in_channels=in_channels, out_channels=out_channels, kernel_size = kernel_size, padding=int(kernel_size//2), bias=True)#, test=True)
+            model = models.DEANASNet(superspace=(1,2), discrete=True, basechannels=2)
+            if group != (1,2):
+                for i in range(len(model.channels)):
+                    model = model.offspring(len(model.channels)-1-i, group)
+            layer = model.blocks[0]._modules["0"]
+            layer.eval()
+            x = torch.ones(batchsize, 1, S, S)
+            for a in range(x.shape[0]):
+                for b in range(x.shape[1]):
+                    for c in range(x.shape[2]):
+                        for d in range(x.shape[3]):
+                            x[a,b,c,d] = c*10+d#a*10**3 + b*10**2 + c*10 + d
+            #get index where model.alphas is not -inf
+            index = torch.where(layer.alphas != -np.inf)[0]
+            layer.norm = False
+            for a in range(layer.weights[index].shape[0]):
+                for b in range(layer.weights[index].shape[1]):
+                    for c in range(layer.weights[index].shape[2]):
+                        for d in range(layer.weights[index].shape[3]):
+                            layer.weights[index].data[a,b,c,d] =  c*10+d#(a*10**4+b*10**3+c*10**2)//10+d
+            for flip in range(group[0]+1):
+                for rotation in range(group[1]+1):
+                    # for k in range(len(layer.alphas)):
+                    #     if layer.groups[k][0] >= flip and layer.groups[k][1] >= rotation:
+                    #         layer.alphas.data[k] = 0
+                    #     else:
+                    #         layer.alphas.data[k] = -np.inf
+                    gx = models.rotateflip_n(x.clone(), 2**(group[1]-rotation)%2**group[1], 2**group[1], flip, 2**group[0])
+                    #gx = models.rotateflip_n(x.clone(), rotation, 2**group[1], flip, 2**group[0])
+
+                    psi_x = layer(x.clone())
+                    psi_gx = layer(gx.clone())
+
+                    g_psi_x = models.rotateflipstack_n(psi_x.clone().reshape(batchsize, -1, models.groupsize(group), S, S), 2**(group[1]-rotation)%2**group[1], 2**group[1], flip, 2**group[0]).reshape(batchsize, -1, S, S)
+                    #g_psi_x = models.rotateflipstack_n(psi_x.clone().reshape(batchsize, -1, models.groupsize(group), S, S), rotation, 2**group[1], flip, 2**group[0]).reshape(batchsize, -1, S, S)
+                           
+
+                    self.assertTrue(psi_gx.shape == g_psi_x.shape)
+                    #self.assertTrue(psi_x.shape == (batchsize, out_channels*models.groupsize(group), S, S))
 
                     self.assertTrue(not torch.allclose(psi_x, torch.zeros_like(psi_x), atol=1e-4, rtol=1e-4))
 
                     if not torch.allclose(psi_gx, g_psi_x, atol=1e-4, rtol=1e-4):
                         print(group, (flip, rotation), (flip,2**(group[1]-rotation)%2**group[1]), [torch.allclose(psi_gx[:,i,:,:],g_psi_x[:,i,:,:], atol=1e-4, rtol=1e-4) for i in range(psi_gx.shape[1])])
-                        #eq = False
+                        #print(psi_gx[0,:8,:,0])
+                        #print(g_psi_x[0,:8,:,0])
+                        #print(layer(torch.Tensor([]))[:8,0,:,0])
                     else:
                         print(group, (flip, rotation), (flip,2**(group[1]-rotation)%2**group[1]), "equivariant")
                     #self.assertTrue(torch.allclose(psi_gx, g_psi_x, atol=1e-4, rtol=1e-6))
+    
+
+    def test_mixedliftingconv_continuous(self):
+        torch.manual_seed(0)
+        torch.set_printoptions(precision=2, sci_mode=False)
+        #in_channels = 2
+        #out_channels = 2
+        #kernel_size = 3
+        batchsize = 4
+        S = 1
+        for group in [(1,0), (1,1), (0,1), (1,2), (0,2)]:#, (1,3), (0,3), (1,4), (0,4)]:
+            #layer = models.MixedLiftingConv2d(group, in_channels=in_channels, out_channels=out_channels, kernel_size = kernel_size, padding=int(kernel_size//2), bias=True)#, test=True)
+            model = models.DEANASNet(superspace=(1,2), discrete=True, basechannels=1)
+            layer = model.blocks[0]._modules["0"]
+            layer.eval()
+            for k in range(len(layer.alphas)):
+                if layer.groups[k][0] == group[0] and layer.groups[k][1] == group[1]:
+                    layer.alphas.data[k] = 0
+                else:
+                    layer.alphas.data[k] = -np.inf
+            print("equivariance to", group, "- active layers:", [layer.groups[i] for i in torch.where(layer.alphas != -np.inf)[0]])
+            x = torch.ones(batchsize, 1, S, S)
+            # for a in range(x.shape[0]):
+            #     for b in range(x.shape[1]):
+            #         for c in range(x.shape[2]):
+            #             for d in range(x.shape[3]):
+            #                 x[a,b,c,d] = a*10**3 + b*10**2 + c*10 + d
+            #get index where model.alphas is not -inf
+            # index = torch.where(layer.alphas != -np.inf)[0]
+            # layer.norm = False
+            # for a in range(layer.weights[index].shape[0]):
+            #     for b in range(layer.weights[index].shape[1]):
+            #         for c in range(layer.weights[index].shape[2]):
+            #             for d in range(layer.weights[index].shape[3]):
+            #                 layer.weights[index].data[a,b,c,d] =  c*10+d#(a*10**4+b*10**3+c*10**2)//10+d
+            for flip in range(group[0]+1):
+                for rotation in range(group[1]+1):
+                    if flip == 0 and rotation == 0:
+                        continue
+                    #gx = models.rotateflip_n(x.clone(), 2**(group[1]-rotation)%2**group[1], 2**group[1], flip, 2**group[0])
+                    gx = models.rotateflip_n(x.clone(), rotation*2**(2-group[1]), 4, flip, 2)
+                    print("x\n", x[:,:,0,0])
+                    print("gx\n", gx[:,:,0,0])
+                    print("weights\n, ", layer.weights[[i for i in range(len(layer.alphas)) if layer.alphas[i] != -np.inf][0]])
+                    print("filter\n", layer(torch.Tensor([]))[:,0,:,:])
+                    psi_x = layer(x.clone())
+                    psi_gx = layer(gx.clone())
+
+                    g_psi_x = models.rotateflipstack_n(psi_x.clone().reshape(batchsize, -1, 8, S, S), rotation*2**(2-group[1]), 4, flip, 2).reshape(batchsize, -1, S, S)
+                    #g_psi_x = models.rotateflipstack_n(psi_x.clone().reshape(batchsize, -1, models.groupsize(group), S, S), rotation, 2**group[1], flip, 2**group[0]).reshape(batchsize, -1, S, S)
+                    print("psi_x\n", psi_x[:,:,0,0])
+                    print("g_psi_x\n", g_psi_x[:,:,0,0])
+                    print("psi_gx\n", psi_gx[:,:,0,0])
+
+                    self.assertTrue(psi_gx.shape == g_psi_x.shape)
+                    #self.assertTrue(psi_x.shape == (batchsize, out_channels*models.groupsize(group), S, S))
+
+                    self.assertTrue(not torch.allclose(psi_x, torch.zeros_like(psi_x), atol=1e-4, rtol=1e-4))
+
+                    print("action:", (flip,rotation*2**(2-group[1])), end = " ")
+                    if not torch.allclose(psi_gx, g_psi_x, atol=1e-4, rtol=1e-4):
+                        #print([torch.allclose(psi_gx[:,i,:,:],g_psi_x[:,i,:,:], atol=1e-4, rtol=1e-4) for i in range(psi_gx.shape[1])])
+                        print("failed")
+                        print(psi_gx[0,:8,:,0])
+                        print(g_psi_x[0,:8,:,0])
+                        #print(layer(torch.Tensor([]))[:8,0,:,0])
+                    else:
+                        print("equivariant")
+                    #self.assertTrue(torch.allclose(psi_gx, g_psi_x, atol=1e-4, rtol=1e-6))
+                    return
             
     def test_DEANASNet(self):
         device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
@@ -329,10 +468,11 @@ class Test(unittest.TestCase):
         torch.manual_seed(0)
         torch.set_printoptions(sci_mode=False)
         model = models.DEANASNet(superspace=(1,2), stages = 2, basechannels=2, discrete=True)
-        assert model.distance() == 0
+        assert abs(model.distance().item()) < 1e-5
         for i in range(len(model.channels)):
             model = model.offspring(len(model.channels)-1-i, (1,1))
-            assert model.distance() == 0
+            #print(i, abs(model.distance()).item())
+            assert abs(model.distance().item()) < 1e-5
         model = models.DEANASNet(superspace=(1,2), stages = 2, basechannels=2, discrete=False)
         print(model.distance())
 
@@ -340,7 +480,7 @@ class Test(unittest.TestCase):
     def test_offspring_DEANAS(self):
         torch.manual_seed(0)
         torch.set_printoptions(sci_mode=False)
-        upper = (1,1)
+        upper = (1,2)
         lower = (0,1)
         model = models.DEANASNet(superspace=(1,2), stages = 2, basechannels=2, discrete=True)
         if upper != (1,2):
@@ -458,18 +598,18 @@ class Test(unittest.TestCase):
         torch.manual_seed(0)
         torch.set_printoptions(sci_mode=False)
         if upper is None:
-            upper = (1,2)
+            upper = (1,1)
         if lower is None:
-            lower = (0,1)
-        model = models.DEANASNet(superspace=(1,2), stages = 2, basechannels=1, discrete=True)
+            lower = (1,0)
+        model = models.DEANASNet(superspace=(1,2), stages = 2, basechannels=2, discrete=True)
         if upper != (1,2):
             for i in range(len(model.channels)):
                 model = model.offspring(len(model.channels)-1-i, upper)
         for i in range(len(model.channels)-1):
             model = model.offspring(len(model.channels)-1-i, lower)
         child = model.offspring(0, lower, verbose=verbose)
-        print(model.gs)
-        print(child.gs)
+        #print(model.gs)
+        #print(child.gs)
         xmodel = torch.randn(16, 1, 29, 29)
         xchild = xmodel.clone()
         if not verbose:
@@ -486,10 +626,10 @@ class Test(unittest.TestCase):
                         print(child.gs, child.blocks[i]._modules["0"].alphas.data, child.blocks[i]._modules["0"].outchannelorders)
                         print(model.blocks[i]._modules["0"](torch.Tensor([]))[0:8,0,:,1])
                         print(child.blocks[i]._modules["0"](torch.Tensor([]))[0:8,0,:,1])
-                        print(xmodel[2,0:8,0:6,1])
-                        print(xchild[2,0:8,0:6,1])
-                        print(xmodel[0:7,3,0:6,1])
-                        print(xchild[0:7,3,0:6,1])
+                        #print(xmodel[2,0:8,0:6,1])
+                        #print(xchild[2,0:8,0:6,1])
+                        #print(xmodel[0:7,3,0:6,1])
+                        #print(xchild[0:7,3,0:6,1])
                 else:
                     print(i, end=" ")
             #self.assertTrue(torch.allclose(xmodel, xchild, rtol = 1e-4, atol = 1e-4))
@@ -534,7 +674,6 @@ class Test(unittest.TestCase):
         torch.set_printoptions(sci_mode=False)
         mf = 1
         mr = 2
-        model = models.DEANASNet(superspace=(mf,mr), stages = 2, basechannels=8, discrete=True)
         while max(mf, mr) > 0:
             for f in range(mf+1):
                 for r in range(mr+1):
@@ -545,10 +684,8 @@ class Test(unittest.TestCase):
                 mf = 0
             elif mr > 0:
                 mr -= 1
-            model = model.offspring(len(model.channels)-1, (mf,mr))
         mf = 1
         mr = 2
-        model = models.DEANASNet(superspace=(mf,mr), stages = 2, basechannels=8, discrete=True)
         while max(mf, mr) > 0:
             for f in range(mf+1):
                 for r in range(mr+1):
@@ -561,10 +698,8 @@ class Test(unittest.TestCase):
                 mf = 0
             elif mr == 1:
                 mr = 0
-            model = model.offspring(len(model.channels)-1, (mf,mr))
         mf = 1
         mr = 2
-        model = models.DEANASNet(superspace=(mf,mr), stages = 2, basechannels=8, discrete=True)
         while max(mf, mr) > 0:
             for f in range(mf+1):
                 for r in range(mr+1):
@@ -575,7 +710,6 @@ class Test(unittest.TestCase):
                 mr -= 1
             elif mf == 1:
                 mf = 0
-            model = model.offspring(len(model.channels)-1, (mf,mr))
 
 
 
