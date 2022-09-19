@@ -196,7 +196,7 @@ def DEANASearch(args):
                     history["trainsteps"] += [epoch + b / running_count for b in batch]
             elif phase == "validation":
                 session.report({"loss": epoch_loss, "accuracy": epoch_acc})
-        history[model.uuid]["distances"].append(model.distance())
+        history["distances"].append(model.distance())
         if not args.tune:
             history['alphas'].append([torch.softmax(a, dim=0).detach().tolist() for a in model.alphas()])
         scheduler.step()
