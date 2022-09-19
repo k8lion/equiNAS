@@ -166,7 +166,7 @@ def get_mnist_dataloaders(path_to_dir = "~", validation_split=0.2, batch_size=64
             mnist_train = datasets.MNIST(root=str(path_to_dir)+"/data", train=True, download=True, transform=transform)
         train_loader = DataLoader(mnist_train, batch_size=batch_size, shuffle=True)
         if val_rot:
-            mnist_val = MnistRotDataset(mode='val', transform=transform_rot, path_to_dir=path_to_dir)
+            mnist_val = MnistRotDataset(mode='train', transform=transform_rot, path_to_dir=path_to_dir)
         else:
             mnist_val = datasets.MNIST(root=str(path_to_dir)+"/data", train=False, download=True, transform=transform)
         shuffle_dataset = True
