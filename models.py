@@ -791,7 +791,7 @@ class MixedLiftingConv2d(torch.nn.Module):
         return weightsum
 
     def distance(self, supergroup):
-        _filters = torch.zeros(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
+        _filters = torch.zeros(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size).to(self.weights[0].device)
         alphas = torch.softmax(self.alphas, dim=0)
         for layer in range(len(alphas)-1):
             if alphas[layer] > 0:
@@ -805,12 +805,10 @@ class MixedLiftingConv2d(torch.nn.Module):
                     _filter = torch.stack([rotateflip_n(weights, i, subgroupsize(self.groups[layer], 1), j, subgroupsize(self.groups[layer], 0)) for (i,j) in order], dim = -4)
                 else:
                     _filter = torch.stack([rotate_n(weights, i, groupsize(self.groups[layer])) for i in range(subgroupsize(self.groups[layer], 1))], dim = -4)
-                #use _filter from here?
 
                 _filter = _filter.reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
 
                 _filter = _filter[self.outchannelorders[layer]]
-
                 _filters += _filter*alphas[layer]
 
         copied_filters = _filters.clone()
@@ -980,7 +978,7 @@ class MixedGroupConv2d(torch.nn.Module):
     
     def distance(self, supergroup):
         #measure distance of layer to nearest supergroup-equivariant layer
-        _filters = torch.zeros(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
+        _filters = torch.zeros(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size).to(self.weights[0].device)
         alphas = torch.softmax(self.alphas, dim=0)
         for layer in range(len(alphas)-1):
             if alphas[layer] > 0:

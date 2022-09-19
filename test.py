@@ -467,13 +467,14 @@ class Test(unittest.TestCase):
     def test_measure_distance(self):
         torch.manual_seed(0)
         torch.set_printoptions(sci_mode=False)
-        model = models.DEANASNet(superspace=(1,2), stages = 2, basechannels=2, discrete=True)
+        device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+        model = models.DEANASNet(superspace=(1,2), stages = 2, basechannels=2, discrete=True).to(device)
         assert abs(model.distance().item()) < 1e-5
         for i in range(len(model.channels)):
-            model = model.offspring(len(model.channels)-1-i, (1,1))
+            model = model.offspring(len(model.channels)-1-i, (1,1)).to(device)
             #print(i, abs(model.distance()).item())
             assert abs(model.distance().item()) < 1e-5
-        model = models.DEANASNet(superspace=(1,2), stages = 2, basechannels=2, discrete=False)
+        model = models.DEANASNet(superspace=(1,2), stages = 2, basechannels=2, discrete=False).to(device)
         print(model.distance())
 
 
