@@ -193,6 +193,7 @@ class HillClimber(object):
         acc = running_corrects.float() / running_count
         model = model.cpu()
         self.history[model.uuid]["test"] = acc.item()
+        self.history[model.uuid]["test_distance"] = model.distance().item()
 
     def saveargs(self, args):
         self.history["args"] = args

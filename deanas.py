@@ -217,7 +217,7 @@ def DEANASearch(args):
         epoch_loss = running_loss / running_count
         epoch_acc = running_corrects / running_count
         print('Test Loss: {:.4f} Acc: {:.4f}'.format(epoch_loss, epoch_acc))
-        history['test'] = {'loss': epoch_loss, 'accuracy': epoch_acc}
+        history['test'] = {'loss': epoch_loss, 'accuracy': epoch_acc, 'distance': model.distance().item()}
     if not args.tune:
         with open(filename, 'wb') as f:
             pickle.dump(history, f)
