@@ -475,7 +475,7 @@ class Test(unittest.TestCase):
             #print(i, abs(model.distance()).item())
             assert abs(model.distance().item()) < 1e-5
         model = models.DEANASNet(superspace=(1,2), stages = 2, basechannels=2, discrete=False).to(device)
-        print(model.distance())
+        print(model.distance().item())
 
 
     def test_offspring_DEANAS(self):
