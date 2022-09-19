@@ -104,11 +104,12 @@ class HillClimber(object):
                 else:
                     self.history[model.uuid] = copy.deepcopy(self.history[model.parent])
             self.history[model.uuid]["epochsteps"] += np.linspace(start, start+1, int(np.ceil(epochs)), endpoint=False).tolist()
+            print(model.uuid, "epochsteps", self.history[model.uuid]["epochsteps"])
             self.history[model.uuid]["ghistory"].append(model.gs)
             self.history[model.uuid]["paramcounts"].append(model.countparams())
             self.history[model.uuid]["distances"].append(model.distance().item())
             counter = 0
-            for _ in range(int(np.ceil(epochs))):
+            for epoch in range(int(np.ceil(epochs))):
                 for phase in ['train', 'validation']:
                     batch = []
                     if phase == 'train':
@@ -148,8 +149,7 @@ class HillClimber(object):
                     model.score = epoch_acc.item()
 
                     if phase == "train":
-                        self.history[model.uuid]["trainsteps"] += [b / running_count + start for b in batch]
-                        start += 1
+                        self.history[model.uuid]["trainsteps"] += [b / running_count + start + epoch for b in batch]
             model = model.to("cpu")
 
     def validate(self, model):
@@ -177,23 +177,22 @@ class HillClimber(object):
         model = model.cpu()
 
         return acc.item()
-    
-    def run_test(self):
-        for model in self.options:
-            model = model.to(self.device)
-            model.eval()
-            running_corrects = 0
-            running_count = 0
-            for inputs, labels in self.test_loader:
-                inputs = inputs.to(self.device)
-                labels = labels.to(self.device)
-                outputs = model(inputs)
-                _, preds = torch.max(outputs, 1)
-                running_corrects += torch.sum(preds == labels.data)
-                running_count += inputs.size(0)
-            acc = running_corrects.float() / running_count
-            model = model.cpu()
-            self.history[model.uuid]["test"] = acc.item()
+
+    def run_test(self, model):
+        model = model.to(self.device)
+        model.eval()
+        running_corrects = 0
+        running_count = 0
+        for inputs, labels in self.test_loader:
+            inputs = inputs.to(self.device)
+            labels = labels.to(self.device)
+            outputs = model(inputs)
+            _, preds = torch.max(outputs, 1)
+            running_corrects += torch.sum(preds == labels.data)
+            running_count += inputs.size(0)
+        acc = running_corrects.float() / running_count
+        model = model.cpu()
+        self.history[model.uuid]["test"] = acc.item()
 
     def saveargs(self, args):
         self.history["args"] = args
@@ -231,18 +230,24 @@ class HillClimber(object):
             for i, model in enumerate(self.options):
                 costs[i,0] = 1-model.score
                 costs[i,1] = model.countparams()
-            self.options = [self.options[ind] for ind in np.where(utilities.is_pareto_efficient(costs))[0]]
+            pareto_inds = np.where(utilities.is_pareto_efficient(costs))[0]
+            for removed in [self.options[ind] for ind in range(len(self.options)) if ind not in pareto_inds]:
+                self.run_test(removed)
+            self.options = [self.options[ind] for ind in pareto_inds]
             print("Pareto front:", len(self.options))
             for child in sorted(self.options, key=attrgetter('score'), reverse=True):
                 print(child.gs, child.countparams(), child.score)
         else:
-            self.options = sorted(self.options, key=attrgetter('score'), reverse=True)[:min(len(self.options),self.popsize)]
+            sorted_options = sorted(self.options, key=attrgetter('score'), reverse=True)
+            self.options = sorted_options[:min(len(self.options),self.popsize)]
+            for removed in sorted_options[min(len(self.options),self.popsize):]:
+                self.run_test(removed)
 
     def save(self, end = False):
         if end and self.test:
             for child in self.options:
                 if "test" not in self.history[child.uuid]:
-                    self.run_test()
+                    self.run_test(child)
                 print(child.gs, child.countparams(), self.history[child.uuid]["test"])
         with open(self.filename, 'wb') as f:
             pickle.dump(self.history, f)
@@ -258,8 +263,8 @@ class HillClimber(object):
             self.select()
             self.save()
         if self.test:
-            self.run_test()
             for model in self.options:
+                self.run_test(model)
                 print(model.gs, model.score, self.history[model.uuid]["test"])
             self.save(end=True)
 
@@ -285,8 +290,9 @@ class HillClimber(object):
             self.train(epochs = epochs, start = generation+1)
             self.save()
         if self.test:
-            self.run_test()
-        self.save()
+            for model in self.options:
+                self.run_test(model)
+        self.save(end=True)
 
             
 if __name__ == "__main__":
@@ -294,7 +300,7 @@ if __name__ == "__main__":
     parser.add_argument('--epochs', "-e", type=float, default="0.2", help='number of epochs per child')
     parser.add_argument('--generations', "-i", type=int, default="50", help='number of generations')
     parser.add_argument('--lr', "-l", type=float, default="0.05", help='learning rate')
-    parser.add_argument('--popsize', "-p", type=int, default="10", help='population size (if not pareto)')
+    parser.add_argument('--popsize', "-p", type=int, default="5", help='population size (if not pareto)')
     parser.add_argument('--baselines', action='store_true', default=False, help='measure baselines')
     parser.add_argument('--data', "-d", type=pathlib.Path, default="..", help='datapath')
     parser.add_argument('--d16', action='store_true', default=False, help='use d16 equivariance instead of default d4')
