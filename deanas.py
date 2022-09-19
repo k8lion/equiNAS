@@ -92,7 +92,7 @@ def DEANASearch(args):
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     print(args.task)
     if args.task == "mnist":
-        train_loader, validation_loader, test_loader = utilities.get_mnist_dataloaders(path_to_dir=args.path, validation_split=0.5, batch_size=args.batch_size)
+        train_loader, validation_loader, test_loader = utilities.get_mnist_dataloaders(path_to_dir=args.path, validation_split=0.5, batch_size=args.batch_size, train_rot=not args.train_vanilla, val_rot=not args.val_vanilla, test_rot=not args.test_vanilla)
         args.indim = 1
         args.outdim = 10
         if args.kernel < 0:
@@ -245,6 +245,9 @@ if __name__ == "__main__":
     parser.add_argument('--test', action='store_true', default=False, help='evaluate on test set') 
     parser.add_argument('--folder', "-f", type=str, default="", help='folder to store results')
     parser.add_argument('--name', "-n", type=str, default="test", help='name of experiment')
+    parser.add_argument('--train_vanilla', action='store_true', default=False, help='train on vanilla data')
+    parser.add_argument('--val_vanilla', action='store_true', default=False, help='val on vanilla data')
+    parser.add_argument('--test_vanilla', action='store_true', default=False, help='test on vanilla data')
     args = parser.parse_args()
     print(args)
     if args.tune:

@@ -1,4 +1,3 @@
-import datetime
 import pickle
 import torch
 import numpy as np
@@ -11,9 +10,10 @@ import pathlib
 
 
 class HillClimber(object):
-    def __init__(self, reset = True, reg = False, skip = False, baselines = False, pareto = False, lr = 0.1, 
+    def __init__(self, reg = False, baselines = False, pareto = False, lr = 0.1, 
                  path = "..", d16 = False, c4 = False, popsize = 10, seed = -1, dea = False, noskip = False,
-                 test = False, folder = "", name = "", task = "mnist", unique = False):
+                 test = False, folder = "", name = "", task = "mnist", unique = False, train_vanilla = False,
+                 val_vanilla = False, test_vanilla = False):
         self.seed = seed
         if seed != -1:
             torch.manual_seed(seed)
@@ -30,8 +30,8 @@ class HillClimber(object):
         print(self.filename)
         self.ordered = True
         self.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
-        if args.task == "mnist":
-            self.train_loader, self.validation_loader, self.test_loader = utilities.get_mnist_dataloaders(path_to_dir=path)
+        if task == "mnist":
+            self.train_loader, self.validation_loader, self.test_loader = utilities.get_mnist_dataloaders(path_to_dir=path, train_rot=not train_vanilla, val_rot=not val_vanilla, test_rot=not test_vanilla)
             indim = 1
             outdim = 10
             kernel = 5
@@ -39,7 +39,7 @@ class HillClimber(object):
             pools = stages*2
             hidden = 64
             basechannels = 16
-        elif args.task == "isic":
+        elif task == "isic":
             self.train_loader, self.validation_loader, self.test_loader = utilities.get_isic_dataloaders(path_to_dir=path)
             indim = 3
             outdim = 9
@@ -48,7 +48,7 @@ class HillClimber(object):
             pools = stages*2
             hidden = 128
             basechannels = 32
-        elif args.task == "galaxy10":
+        elif task == "galaxy10":
             self.train_loader, self.validation_loader, self.test_loader = utilities.get_galaxy10_dataloaders(path_to_dir=path)
             indim = 3
             outdim = 10
@@ -71,7 +71,7 @@ class HillClimber(object):
         else:
             model = models.SkipEquiCNN(gs=[self.g for _ in range(8)], ordered = self.ordered, lr = lr, superspace = self.g)
         self.lr = lr
-        self.skip = not args.noskip
+        self.skip = not noskip
         self.options = [model]
         self.allkids = popsize < 0
         self.popsize = popsize
@@ -274,9 +274,9 @@ class HillClimber(object):
         self.options[0].name = "D4 (prior: D4)"
         self.options.append(models.DEANASNet(name = "C4 (prior: C4)", superspace=(0,2), discrete=True, alphalr=self.lr, weightlr=self.lr))
         self.options.append(models.DEANASNet(name = "C1 (prior: C1)", superspace=(0,0), discrete=True, alphalr=self.lr, weightlr=self.lr))
-        D4priorC1 = models.DEANASNet(name = "D4 (prior: C1)", superspace=(1,2), discrete=True, alphalr=self.lr, weightlr=self.lr)
-        D4priorC4 = models.DEANASNet(name = "D4 (prior: C4)", superspace=(1,2), discrete=True, alphalr=self.lr, weightlr=self.lr)
-        C4priorC1 = models.DEANASNet(name = "C4 (prior: C1)", superspace=(0,2), discrete=True, alphalr=self.lr, weightlr=self.lr)
+        D4priorC1 = models.DEANASNet(name = "C1 (prior: D4)", superspace=(1,2), discrete=True, alphalr=self.lr, weightlr=self.lr)
+        D4priorC4 = models.DEANASNet(name = "C4 (prior: D4)", superspace=(1,2), discrete=True, alphalr=self.lr, weightlr=self.lr)
+        C4priorC1 = models.DEANASNet(name = "C1 (prior: C4)", superspace=(0,2), discrete=True, alphalr=self.lr, weightlr=self.lr)
         for i in range(len(D4priorC1.channels)):
                 D4priorC1 = D4priorC1.offspring(len(D4priorC1.channels)-1-i, (0,0))
                 D4priorC4 = D4priorC4.offspring(len(D4priorC4.channels)-1-i, (0,2))
@@ -316,12 +316,16 @@ if __name__ == "__main__":
     parser.add_argument('--folder', "-f", type=str, default="", help='folder to store results')
     parser.add_argument('--name', "-n", type=str, default="test", help='name of experiment')
     parser.add_argument('--task', "-t", type=str, default="mnist", help='task')
+    parser.add_argument('--train_vanilla', action='store_true', default=False, help='train on vanilla data')
+    parser.add_argument('--val_vanilla', action='store_true', default=False, help='val on vanilla data')
+    parser.add_argument('--test_vanilla', action='store_true', default=False, help='test on vanilla data')
     args = parser.parse_args()
     print(args)
     hillclimb = HillClimber(baselines=args.baselines, lr=args.lr, path=args.data, popsize=args.popsize, 
                             d16=args.d16, c4=args.c4, dea=args.dea, seed=args.seed, pareto=args.pareto, 
                             noskip=args.noskip, test=args.test, folder=args.folder, name=args.name, 
-                            task=args.task, unique=args.unique)
+                            task=args.task, unique=args.unique, train_vanilla=args.train_vanilla,
+                            val_vanilla=args.val_vanilla, test_vanilla=args.test_vanilla)
     hillclimb.saveargs(vars(args))
     if args.baselines:
         hillclimb.baselines(generations=args.generations, epochs=args.epochs)
