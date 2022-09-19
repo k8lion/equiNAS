@@ -90,16 +90,17 @@ class HillClimber(object):
             if model.uuid not in self.history:
                 if model.parent is None or model.parent not in self.history:
                     self.history[model.uuid] = {'train': {'loss': [], 
-                                        'accuracy': [], 
-                                        'batch': [], 
-                                        'batchloss': []},
-                              'trainsteps': [],
-                              'validation' : {'loss': [], 
-                                              'accuracy': []},
-                              'epochsteps': [],
-                              'ghistory': [],
-                              'paramcounts': [],
-                              'distances': [],}
+                                                         'accuracy': [], 
+                                                         'batch': [], 
+                                                         'batchloss': []},
+                                            'trainsteps': [],
+                                            'validation' : {'loss': [], 
+                                                            'accuracy': []},
+                                            'epochsteps': [],
+                                            'ghistory': [],
+                                            'paramcounts': [],
+                                            'distances': [],
+                                            'name': model.name}
                 else:
                     self.history[model.uuid] = copy.deepcopy(self.history[model.parent])
             self.history[model.uuid]["epochsteps"] += np.linspace(start, start+1, int(np.ceil(epochs)), endpoint=False).tolist()
