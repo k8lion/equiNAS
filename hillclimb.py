@@ -10,8 +10,8 @@ import pathlib
 
 
 class HillClimber(object):
-    def __init__(self, reg = False, baselines = False, pareto = False, lr = 0.1, 
-                 path = "..", d16 = False, c4 = False, popsize = 10, seed = -1, dea = False, noskip = False,
+    def __init__(self, reg = False, baselines = False, pareto = False, lr = 0.1, pareto2 = False,
+                 path = "..", d16 = False, c4 = False, popsize = 10, seed = -1, dea = False, skip = False,
                  test = False, folder = "", name = "", task = "mnist", unique = False, train_vanilla = False,
                  val_vanilla = False, test_vanilla = False):
         self.seed = seed
@@ -66,16 +66,17 @@ class HillClimber(object):
             self.g = (1,2)
         if dea:
             model = models.DEANASNet(superspace=self.g, discrete=True, alphalr=lr, weightlr=lr, 
-                                     skip=not noskip, hidden=hidden, indim=indim, outdim=outdim,
+                                     skip=skip, hidden=hidden, indim=indim, outdim=outdim,
                                      kernel=kernel, stages=stages, pools=pools, basechannels=basechannels)
         else:
             model = models.SkipEquiCNN(gs=[self.g for _ in range(8)], ordered = self.ordered, lr = lr, superspace = self.g)
         self.lr = lr
-        self.skip = not noskip
+        self.skip = skip
         self.options = [model]
         self.allkids = popsize < 0
         self.popsize = popsize
         self.pareto = pareto
+        self.pareto2 = pareto2
         self.test = test
         self.unique = unique
         self.history = {}
@@ -232,6 +233,10 @@ class HillClimber(object):
                 costs[i,0] = 1-model.score
                 costs[i,1] = model.countparams()
             pareto_inds = np.where(utilities.is_pareto_efficient(costs))[0]
+            if self.pareto2:
+                costs = np.delete(costs, pareto_inds, axis=0)
+                pareto_inds2 = np.where(utilities.is_pareto_efficient(costs))[0]
+                pareto_inds = np.concatenate((pareto_inds, pareto_inds2))
             for removed in [self.options[ind] for ind in range(len(self.options)) if ind not in pareto_inds]:
                 self.run_test(removed)
             self.options = [self.options[ind] for ind in pareto_inds]
@@ -309,8 +314,9 @@ if __name__ == "__main__":
     parser.add_argument('--seed', type=int, default=-1, help='random seed (-1 for unseeded)')
     #RPP
     parser.add_argument('--dea', action='store_true', default=False, help='use DEANAS backbone')
-    parser.add_argument('--noskip', action='store_true', default=False, help='turn off skip connections')
+    parser.add_argument('--skip', action='store_true', default=False, help='turn on skip connections')
     parser.add_argument('--pareto', action='store_true', default=False, help='use pareto front as parent selection')
+    parser.add_argument('--pareto2', action='store_true', default=False, help='add 2nd pareto front to parent selection')
     parser.add_argument('--unique', action='store_true', default=False, help='select unique architectures before selection')
     parser.add_argument('--test', action='store_true', default=False, help='evaluate on test set') 
     parser.add_argument('--folder', "-f", type=str, default="", help='folder to store results')
@@ -323,9 +329,9 @@ if __name__ == "__main__":
     print(args)
     hillclimb = HillClimber(baselines=args.baselines, lr=args.lr, path=args.data, popsize=args.popsize, 
                             d16=args.d16, c4=args.c4, dea=args.dea, seed=args.seed, pareto=args.pareto, 
-                            noskip=args.noskip, test=args.test, folder=args.folder, name=args.name, 
+                            skip=args.skip, test=args.test, folder=args.folder, name=args.name, 
                             task=args.task, unique=args.unique, train_vanilla=args.train_vanilla,
-                            val_vanilla=args.val_vanilla, test_vanilla=args.test_vanilla)
+                            val_vanilla=args.val_vanilla, test_vanilla=args.test_vanilla, pareto2=args.pareto2)
     hillclimb.saveargs(vars(args))
     if args.baselines:
         hillclimb.baselines(generations=args.generations, epochs=args.epochs)

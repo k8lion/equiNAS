@@ -1075,12 +1075,11 @@ class DEANASNet(torch.nn.Module):
         ))
         self.blocks.append(torch.nn.Sequential(torch.nn.Linear(hidden, outdim)))
         self.loss_function = torch.nn.CrossEntropyLoss()
+        self.optimizer = torch.optim.SGD(self.all_params(), lr=weightlr)
         if discrete:
-            self.optimizer = torch.optim.SGD(self.all_params(), lr=weightlr)
             self.alphaopt = None
         else:
-            self.optimizer = torch.optim.Adam(self.parameters(), lr=weightlr)
-            self.alphaopt = torch.optim.Adam(self.alphas(), lr=alphalr)
+            self.alphaopt = torch.optim.SGD(self.alphas(), lr=alphalr)
         self.gs = [self.superspace for _ in range(len(self.channels))]
         self.score = -1
         self.uuid = uuid.uuid4()

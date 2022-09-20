@@ -68,7 +68,7 @@ def DEANASearch(args):
         trial += str(args.seed) + "_"
     if args.baseline:
         trial += "bl"
-        if args.equalize:
+        if not args.prior:
             trial+="C1"
         else:
             if args.c4:
@@ -77,14 +77,14 @@ def DEANASearch(args):
                 trial+="D16"
             else:
                 trial+="D4"
-        if args.noskip:
+        if not args.skip:
             trial+="ns"
         trial+="_"
     else:
         trial+="dea"
-        if args.equalize:
+        if not args.prior:
             trial+="eq"
-        if args.noskip:
+        if not args.skip:
             trial+="ns"
         trial+="_"
     filename = str(args.path) +'/equiNAS/out'+args.folder+trial+args.name+'.pkl'
@@ -92,7 +92,7 @@ def DEANASearch(args):
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     print(args.task)
     if args.task == "mnist":
-        train_loader, validation_loader, test_loader = utilities.get_mnist_dataloaders(path_to_dir=args.path, validation_split=0.5, batch_size=args.batch_size, train_rot=not args.train_vanilla, val_rot=not args.val_vanilla, test_rot=not args.test_vanilla)
+        train_loader, validation_loader, test_loader = utilities.get_mnist_dataloaders(path_to_dir=args.path, batch_size=args.batch_size, train_rot=not args.train_vanilla, val_rot=not args.val_vanilla, test_rot=not args.test_vanilla)
         args.indim = 1
         args.outdim = 10
         if args.kernel < 0:
@@ -104,7 +104,7 @@ def DEANASearch(args):
         if args.basechannels < 0:
             args.basechannels = 16
     elif args.task == "isic":
-        train_loader, validation_loader, test_loader = utilities.get_isic_dataloaders(path_to_dir=args.path, validation_split=0.5, batch_size=args.batch_size)
+        train_loader, validation_loader, test_loader = utilities.get_isic_dataloaders(path_to_dir=args.path, batch_size=args.batch_size)
         args.indim = 3
         args.outdim = 9
         if args.kernel < 0:
@@ -116,7 +116,7 @@ def DEANASearch(args):
         if args.basechannels < 0:
             args.basechannels = 32
     elif args.task == "galaxy10":
-        train_loader, validation_loader, test_loader = utilities.get_galaxy10_dataloaders(path_to_dir=args.path, validation_split=0.5, batch_size=args.batch_size)
+        train_loader, validation_loader, test_loader = utilities.get_galaxy10_dataloaders(path_to_dir=args.path, batch_size=args.batch_size)
         args.indim = 3
         args.outdim = 10
         if args.kernel < 0:
@@ -131,7 +131,7 @@ def DEANASearch(args):
                              weightlr = args.weightlr, alphalr = args.alphalr, basechannels = args.basechannels,
                              prior = not args.equalize, indim = args.indim, baseline = args.baseline,
                              outdim = args.outdim, stages = args.stages, pools = args.pools, 
-                             kernel = args.kernel, skip = not args.noskip).to(device)
+                             kernel = args.kernel, skip = args.skip).to(device)
     history = {'args': args,
                 'alphas': [[torch.softmax(a, dim=0).detach().tolist() for a in model.alphas()]],
                 'channels': model.channels,
@@ -144,8 +144,9 @@ def DEANASearch(args):
                                 'accuracy': []},
                 'distances': [model.distance(layerwise=True)],
     }
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-        model.optimizer, float(args.epochs), eta_min=1e-4)
+    #scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+    #    model.optimizer, float(args.epochs), eta_min=1e-4)
+    scheduler = None
     for epoch in range(args.epochs):
         for phase in ['train', 'validation']:
             batch = []
@@ -161,7 +162,7 @@ def DEANASearch(args):
                 inputs = inputs.to(device)
                 labels = labels.to(device)
                 if phase == 'train':
-                    inputs_search, labels_search = next(iter(validation_loader))
+                    inputs_search, labels_search = next(iter(train_loader))
                     inputs_search = inputs_search.to(device)
                     labels_search = labels_search.to(device)
                 model.optimizer.zero_grad()
@@ -198,7 +199,8 @@ def DEANASearch(args):
         history["distances"].append(model.distance(layerwise=True))
         if not args.tune:
             history['alphas'].append([torch.softmax(a, dim=0).detach().tolist() for a in model.alphas()])
-        scheduler.step()
+        if scheduler is not None:
+            scheduler.step()
     if args.test:
         model.eval()
         running_loss = 0.0
@@ -231,8 +233,8 @@ if __name__ == "__main__":
     parser.add_argument('--basechannels', "-c", type=int, default="-1", help='base number of channels')
     parser.add_argument('--kernel', "-k", type=int, default="-1", help='kernel size')
     parser.add_argument('--path', "-p", type=pathlib.Path, default="..", help='datapath')
-    parser.add_argument('--equalize', action='store_true', default=False, help='equalize initial alphas')
-    parser.add_argument('--noskip', action='store_true', default=False, help='turn off skip connections') 
+    parser.add_argument('--prior', action='store_true', default=False, help='do not equalize initial alphas')
+    parser.add_argument('--skip', action='store_true', default=False, help='turn on skip connections') 
     #RPP
     parser.add_argument('--baseline', action='store_true', default=False, help='lock network to C1+skip')
     parser.add_argument('--task', "-t", type=str, default="mnist", help='task')
