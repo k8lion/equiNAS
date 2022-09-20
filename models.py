@@ -1131,13 +1131,19 @@ class DEANASNet(torch.nn.Module):
                     count += sum(p.numel() for p in self.blocks[i]._modules[key].parameters())
         return count
 
-    def distance(self, supergroup = (1,2)):
-        distancesum = 0.0
+    def distance(self, supergroup = (1,2), layerwise = False):
+        if layerwise:
+            distances = []
+        else:
+            distances =.0
         for i in range(len(self.blocks)):
             for key in self.blocks[i]._modules.keys():
                 if isinstance(self.blocks[i]._modules[key], MixedGroupConv2d) or isinstance(self.blocks[i]._modules[key], MixedLiftingConv2d):
-                    distancesum += self.blocks[i]._modules[key].distance(supergroup)
-        return distancesum
+                    if layerwise:
+                        distances.append(self.blocks[i]._modules[key].distance(supergroup).item())
+                    else:
+                        distances += self.blocks[i]._modules[key].distance(supergroup)
+        return distances
 
     def offspring(self, i, groupnew, verbose = False):
         assert all([sum(a > -np.inf) <= 2 for a in self.alphas()])
