@@ -1078,7 +1078,7 @@ class DEANASNet(torch.nn.Module):
         if discrete:
             self.alphaopt = None
         else:
-            self.alphaopt = torch.optim.SGD(self.alphas(), lr=alphalr)
+            self.alphaopt = torch.optim.Adam(self.alphas(), lr=alphalr)
         self.gs = [self.superspace for _ in range(len(self.channels))]
         self.score = -1
         self.uuid = uuid.uuid4()

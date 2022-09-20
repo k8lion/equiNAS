@@ -148,6 +148,7 @@ def DEANASearch(args):
     #    model.optimizer, float(args.epochs), eta_min=1e-4)
     scheduler = None
     for epoch in range(args.epochs):
+        print(torch.softmax(model.blocks[1]._modules["0"].alphas, dim=0))
         for phase in ['train', 'validation']:
             batch = []
             if phase == 'train':
