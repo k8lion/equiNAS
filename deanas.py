@@ -129,7 +129,7 @@ def DEANASearch(args):
             args.basechannels = 32
     model = models.DEANASNet(superspace = (1,4) if args.d16 else (0,2) if args.c4 else (1,2), hidden = args.hidden,
                              weightlr = args.weightlr, alphalr = args.alphalr, basechannels = args.basechannels,
-                             prior = not args.equalize, indim = args.indim, baseline = args.baseline,
+                             prior = args.prior, indim = args.indim, baseline = args.baseline,
                              outdim = args.outdim, stages = args.stages, pools = args.pools, 
                              kernel = args.kernel, skip = args.skip).to(device)
     history = {'args': args,

@@ -1019,7 +1019,6 @@ class MixedGroupConv2d(torch.nn.Module):
         projected_filters = projected_filters.reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
         return torch.linalg.norm(projected_filters - _filters)
 
-                
 
 class DEANASNet(torch.nn.Module):
 
