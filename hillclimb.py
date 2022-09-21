@@ -236,6 +236,11 @@ class HillClimber(object):
                 costs = np.delete(costs, pareto_inds, axis=0)
                 pareto_inds2 = np.where(utilities.is_pareto_efficient(costs))[0]
                 pareto_inds = np.concatenate((pareto_inds, pareto_inds2))
+            elif len(pareto_inds) < self.popsize:
+                costs = np.delete(costs, pareto_inds, axis=0)
+                costs = costs[:,0]
+                pareto_inds2 = np.argpartition(costs, self.popsize-len(pareto_inds))[:self.popsize-len(pareto_inds)]
+                pareto_inds = np.concatenate((pareto_inds, pareto_inds2))
             for removed in [self.options[ind] for ind in range(len(self.options)) if ind not in pareto_inds]:
                 self.run_test(removed)
             self.options = [self.options[ind] for ind in pareto_inds]
@@ -327,8 +332,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
     if args.task == "mixmnist":
         args.train_vanilla = True
-    if args.pareto:
-        args.pareto2 = True
+    #if args.pareto:
+    #    args.pareto2 = True
     print(args)
     hillclimb = HillClimber(baselines=args.baselines, lr=args.lr, path=args.data, popsize=args.popsize, 
                             d16=args.d16, c4=args.c4, dea=args.dea, seed=args.seed, pareto=args.pareto, 

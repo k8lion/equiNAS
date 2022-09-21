@@ -336,6 +336,8 @@ def is_pareto_efficient(costs):
     :return: A (n_points, ) boolean array, indicating whether each point is Pareto efficient
     """
     is_efficient = np.ones(costs.shape[0], dtype = bool)
+    if len(costs.shape) == 1:
+        costs = costs.expand_dims(1)
     for i, c in enumerate(costs):
         if is_efficient[i]:
             is_efficient[is_efficient] = np.any(costs[is_efficient]<c, axis=1) 
