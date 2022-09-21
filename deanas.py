@@ -6,7 +6,7 @@ import utilities
 import argparse
 import pathlib
 import os
-
+"""
 from ray import tune
 from ray.air import session
 from ray.tune.schedulers import ASHAScheduler
@@ -54,7 +54,7 @@ def DEANASearch_train(config, args):
     args.basechannels = config["basechannels"]
     print(config)
     DEANASearch(args)
-
+"""
 def DEANASearch(args):
     import torch
     trial = "/logsdea_"
@@ -164,7 +164,7 @@ def DEANASearch(args):
                 print(phase, inputs.mean(), inputs.std(), inputs.shape, labels)
                 labels = labels.to(device)
                 if phase == 'train':
-                    inputs_search, labels_search = next(iter(train_loader))
+                    inputs_search, labels_search = next(iter(validation_loader))
                     inputs_search = inputs_search.to(device)
                     labels_search = labels_search.to(device)
                 model.optimizer.zero_grad()
