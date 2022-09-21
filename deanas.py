@@ -188,7 +188,6 @@ def DEANASearch(args):
                     batch.append(running_count)
                     if not args.tune:
                         history['train']['batchloss'].append(loss.detach().item())
-                break
             epoch_loss = running_loss / running_count
             epoch_acc = running_corrects / running_count
             if not args.tune:
