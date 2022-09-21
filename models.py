@@ -1074,10 +1074,11 @@ class DEANASNet(torch.nn.Module):
         ))
         self.blocks.append(torch.nn.Sequential(torch.nn.Linear(hidden, outdim)))
         self.loss_function = torch.nn.CrossEntropyLoss()
-        self.optimizer = torch.optim.SGD(self.all_params(), lr=weightlr)
         if discrete:
+            self.optimizer = torch.optim.SGD(self.all_params(), lr=weightlr)
             self.alphaopt = None
         else:
+            self.optimizer = torch.optim.SGD(self.parameters(), lr=weightlr)
             self.alphaopt = torch.optim.Adam(self.alphas(), lr=alphalr)
         self.gs = [self.superspace for _ in range(len(self.channels))]
         self.score = -1
@@ -1093,7 +1094,7 @@ class DEANASNet(torch.nn.Module):
 
     def parameters(self, recurse: bool = True):
         for name, param in self.named_parameters():
-            if "alphas" not in name and "norms" not in name and not name.endswith(str(np.prod([g+1 for g in self.superspace]))):
+            if "alphas" not in name and "norms" not in name and not name.endswith("."+str(np.prod([g+1 for g in self.superspace]))):
                 yield param
     
     def named_params(self, recurse: bool = True):
@@ -1108,7 +1109,8 @@ class DEANASNet(torch.nn.Module):
     
     def all_params(self, recurse: bool = True):
         for name, param in self.named_parameters():
-            if "norms" not in name and not name.endswith("."+str(np.prod([g+1 for g in self.superspace]))):
+            #if "norms" not in name and not name.endswith("."+str(np.prod([g+1 for g in self.superspace]))):
+            if not name.endswith("."+str(np.prod([g+1 for g in self.superspace]))):
                 yield param
     
     def regularization_loss(self, L2 = True):
