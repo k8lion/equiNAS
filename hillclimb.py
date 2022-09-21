@@ -30,7 +30,7 @@ class HillClimber(object):
         print(self.filename)
         self.ordered = True
         self.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
-        if task == "mnist":
+        if "mnist" in task:
             self.train_loader, self.validation_loader, self.test_loader = utilities.get_mnist_dataloaders(path_to_dir=path, train_rot=not train_vanilla, val_rot=not val_vanilla, test_rot=not test_vanilla)
             indim = 1
             outdim = 10
@@ -326,6 +326,8 @@ if __name__ == "__main__":
     parser.add_argument('--val_vanilla', action='store_true', default=False, help='val on vanilla data')
     parser.add_argument('--test_vanilla', action='store_true', default=False, help='test on vanilla data')
     args = parser.parse_args()
+    if args.task == "mixmnist":
+        args.train_vanilla = True
     print(args)
     hillclimb = HillClimber(baselines=args.baselines, lr=args.lr, path=args.data, popsize=args.popsize, 
                             d16=args.d16, c4=args.c4, dea=args.dea, seed=args.seed, pareto=args.pareto, 

@@ -91,7 +91,7 @@ def DEANASearch(args):
     print(filename)
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     print(args.task)
-    if args.task == "mnist":
+    if "mnist" in args.task:
         train_loader, validation_loader, test_loader = utilities.get_mnist_dataloaders(path_to_dir=args.path, batch_size=args.batch_size, train_rot=not args.train_vanilla, val_rot=not args.val_vanilla, test_rot=not args.test_vanilla)
         args.indim = 1
         args.outdim = 10
@@ -161,6 +161,7 @@ def DEANASearch(args):
             loader = train_loader if phase == 'train' else validation_loader
             for inputs, labels in loader:
                 inputs = inputs.to(device)
+                print(phase, inputs.mean(), inputs.std(), inputs.shape, labels)
                 labels = labels.to(device)
                 if phase == 'train':
                     inputs_search, labels_search = next(iter(train_loader))
@@ -187,6 +188,7 @@ def DEANASearch(args):
                     batch.append(running_count)
                     if not args.tune:
                         history['train']['batchloss'].append(loss.detach().item())
+                break
             epoch_loss = running_loss / running_count
             epoch_acc = running_corrects / running_count
             if not args.tune:
@@ -251,6 +253,8 @@ if __name__ == "__main__":
     parser.add_argument('--val_vanilla', action='store_true', default=False, help='val on vanilla data')
     parser.add_argument('--test_vanilla', action='store_true', default=False, help='test on vanilla data')
     args = parser.parse_args()
+    if args.task == "mixmnist":
+        args.train_vanilla = True
     print(args)
     if args.tune:
         DEANASearch_tune(args)
