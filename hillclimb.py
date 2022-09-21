@@ -233,14 +233,17 @@ class HillClimber(object):
                 costs[i,1] = model.countparams()
             pareto_inds = np.where(utilities.is_pareto_efficient(costs))[0]
             if self.pareto2:
-                costs = np.delete(costs, pareto_inds, axis=0)
+                costs[pareto_inds, :] = np.inf
                 pareto_inds2 = np.where(utilities.is_pareto_efficient(costs))[0]
                 pareto_inds = np.concatenate((pareto_inds, pareto_inds2))
             elif len(pareto_inds) < self.popsize:
-                costs = np.delete(costs, pareto_inds, axis=0)
+                costs[pareto_inds, :] = np.inf
                 costs = costs[:,0]
-                pareto_inds2 = np.argpartition(costs, self.popsize-len(pareto_inds))[:self.popsize-len(pareto_inds)]
-                pareto_inds = np.concatenate((pareto_inds, pareto_inds2))
+                if self.popsize>=len(costs):
+                    pareto_inds = np.arange(len(costs))
+                else:
+                    pareto_inds2 = np.argpartition(costs, self.popsize-len(pareto_inds))[:self.popsize-len(pareto_inds)]
+                    pareto_inds = np.concatenate((pareto_inds, pareto_inds2))
             for removed in [self.options[ind] for ind in range(len(self.options)) if ind not in pareto_inds]:
                 self.run_test(removed)
             self.options = [self.options[ind] for ind in pareto_inds]
