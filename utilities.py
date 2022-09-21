@@ -49,8 +49,8 @@ class Galaxy10Dataset(Dataset):
         
         f = h5py.File(file, 'r')
         labels, images = f['labels'], f['images']
-        print(type(images))
-        print(np.mean(images, axis = (0,1,2)), np.std(images, axis = (0,1,2)))
+        #print(type(images))
+        #print(np.mean(images, axis = (0,1,2)), np.std(images, axis = (0,1,2)))
 
         self.x = images
         self.y = torch.from_numpy(labels[:]).long()
