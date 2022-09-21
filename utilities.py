@@ -193,6 +193,7 @@ def get_mnist_dataloaders(path_to_dir = "~", validation_split=0.2, batch_size=64
 def get_galaxy10_dataloaders(path_to_dir = "~", validation_split=0.2, batch_size=8):
     if batch_size < 0:
         batch_size = 8
+    print(os.path.exists(str(path_to_dir)+"/data/Galaxy10_DECals_trainval.h5"), os.path.exists(str(path_to_dir)+"/data/Galaxy10_DECals.h5"))
     if not os.path.exists(str(path_to_dir)+"/data/Galaxy10_DECals_trainval.h5"):
         if os.path.exists(str(path_to_dir)+"/data/Galaxy10_DECals.h5"):
             make_galaxy10_traintest(path_to_dir)
@@ -298,16 +299,16 @@ def make_galaxy10_traintest(path_to_dir = "..", test_split=0.1, seed=42):
     np.random.shuffle(inds)
     split_ind = int(np.floor(test_split * len(inds)))
     tv_inds, test_inds = sorted(inds[split_ind:]), sorted(inds[:split_ind])
-    #tv_f = h5py.File(str(path_to_dir)+"/data/Galaxy10_DECals_trainval.h5", 'w')
-    print("tv", tv_inds[0], images[tv_inds,:,:,:].shape, labels[tv_inds].shape)
-    # tv_f.create_dataset('images', data=images[tv_inds,:,:,:])
-    # tv_f.create_dataset('labels', data=labels[tv_inds])
-    # tv_f.close()
-    # test_f = h5py.File(str(path_to_dir)+"/data/Galaxy10_DECals_test.h5", 'w')
-    print("test", test_inds[0], images[test_inds,:,:,:].shape, labels[test_inds].shape)
-    # test_f.create_dataset('images', data=images[test_inds,:,:,:])
-    # test_f.create_dataset('labels', data=labels[test_inds])
-    # test_f.close()
+    tv_f = h5py.File(str(path_to_dir)+"/data/Galaxy10_DECals_trainval.h5", 'w')
+    #print("tv", tv_inds[0], images[tv_inds,:,:,:].shape, labels[tv_inds].shape)
+    tv_f.create_dataset('images', data=images[tv_inds,:,:,:])
+    tv_f.create_dataset('labels', data=labels[tv_inds])
+    tv_f.close()
+    test_f = h5py.File(str(path_to_dir)+"/data/Galaxy10_DECals_test.h5", 'w')
+    #print("test", test_inds[0], images[test_inds,:,:,:].shape, labels[test_inds].shape)
+    test_f.create_dataset('images', data=images[test_inds,:,:,:])
+    test_f.create_dataset('labels', data=labels[test_inds])
+    test_f.close()
 
 def getmodelsize(model, includebuffer=False, counts=True):
     param_size = 0
