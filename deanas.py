@@ -161,7 +161,6 @@ def DEANASearch(args):
             loader = train_loader if phase == 'train' else validation_loader
             for inputs, labels in loader:
                 inputs = inputs.to(device)
-                print(phase, inputs.mean(), inputs.std(), inputs.shape, labels)
                 labels = labels.to(device)
                 if phase == 'train':
                     inputs_search, labels_search = next(iter(validation_loader))
