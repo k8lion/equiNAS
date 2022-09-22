@@ -190,7 +190,7 @@ def get_mnist_dataloaders(path_to_dir = "~", validation_split=0.2, batch_size=64
     return train_loader, validation_loader, test_loader
 
 
-def get_galaxy10_dataloaders(path_to_dir = "~", validation_split=0.2, batch_size=8):
+def get_galaxy10_dataloaders(path_to_dir = "~", validation_split=0.2, batch_size=8, small=True):
     if batch_size < 0:
         batch_size = 8
     print(os.path.exists(str(path_to_dir)+"/data/Galaxy10_DECals_trainval.h5"), os.path.exists(str(path_to_dir)+"/data/Galaxy10_DECals.h5"))
@@ -202,10 +202,17 @@ def get_galaxy10_dataloaders(path_to_dir = "~", validation_split=0.2, batch_size
             print("No data found")
             return None, None, None
     totensor = ToTensor()
-    transform = Compose([
-        totensor,
-        Normalize([42.70899344, 41.46352323, 40.52334547], [32.81805034, 30.10008284, 28.462431]),
-    ])
+    if small:
+        transform = Compose([
+            totensor,
+            Resize(64),
+            Normalize([42.70899344, 41.46352323, 40.52334547], [32.81805034, 30.10008284, 28.462431]),
+        ])
+    else:
+        transform = Compose([
+            totensor,
+            Normalize([42.70899344, 41.46352323, 40.52334547], [32.81805034, 30.10008284, 28.462431]),
+        ])
     galaxy10_train = Galaxy10Dataset(mode='train', transform=transform, path_to_dir=path_to_dir)
     shuffle_dataset = True
     random_seed = 42
