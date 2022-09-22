@@ -654,11 +654,11 @@ def order(subgroupsize: int):
     return [int('{:0{width}b}'.format(n, width=int(np.log2(subgroupsize)))[::-1], 2) for n in range(subgroupsize)]
 
 class MixedLiftingConv2d(torch.nn.Module):
-    def __init__(self, group: tuple, in_channels: int, out_channels: int, kernel_size: int, padding: int = 0, bias: bool = True, baseline: bool = False, prior: bool = True, discrete: bool = False, norm: bool = True, skip: bool = False, alphas: torch.Tensor = None):
+    def __init__(self, group: tuple, in_channels: int, out_channels: int, kernel_size: int, padding: int = 0, bias: bool = True, baseline: bool = False, prior: bool = True, discrete: bool = False, norm: bool = True, skip: bool = False, alphas: torch.Tensor = None, stride = 1):
         super(MixedLiftingConv2d, self).__init__()
         self.group = group
         self.kernel_size = kernel_size
-        self.stride = 1
+        self.stride = stride
         self.dilation = 1
         self.padding = padding
         self.out_channels = out_channels * groupsize(group)
@@ -830,11 +830,11 @@ class MixedLiftingConv2d(torch.nn.Module):
         return torch.linalg.norm(projected_filters - _filters)
 
 class MixedGroupConv2d(torch.nn.Module):
-    def __init__(self, group: tuple, in_channels: int, out_channels: int, kernel_size: int, padding: int = 0, bias: bool = True, baseline: bool = False, prior: bool = True, discrete: bool = False, norm: bool = True, skip: bool = True, alphas: torch.Tensor = None):
+    def __init__(self, group: tuple, in_channels: int, out_channels: int, kernel_size: int, padding: int = 0, bias: bool = True, baseline: bool = False, prior: bool = True, discrete: bool = False, norm: bool = True, skip: bool = True, alphas: torch.Tensor = None, stride: int = 1):
         super(MixedGroupConv2d, self).__init__()
         self.group = group
         self.kernel_size = kernel_size
-        self.stride = 1
+        self.stride = stride
         self.dilation = 1
         self.padding = padding
         self.out_channels = out_channels * groupsize(group)
@@ -853,7 +853,7 @@ class MixedGroupConv2d(torch.nn.Module):
                     self.alphas.data[-2] = 0
                 else:
                     self.alphas.data[0] = 0
-            if skip:
+            if skip and stride == 1:
                 self.alphas.data[-1] = 0
             else:
                 self.alphas.data[-1] = -np.inf
@@ -917,6 +917,7 @@ class MixedGroupConv2d(torch.nn.Module):
         if bias:
             self.bias.append(torch.nn.Parameter(torch.zeros(self.out_channels), requires_grad=True))
         self.groups.append((-1,-1))
+        
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
 
@@ -925,7 +926,7 @@ class MixedGroupConv2d(torch.nn.Module):
         if self.out_channels % self.in_channels == 0 and alphas[-1] > 0:
             out = alphas[-1]*torch.tile(x, dims=(1,self.out_channels//self.in_channels,1,1))
         else:
-            out = torch.zeros(x.shape[0], self.out_channels, x.shape[-2], x.shape[-1]).to(x.device)
+            out = torch.zeros(x.shape[0], self.out_channels, int((x.shape[-2]+1)//self.stride), int((x.shape[-1]+1)//self.stride)).to(x.device)
 
         for layer in alphas[:-1].nonzero(as_tuple=True)[0].tolist():
             if len(x.shape)>1 and self.norm:
@@ -1032,7 +1033,7 @@ class DEANASNet(torch.nn.Module):
     def __init__(self, alphalr = 1e-3, weightlr = 1e-3, baseline: bool = False, superspace: tuple = (1,2), basechannels: int = 16, 
                  stages: int = 2, stagedepth: int = 4, pools: int = 4, kernel: int = 5, indim: int = 1, outdim: int = 10, 
                  hidden: int = 64, prior: bool = True, discrete: bool = False, norm: bool = True, skip: bool = True, reg_conv:float = 0.0, 
-                 reg_group: float = 0.0, name = "", parentalphas=None):
+                 reg_group: float = 0.0, pool: bool = False, name = "", parentalphas=None):
         
         super(DEANASNet, self).__init__()
         if len(name) == 0:
@@ -1068,14 +1069,21 @@ class DEANASNet(torch.nn.Module):
             torch.nn.ReLU(inplace=True)
             ))
         for i in range(1,len(self.channels)):
+            stride = 1
+            topool = False
+            if pools>0 and i%(len(self.channels)//pools) == 0 and i != len(self.channels)-1 and (not self.indim>1 or i > 2):
+                if pool:
+                    topool = True
+                else:
+                    stride = 2
             self.blocks.append(torch.nn.Sequential(
                 MixedGroupConv2d(baseline=baseline, in_channels=self.channels[i-1], out_channels=self.channels[i], group=self.superspace, 
                                  kernel_size=self.kernels[i], padding=self.kernels[i]//2, prior=prior, discrete=discrete, norm=norm, 
-                                 skip=skip, alphas=parentalphas[i].data if parentalphas is not None else None),
+                                 skip=skip, alphas=parentalphas[i].data if parentalphas is not None else None, stride=stride),
                 torch.nn.BatchNorm2d(self.channels[i]*groupsize(self.superspace)),
                 torch.nn.ReLU(inplace=True)
                 ))
-            if pools>0 and i%(len(self.channels)//pools) == 0 and i != len(self.channels)-1 and (not self.indim>1 or i > 2):
+            if topool:
                 self.blocks[i].add_module(name="pool", module = torch.nn.AvgPool2d((3,3), (2,2), padding=(1,1)))
         self.blocks[-1].add_module(name="pool", module = torch.nn.AvgPool2d((4,4), (1,1), padding=(0,0)))
         self.blocks.append(torch.nn.Sequential(
