@@ -695,8 +695,11 @@ class MixedLiftingConv2d(torch.nn.Module):
                 g = (i,j)
                 in_c = self.in_channels
                 out_c = int(self.out_channels/groupsize(g))
-                weights = torch.nn.Parameter(torch.normal(mean = 0.0, std = 1 / (out_c * in_c)**(1/2), 
-                    size=(out_c, in_c, kernel_size, kernel_size)), requires_grad=True)
+                if self.alphas(len(self.weights)) > -np.inf:
+                    weights = torch.nn.Parameter(torch.normal(mean = 0.0, std = 1 / (out_c * in_c)**(1/2), 
+                        size=(out_c, in_c, kernel_size, kernel_size)), requires_grad=True)
+                else:
+                    weights = torch.nn.Parameter(torch.zeros(()), requires_grad=True)
                 self.norms.data[len(self.weights)] = torch.linalg.norm(weights)
                 self.weights.append(weights)
                 self.groups.append(g)
@@ -734,39 +737,38 @@ class MixedLiftingConv2d(torch.nn.Module):
         elif len(x.shape)>1:
             out = torch.zeros(x.shape[0], self.out_channels, x.shape[-2], x.shape[-1]).to(x.device)
 
-        for layer in range(len(self.groups)-1):
-            if alphas[layer] > 0:
-                if len(x.shape)>1 and self.norm:
-                    weights = self.weights[layer]/torch.linalg.norm(self.weights[layer])*self.norms[layer]
-                else:
-                    weights = self.weights[layer]
+        for layer in alphas.nonzero(as_tuple=True)[0].tolist():
+            if len(x.shape)>1 and self.norm:
+                weights = self.weights[layer]/torch.linalg.norm(self.weights[layer])*self.norms[layer]
+            else:
+                weights = self.weights[layer]
 
-                if self.groups[layer][0] == 1:
-                    order = [(i,j) for j in range(subgroupsize(self.groups[layer], 0)) for i in range(subgroupsize(self.groups[layer], 1))]
-                    _filter = torch.stack([rotateflip_n(weights, i, subgroupsize(self.groups[layer], 1), j, subgroupsize(self.groups[layer], 0)) for (i,j) in order], dim = -4)
-                else:
-                    _filter = torch.stack([rotate_n(weights, i, groupsize(self.groups[layer])) for i in range(subgroupsize(self.groups[layer], 1))], dim = -4)
+            if self.groups[layer][0] == 1:
+                order = [(i,j) for j in range(subgroupsize(self.groups[layer], 0)) for i in range(subgroupsize(self.groups[layer], 1))]
+                _filter = torch.stack([rotateflip_n(weights, i, subgroupsize(self.groups[layer], 1), j, subgroupsize(self.groups[layer], 0)) for (i,j) in order], dim = -4)
+            else:
+                _filter = torch.stack([rotate_n(weights, i, groupsize(self.groups[layer])) for i in range(subgroupsize(self.groups[layer], 1))], dim = -4)
 
-                if self.bias is not None:
-                    _bias = torch.stack([self.bias[layer] for _ in range(groupsize(self.groups[layer]))], dim = 1)
-                    _bias = _bias.reshape(self.out_channels)
-                else:
-                    _bias = None
+            if self.bias is not None:
+                _bias = torch.stack([self.bias[layer] for _ in range(groupsize(self.groups[layer]))], dim = 1)
+                _bias = _bias.reshape(self.out_channels)
+            else:
+                _bias = None
 
-                _filter = _filter.reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
-                #print(self.outchannelorders[layer])
-                _filter = _filter[self.outchannelorders[layer]]
+            _filter = _filter.reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
+            #print(self.outchannelorders[layer])
+            _filter = _filter[self.outchannelorders[layer]]
 
-                if len(x.shape)<=1:
-                    return _filter
+            if len(x.shape)<=1:
+                return _filter
 
-                y = torch.conv2d(x, _filter,
-                            stride=self.stride,
-                            padding=self.padding,
-                            dilation=self.dilation,
-                            bias=_bias)
-                
-                out += alphas[layer]*y
+            y = torch.conv2d(x, _filter,
+                        stride=self.stride,
+                        padding=self.padding,
+                        dilation=self.dilation,
+                        bias=_bias)
+            
+            out += alphas[layer]*y
 
         return out
     
@@ -867,8 +869,11 @@ class MixedGroupConv2d(torch.nn.Module):
                 g = (i,j)
                 in_c = int(self.in_channels/groupsize(g))
                 out_c = int(self.out_channels/groupsize(g))
-                weights = torch.nn.Parameter(torch.normal(mean = 0.0, std = 1 / (out_c * in_c)**(1/2), 
-                    size=(out_c, in_c, groupsize(g), kernel_size, kernel_size)), requires_grad=True)
+                if self.alphas(len(self.weights)) > -np.inf:
+                    weights = torch.nn.Parameter(torch.normal(mean = 0.0, std = 1 / (out_c * in_c)**(1/2), 
+                        size=(out_c, in_c, groupsize(g), kernel_size, kernel_size)), requires_grad=True)
+                else:
+                    weights = torch.nn.Parameter(torch.zeros(()), requires_grad=True)
                 self.norms.data[len(self.weights)] = torch.linalg.norm(weights)
                 self.weights.append(weights)
                 self.groups.append(g)
@@ -918,41 +923,40 @@ class MixedGroupConv2d(torch.nn.Module):
         else:
             out = torch.zeros(x.shape[0], self.out_channels, x.shape[-2], x.shape[-1]).to(x.device)
 
-        for layer in range(len(self.groups)-1):
-            if alphas[layer] > 0:
-                if len(x.shape)>1 and self.norm:
-                    weights = self.weights[layer]/torch.linalg.norm(self.weights[layer])*self.norms[layer]
-                else:
-                    weights = self.weights[layer]
+        for layer in alphas.nonzero(as_tuple=True)[0].tolist():
+            if len(x.shape)>1 and self.norm:
+                weights = self.weights[layer]/torch.linalg.norm(self.weights[layer])*self.norms[layer]
+            else:
+                weights = self.weights[layer]
 
-                if self.groups[layer][0] == 1:
-                    order = [(i,j) for j in range(subgroupsize(self.groups[layer], 0)) for i in range(subgroupsize(self.groups[layer], 1))]
-                    _filter = torch.stack([rotateflipstack_n(weights, i, subgroupsize(self.groups[layer], 1), j, subgroupsize(self.groups[layer], 0)) for (i,j) in order], dim = -5)
-                else:
-                    _filter = torch.stack([rotatestack_n(weights, i, groupsize(self.groups[layer])) for i in range(subgroupsize(self.groups[layer], 1))], dim = -5)
+            if self.groups[layer][0] == 1:
+                order = [(i,j) for j in range(subgroupsize(self.groups[layer], 0)) for i in range(subgroupsize(self.groups[layer], 1))]
+                _filter = torch.stack([rotateflipstack_n(weights, i, subgroupsize(self.groups[layer], 1), j, subgroupsize(self.groups[layer], 0)) for (i,j) in order], dim = -5)
+            else:
+                _filter = torch.stack([rotatestack_n(weights, i, groupsize(self.groups[layer])) for i in range(subgroupsize(self.groups[layer], 1))], dim = -5)
 
-                if self.bias is not None:
-                    _bias = torch.stack([self.bias[layer] for _ in range(groupsize(self.groups[layer]))], dim = 1)
-                    _bias = _bias.reshape(self.out_channels)
-                else:
-                    _bias = None
+            if self.bias is not None:
+                _bias = torch.stack([self.bias[layer] for _ in range(groupsize(self.groups[layer]))], dim = 1)
+                _bias = _bias.reshape(self.out_channels)
+            else:
+                _bias = None
 
-                _filter = _filter.reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
+            _filter = _filter.reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
 
-                for (apply, order) in zip(self.inchannelapply[layer], self.inchannelorders[layer]):
-                    _filter[apply] = _filter[apply][:,order]
-                _filter = _filter[self.outchannelorders[layer]]
+            for (apply, order) in zip(self.inchannelapply[layer], self.inchannelorders[layer]):
+                _filter[apply] = _filter[apply][:,order]
+            _filter = _filter[self.outchannelorders[layer]]
 
-                if len(x.shape)<=1:
-                    return _filter
-                
-                y = torch.conv2d(x, _filter,
-                            stride=self.stride,
-                            padding=self.padding,
-                            dilation=self.dilation,
-                            bias=_bias)
+            if len(x.shape)<=1:
+                return _filter
+            
+            y = torch.conv2d(x, _filter,
+                        stride=self.stride,
+                        padding=self.padding,
+                        dilation=self.dilation,
+                        bias=_bias)
 
-                out += alphas[layer]*y
+            out += alphas[layer]*y
   
         return out
     
