@@ -30,44 +30,44 @@ class HillClimber(object):
         print(self.filename)
         self.ordered = True
         self.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
-        stagedepth = 4
+        self.stagedepth = 4
         if "mnist" in task:
             self.train_loader, self.validation_loader, self.test_loader = utilities.get_mnist_dataloaders(path_to_dir=path, train_rot=not train_vanilla, val_rot=not val_vanilla, test_rot=not test_vanilla)
-            indim = 1
-            outdim = 10
-            kernel = 5
-            stages = 2
-            pools = stages*2
-            hidden = 64
-            basechannels = 16
+            self.indim = 1
+            self.outdim = 10
+            self.kernel = 5
+            self.stages = 2
+            self.pools = stages*2
+            self.hidden = 64
+            self.basechannels = 16
         elif task == "isic":
             self.train_loader, self.validation_loader, self.test_loader = utilities.get_isic_dataloaders(path_to_dir=path)
-            indim = 3
-            outdim = 9
-            kernel = 7
-            stages = 4
-            pools = stages*2
-            hidden = 128
-            basechannels = 32
+            self.indim = 3
+            self.outdim = 9
+            self.kernel = 7
+            self.stages = 4
+            self.pools = stages*2
+            self.hidden = 128
+            self.basechannels = 32
         elif task == "galaxy10":
-            self.train_loader, self.validation_loader, self.test_loader = utilities.get_galaxy10_dataloaders(path_to_dir=path)
-            indim = 3
-            outdim = 10
-            kernel = 7
-            stages = 4
-            pools = stages*2
-            hidden = 128
-            basechannels = 32
+            self.train_loader, self.validation_loader, self.test_loader = utilities.get_galaxy10_dataloaders(path_to_dir=path, small = False)
+            self.indim = 3
+            self.outdim = 10
+            self.kernel = 7
+            self.stages = 4
+            self.pools = stages*2
+            self.hidden = 128
+            self.basechannels = 32
         elif task == "galaxy10small":
-            self.train_loader, self.validation_loader, self.test_loader = utilities.get_galaxy10_dataloaders(path_to_dir=path, batch_size = 16)
-            indim = 3
-            outdim = 10
-            kernel = 5
-            stages = 8
-            pools = 0#stages*2
-            hidden = 64
-            basechannels = 16
-            stagedepth = 2
+            self.train_loader, self.validation_loader, self.test_loader = utilities.get_galaxy10_dataloaders(path_to_dir=path, batch_size = 16, small = True)
+            self.indim = 3
+            self.outdim = 10
+            self.kernel = 5
+            self.stages = 2
+            self.pools = 8
+            self.hidden = 64
+            self.basechannels = 16
+            self.stagedepth = 2
         self.reg = reg
         if d16:
             self.g = (1,4)
@@ -77,8 +77,8 @@ class HillClimber(object):
             self.g = (1,2)
         if dea:
             model = models.DEANASNet(superspace=self.g, discrete=True, alphalr=lr, weightlr=lr, 
-                                     skip=skip, hidden=hidden, indim=indim, outdim=outdim, stagedepth=stagedepth,
-                                     kernel=kernel, stages=stages, pools=pools, basechannels=basechannels)
+                                     skip=self.skip, hidden=self.hidden, indim=self.indim, outdim=self.outdim, stagedepth=self.stagedepth,
+                                     kernel=self.kernel, stages=self.stages, pools=self.pools, basechannels=self.basechannels)
         else:
             model = models.SkipEquiCNN(gs=[self.g for _ in range(8)], ordered = self.ordered, lr = lr, superspace = self.g)
         self.lr = lr
@@ -303,11 +303,21 @@ class HillClimber(object):
 
     def baselines(self, generations = -1, epochs = 5.0):
         self.options[0].name = "D4 (prior: D4)"
-        self.options.append(models.DEANASNet(name = "C4 (prior: C4)", superspace=(0,2), discrete=True, alphalr=self.lr, weightlr=self.lr))
-        self.options.append(models.DEANASNet(name = "C1 (prior: C1)", superspace=(0,0), discrete=True, alphalr=self.lr, weightlr=self.lr))
-        D4priorC1 = models.DEANASNet(name = "C1 (prior: D4)", superspace=(1,2), discrete=True, alphalr=self.lr, weightlr=self.lr)
-        D4priorC4 = models.DEANASNet(name = "C4 (prior: D4)", superspace=(1,2), discrete=True, alphalr=self.lr, weightlr=self.lr)
-        C4priorC1 = models.DEANASNet(name = "C1 (prior: C4)", superspace=(0,2), discrete=True, alphalr=self.lr, weightlr=self.lr)
+        self.options.append(models.DEANASNet(name = "C4 (prior: C4)", superspace=(0,2), discrete=True, alphalr=self.lr, weightlr=self.lr,
+                                             skip=self.skip, hidden=self.hidden, indim=self.indim, outdim=self.outdim, stagedepth=self.stagedepth,
+                                             kernel=self.kernel, stages=self.stages, pools=self.pools, basechannels=self.basechannels))
+        self.options.append(models.DEANASNet(name = "C1 (prior: C1)", superspace=(0,0), discrete=True, alphalr=self.lr, weightlr=self.lr,
+                                             skip=self.skip, hidden=self.hidden, indim=self.indim, outdim=self.outdim, stagedepth=self.stagedepth,
+                                             kernel=self.kernel, stages=self.stages, pools=self.pools, basechannels=self.basechannels))
+        D4priorC1 = models.DEANASNet(name = "C1 (prior: D4)", superspace=(1,2), discrete=True, alphalr=self.lr, weightlr=self.lr,
+                                     skip=self.skip, hidden=self.hidden, indim=self.indim, outdim=self.outdim, stagedepth=self.stagedepth,
+                                     kernel=self.kernel, stages=self.stages, pools=self.pools, basechannels=self.basechannels)
+        D4priorC4 = models.DEANASNet(name = "C4 (prior: D4)", superspace=(1,2), discrete=True, alphalr=self.lr, weightlr=self.lr,
+                                     skip=self.skip, hidden=self.hidden, indim=self.indim, outdim=self.outdim, stagedepth=self.stagedepth,
+                                     kernel=self.kernel, stages=self.stages, pools=self.pools, basechannels=self.basechannels)
+        C4priorC1 = models.DEANASNet(name = "C1 (prior: C4)", superspace=(0,2), discrete=True, alphalr=self.lr, weightlr=self.lr,
+                                     skip=self.skip, hidden=self.hidden, indim=self.indim, outdim=self.outdim, stagedepth=self.stagedepth,
+                                     kernel=self.kernel, stages=self.stages, pools=self.pools, basechannels=self.basechannels)
         for i in range(len(D4priorC1.channels)):
                 D4priorC1 = D4priorC1.offspring(len(D4priorC1.channels)-1-i, (0,0))
                 D4priorC4 = D4priorC4.offspring(len(D4priorC4.channels)-1-i, (0,2))
