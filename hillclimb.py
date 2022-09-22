@@ -30,6 +30,7 @@ class HillClimber(object):
         print(self.filename)
         self.ordered = True
         self.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+        stagedepth = 4
         if "mnist" in task:
             self.train_loader, self.validation_loader, self.test_loader = utilities.get_mnist_dataloaders(path_to_dir=path, train_rot=not train_vanilla, val_rot=not val_vanilla, test_rot=not test_vanilla)
             indim = 1
@@ -58,14 +59,15 @@ class HillClimber(object):
             hidden = 128
             basechannels = 32
         elif task == "galaxy10small":
-            self.train_loader, self.validation_loader, self.test_loader = utilities.get_galaxy10_dataloaders(path_to_dir=path, batch_size = 32)
+            self.train_loader, self.validation_loader, self.test_loader = utilities.get_galaxy10_dataloaders(path_to_dir=path, batch_size = 16)
             indim = 3
             outdim = 10
             kernel = 5
-            stages = 4
-            pools = stages*2
+            stages = 8
+            pools = 0#stages*2
             hidden = 64
             basechannels = 16
+            stagedepth = 2
         self.reg = reg
         if d16:
             self.g = (1,4)
@@ -75,7 +77,7 @@ class HillClimber(object):
             self.g = (1,2)
         if dea:
             model = models.DEANASNet(superspace=self.g, discrete=True, alphalr=lr, weightlr=lr, 
-                                     skip=skip, hidden=hidden, indim=indim, outdim=outdim,
+                                     skip=skip, hidden=hidden, indim=indim, outdim=outdim, stagedepth=stagedepth,
                                      kernel=kernel, stages=stages, pools=pools, basechannels=basechannels)
         else:
             model = models.SkipEquiCNN(gs=[self.g for _ in range(8)], ordered = self.ordered, lr = lr, superspace = self.g)
@@ -97,6 +99,13 @@ class HillClimber(object):
                 "train": self.train_loader,
                 "validation": self.validation_loader
             }
+            print(model.countparams())
+            t = torch.cuda.get_device_properties(0).total_memory
+            r = torch.cuda.memory_reserved(0)
+            a = torch.cuda.memory_allocated(0)
+            f = r-a
+            #print(f, "", t)
+            print(torch.cuda.mem_get_info())
             if model.uuid not in self.history:
                 if model.parent is None or model.parent not in self.history:
                     self.history[model.uuid] = {'train': {'loss': [], 
@@ -117,6 +126,7 @@ class HillClimber(object):
             self.history[model.uuid]["ghistory"].append(model.gs)
             self.history[model.uuid]["paramcounts"].append(model.countparams())
             self.history[model.uuid]["distances"].append(model.distance().item())
+            print(torch.cuda.mem_get_info())
             counter = 0
             for epoch in range(int(np.ceil(epochs))):
                 for phase in ['train', 'validation']:
