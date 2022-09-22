@@ -695,7 +695,7 @@ class MixedLiftingConv2d(torch.nn.Module):
                 g = (i,j)
                 in_c = self.in_channels
                 out_c = int(self.out_channels/groupsize(g))
-                if self.alphas(len(self.weights)) > -np.inf:
+                if self.alphas[len(self.weights)] > -np.inf:
                     weights = torch.nn.Parameter(torch.normal(mean = 0.0, std = 1 / (out_c * in_c)**(1/2), 
                         size=(out_c, in_c, kernel_size, kernel_size)), requires_grad=True)
                 else:
@@ -869,7 +869,7 @@ class MixedGroupConv2d(torch.nn.Module):
                 g = (i,j)
                 in_c = int(self.in_channels/groupsize(g))
                 out_c = int(self.out_channels/groupsize(g))
-                if self.alphas(len(self.weights)) > -np.inf:
+                if self.alphas[len(self.weights)] > -np.inf:
                     weights = torch.nn.Parameter(torch.normal(mean = 0.0, std = 1 / (out_c * in_c)**(1/2), 
                         size=(out_c, in_c, groupsize(g), kernel_size, kernel_size)), requires_grad=True)
                 else:
