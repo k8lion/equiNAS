@@ -196,6 +196,7 @@ def get_galaxy10_dataloaders(path_to_dir = "~", validation_split=0.2, batch_size
     print(os.path.exists(str(path_to_dir)+"/data/Galaxy10_DECals_trainval.h5"), os.path.exists(str(path_to_dir)+"/data/Galaxy10_DECals.h5"))
     if not os.path.exists(str(path_to_dir)+"/data/Galaxy10_DECals_trainval.h5"):
         if os.path.exists(str(path_to_dir)+"/data/Galaxy10_DECals.h5"):
+            print("making dataset")
             make_galaxy10_traintest(path_to_dir)
         else:
             print("No data found")
@@ -234,6 +235,7 @@ def get_isic_dataloaders(path_to_dir = "..", validation_split=0.2, batch_size=8)
         batch_size = 8
     if not os.path.exists(str(path_to_dir)+"/data/ISIC_2019/ISIC_2019_SplitTrain_GroundTruth.csv"):
         if os.path.exists(str(path_to_dir)+"/data/ISIC_2019/ISIC_2019_Training_GroundTruth.csv"):
+            print("making dataset")
             make_isic_traintest(path_to_dir)
         else:
             print("No data found")
