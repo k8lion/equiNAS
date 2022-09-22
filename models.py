@@ -917,7 +917,6 @@ class MixedGroupConv2d(torch.nn.Module):
         if bias:
             self.bias.append(torch.nn.Parameter(torch.zeros(self.out_channels), requires_grad=True))
         self.groups.append((-1,-1))
-        
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
 
