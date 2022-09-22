@@ -39,7 +39,7 @@ class HillClimber(object):
             self.outdim = 10
             self.kernel = 5
             self.stages = 2
-            self.pools = stages*2
+            self.pools = self.stages*2
             self.hidden = 64
             self.basechannels = 16
         elif task == "isic":
@@ -48,7 +48,7 @@ class HillClimber(object):
             self.outdim = 9
             self.kernel = 7
             self.stages = 4
-            self.pools = stages*2
+            self.pools = self.stages*2
             self.hidden = 128
             self.basechannels = 32
         elif task == "galaxy10":
@@ -57,7 +57,7 @@ class HillClimber(object):
             self.outdim = 10
             self.kernel = 7
             self.stages = 4
-            self.pools = stages*2
+            self.pools = self.stages*2
             self.hidden = 128
             self.basechannels = 32
         elif task == "galaxy10small":
