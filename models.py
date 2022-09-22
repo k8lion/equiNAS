@@ -1177,7 +1177,7 @@ class DEANASNet(torch.nn.Module):
         #         if isinstance(self.blocks[ind]._modules[key], MixedGroupConv2d) or isinstance(self.blocks[ind]._modules[key], MixedLiftingConv2d):
         #             print(self.blocks[ind]._modules[key].alphas.data, [list(w.shape) for w in self.blocks[ind]._modules[key].weights])
         assert all([sum(a > -np.inf) <= 2 for a in self.alphas()])
-        offspring = DEANASNet(name = self.name, alphalr = self.alphalr, weightlr = self.weightlr, superspace = self.superspace, hidden = self.hidden, 
+        offspring = DEANASNet(name = self.name, alphalr = self.alphalr, weightlr = self.weightlr, superspace = self.superspace, hidden = self.hidden, stages=self.stages, 
                               kernel = self.kernel, indim = self.indim, outdim = self.outdim, prior = self.prior, discrete=self.discrete, pools = self.pools,
                               parentalphas=list(self.alphas()), pool = self.pool, reg_conv = self.reg_conv, reg_group = self.reg_group, basechannels=self.basechannels)
         offspring.load_state_dict(self.state_dict(), strict=False)
