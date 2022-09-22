@@ -4,3 +4,4 @@ numpy
 pandas
 torch
 torchvision
+ray

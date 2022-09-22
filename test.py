@@ -611,7 +611,7 @@ class Test(unittest.TestCase):
         child = model.offspring(0, lower, verbose=verbose)
         #print(model.gs)
         #print(child.gs)
-        xmodel = torch.randn(16, 1, 29, 29)
+        xmodel = torch.randn(5, 1, 29, 29)
         xchild = xmodel.clone()
         if not verbose:
             print(upper, lower, end=" ")
@@ -645,7 +645,7 @@ class Test(unittest.TestCase):
     def test_offspring_DEANAS_depth(self):
         torch.manual_seed(0)
         torch.set_printoptions(sci_mode=False)
-        model= models.DEANASNet(superspace=(0,2), stages = 2, basechannels=1, discrete=True)
+        model= models.DEANASNet(superspace=(0,2), basechannels=2, discrete=True)
         for j in range(len(model.channels)):
             child = model.offspring(len(model.channels)-1-j, (0,1))#, verbose = True)
             xmodel = torch.randn(16, 1, 29, 29)
