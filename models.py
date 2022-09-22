@@ -654,7 +654,7 @@ def order(subgroupsize: int):
     return [int('{:0{width}b}'.format(n, width=int(np.log2(subgroupsize)))[::-1], 2) for n in range(subgroupsize)]
 
 class MixedLiftingConv2d(torch.nn.Module):
-    def __init__(self, group: tuple, in_channels: int, out_channels: int, kernel_size: int, padding: int = 0, bias: bool = True, baseline: bool = False, prior: bool = True, discrete: bool = False, norm: bool = True, skip: bool = False):
+    def __init__(self, group: tuple, in_channels: int, out_channels: int, kernel_size: int, padding: int = 0, bias: bool = True, baseline: bool = False, prior: bool = True, discrete: bool = False, norm: bool = True, skip: bool = False, alphas: torch.Tensor = None):
         super(MixedLiftingConv2d, self).__init__()
         self.group = group
         self.kernel_size = kernel_size
@@ -664,21 +664,24 @@ class MixedLiftingConv2d(torch.nn.Module):
         self.out_channels = out_channels * groupsize(group)
         self.in_channels = in_channels
         self.alphas = torch.nn.Parameter(torch.zeros(np.prod([g+1 for g in group])+1), requires_grad=True)
-        if discrete:
-            self.alphas.data[:-2] = -np.inf
-        elif prior: 
-            self.alphas.data[:-2] = -2
-        if baseline:
-            self.alphas.data[:] = -np.inf
-            if prior:
-                self.alphas.data[-2] = 0
-            else:
-                self.alphas.data[0] = 0
-            self.alphas.data[-1] = 0
-        if skip:
-            self.alphas.data[-1] = 0
+        if alphas is not None:
+            self.alphas.data.copy_(alphas)
         else:
-            self.alphas.data[-1] = -np.inf
+            if discrete:
+                self.alphas.data[:-2] = -np.inf
+            elif prior: 
+                self.alphas.data[:-2] = -2
+            if baseline:
+                self.alphas.data[:] = -np.inf
+                if prior:
+                    self.alphas.data[-2] = 0
+                else:
+                    self.alphas.data[0] = 0
+                self.alphas.data[-1] = 0
+            if skip:
+                self.alphas.data[-1] = 0
+            else:
+                self.alphas.data[-1] = -np.inf
         self.norm = norm
         self.norms = torch.nn.Parameter(torch.zeros(np.prod([g+1 for g in group])+1), requires_grad=False)
         self.weights = torch.nn.ParameterList()
@@ -737,7 +740,7 @@ class MixedLiftingConv2d(torch.nn.Module):
         elif len(x.shape)>1:
             out = torch.zeros(x.shape[0], self.out_channels, x.shape[-2], x.shape[-1]).to(x.device)
 
-        for layer in alphas.nonzero(as_tuple=True)[0].tolist():
+        for layer in alphas[:-1].nonzero(as_tuple=True)[0].tolist():
             if len(x.shape)>1 and self.norm:
                 weights = self.weights[layer]/torch.linalg.norm(self.weights[layer])*self.norms[layer]
             else:
@@ -795,23 +798,22 @@ class MixedLiftingConv2d(torch.nn.Module):
     def distance(self, supergroup):
         _filters = torch.zeros(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size).to(self.weights[0].device)
         alphas = torch.softmax(self.alphas, dim=0)
-        for layer in range(len(alphas)-1):
-            if alphas[layer] > 0:
-                if self.norm:
-                    weights = self.weights[layer]/torch.linalg.norm(self.weights[layer])*self.norms[layer]
-                else:
-                    weights = self.weights[layer]
+        for layer in alphas[:-1].nonzero(as_tuple=True)[0].tolist():
+            if self.norm:
+                weights = self.weights[layer]/torch.linalg.norm(self.weights[layer])*self.norms[layer]
+            else:
+                weights = self.weights[layer]
 
-                if self.groups[layer][0] == 1:
-                    order = [(i,j) for j in range(subgroupsize(self.groups[layer], 0)) for i in range(subgroupsize(self.groups[layer], 1))]
-                    _filter = torch.stack([rotateflip_n(weights, i, subgroupsize(self.groups[layer], 1), j, subgroupsize(self.groups[layer], 0)) for (i,j) in order], dim = -4)
-                else:
-                    _filter = torch.stack([rotate_n(weights, i, groupsize(self.groups[layer])) for i in range(subgroupsize(self.groups[layer], 1))], dim = -4)
+            if self.groups[layer][0] == 1:
+                order = [(i,j) for j in range(subgroupsize(self.groups[layer], 0)) for i in range(subgroupsize(self.groups[layer], 1))]
+                _filter = torch.stack([rotateflip_n(weights, i, subgroupsize(self.groups[layer], 1), j, subgroupsize(self.groups[layer], 0)) for (i,j) in order], dim = -4)
+            else:
+                _filter = torch.stack([rotate_n(weights, i, groupsize(self.groups[layer])) for i in range(subgroupsize(self.groups[layer], 1))], dim = -4)
 
-                _filter = _filter.reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
+            _filter = _filter.reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
 
-                _filter = _filter[self.outchannelorders[layer]]
-                _filters += _filter*alphas[layer]
+            _filter = _filter[self.outchannelorders[layer]]
+            _filters += _filter*alphas[layer]
 
         copied_filters = _filters.clone()
         copied_filters = copied_filters.reshape(int(self.out_channels//groupsize(supergroup)), groupsize(supergroup), 
@@ -828,7 +830,7 @@ class MixedLiftingConv2d(torch.nn.Module):
         return torch.linalg.norm(projected_filters - _filters)
 
 class MixedGroupConv2d(torch.nn.Module):
-    def __init__(self, group: tuple, in_channels: int, out_channels: int, kernel_size: int, padding: int = 0, bias: bool = True, baseline: bool = False, prior: bool = True, discrete: bool = False, norm: bool = True, skip: bool = True):
+    def __init__(self, group: tuple, in_channels: int, out_channels: int, kernel_size: int, padding: int = 0, bias: bool = True, baseline: bool = False, prior: bool = True, discrete: bool = False, norm: bool = True, skip: bool = True, alphas: torch.Tensor = None):
         super(MixedGroupConv2d, self).__init__()
         self.group = group
         self.kernel_size = kernel_size
@@ -838,21 +840,23 @@ class MixedGroupConv2d(torch.nn.Module):
         self.out_channels = out_channels * groupsize(group)
         self.in_channels = in_channels * groupsize(group)
         self.alphas = torch.nn.Parameter(torch.zeros(np.prod([g+1 for g in group])+1), requires_grad=True)
-        if discrete:
-            self.alphas.data[:-2] = -np.inf
-        elif prior: 
-            self.alphas.data[:-2] = -2
-        if baseline:
-            self.alphas.data[:] = -np.inf
-            if prior:
-                self.alphas.data[-2] = 0
-            else:
-                self.alphas.data[0] = 0
-        if skip:
-            self.alphas.data[-1] = 0
+        if alphas is not None:
+            self.alphas.data.copy_(alphas)
         else:
-            self.alphas.data[-1] = -np.inf
-        
+            if discrete:
+                self.alphas.data[:-2] = -np.inf
+            elif prior: 
+                self.alphas.data[:-2] = -2
+            if baseline:
+                self.alphas.data[:] = -np.inf
+                if prior:
+                    self.alphas.data[-2] = 0
+                else:
+                    self.alphas.data[0] = 0
+            if skip:
+                self.alphas.data[-1] = 0
+            else:
+                self.alphas.data[-1] = -np.inf
         self.norm = norm
         self.norms = torch.nn.Parameter(torch.zeros(np.prod([g+1 for g in group])+1), requires_grad=False)
         self.weights = torch.nn.ParameterList()
@@ -923,12 +927,12 @@ class MixedGroupConv2d(torch.nn.Module):
         else:
             out = torch.zeros(x.shape[0], self.out_channels, x.shape[-2], x.shape[-1]).to(x.device)
 
-        for layer in alphas.nonzero(as_tuple=True)[0].tolist():
+        for layer in alphas[:-1].nonzero(as_tuple=True)[0].tolist():
             if len(x.shape)>1 and self.norm:
                 weights = self.weights[layer]/torch.linalg.norm(self.weights[layer])*self.norms[layer]
             else:
                 weights = self.weights[layer]
-
+            
             if self.groups[layer][0] == 1:
                 order = [(i,j) for j in range(subgroupsize(self.groups[layer], 0)) for i in range(subgroupsize(self.groups[layer], 1))]
                 _filter = torch.stack([rotateflipstack_n(weights, i, subgroupsize(self.groups[layer], 1), j, subgroupsize(self.groups[layer], 0)) for (i,j) in order], dim = -5)
@@ -984,28 +988,27 @@ class MixedGroupConv2d(torch.nn.Module):
         #measure distance of layer to nearest supergroup-equivariant layer
         _filters = torch.zeros(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size).to(self.weights[0].device)
         alphas = torch.softmax(self.alphas, dim=0)
-        for layer in range(len(alphas)-1):
-            if alphas[layer] > 0:
-                if self.norm:
-                    weights = self.weights[layer]/torch.linalg.norm(self.weights[layer])*self.norms[layer]
-                else:
-                    weights = self.weights[layer]
+        for layer in alphas[:-1].nonzero(as_tuple=True)[0].tolist():
+            if self.norm:
+                weights = self.weights[layer]/torch.linalg.norm(self.weights[layer])*self.norms[layer]
+            else:
+                weights = self.weights[layer]
 
-                if self.groups[layer][0] == 1:
-                    order = [(i,j) for j in range(subgroupsize(self.groups[layer], 0)) for i in range(subgroupsize(self.groups[layer], 1))]
-                    _filter = torch.stack([rotateflipstack_n(weights, i, subgroupsize(self.groups[layer], 1), j, subgroupsize(self.groups[layer], 0)) for (i,j) in order], dim = -5)
-                else:
-                    _filter = torch.stack([rotatestack_n(weights, i, groupsize(self.groups[layer])) for i in range(subgroupsize(self.groups[layer], 1))], dim = -5)
+            if self.groups[layer][0] == 1:
+                order = [(i,j) for j in range(subgroupsize(self.groups[layer], 0)) for i in range(subgroupsize(self.groups[layer], 1))]
+                _filter = torch.stack([rotateflipstack_n(weights, i, subgroupsize(self.groups[layer], 1), j, subgroupsize(self.groups[layer], 0)) for (i,j) in order], dim = -5)
+            else:
+                _filter = torch.stack([rotatestack_n(weights, i, groupsize(self.groups[layer])) for i in range(subgroupsize(self.groups[layer], 1))], dim = -5)
 
-                #use _filter from here?
+            #use _filter from here?
 
-                _filter = _filter.reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
+            _filter = _filter.reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
 
-                for (apply, order) in zip(self.inchannelapply[layer], self.inchannelorders[layer]):
-                    _filter[apply] = _filter[apply][:,order]
-                _filter = _filter[self.outchannelorders[layer]]
+            for (apply, order) in zip(self.inchannelapply[layer], self.inchannelorders[layer]):
+                _filter[apply] = _filter[apply][:,order]
+            _filter = _filter[self.outchannelorders[layer]]
 
-                _filters += _filter*alphas[layer]
+            _filters += _filter*alphas[layer]
 
         copied_filters = _filters.clone()
 
@@ -1029,7 +1032,7 @@ class DEANASNet(torch.nn.Module):
     def __init__(self, alphalr = 1e-3, weightlr = 1e-3, baseline: bool = False, superspace: tuple = (1,2), basechannels: int = 16, 
                  stages: int = 2, stagedepth: int = 4, pools: int = 4, kernel: int = 5, indim: int = 1, outdim: int = 10, 
                  hidden: int = 64, prior: bool = True, discrete: bool = False, norm: bool = True, skip: bool = True, reg_conv:float = 0.0, 
-                 reg_group: float = 0.0, name = ""):
+                 reg_group: float = 0.0, name = "", parentalphas=None):
         
         super(DEANASNet, self).__init__()
         if len(name) == 0:
@@ -1055,7 +1058,9 @@ class DEANASNet(torch.nn.Module):
         self.channels = [basechannels*2**i for i in range(stages) for _ in range(stagedepth)]
         self.kernels = [kernel for _ in range(len(self.channels))]
         self.blocks = torch.nn.ModuleList([])
-        mlc = MixedLiftingConv2d(baseline=baseline, in_channels=indim, out_channels=self.channels[0], group=self.superspace, kernel_size=self.kernels[0], padding=self.kernels[0]//2, prior=prior, discrete=discrete, norm=norm, skip=skip)
+        mlc = MixedLiftingConv2d(baseline=baseline, in_channels=indim, out_channels=self.channels[0], group=self.superspace, 
+                                 kernel_size=self.kernels[0], padding=self.kernels[0]//2, prior=prior, discrete=discrete, 
+                                 norm=norm, skip=skip, alphas=parentalphas[0].data if parentalphas is not None else None)
         self.groups = mlc.groups
         self.blocks.append(torch.nn.Sequential(
             mlc,
@@ -1064,7 +1069,9 @@ class DEANASNet(torch.nn.Module):
             ))
         for i in range(1,len(self.channels)):
             self.blocks.append(torch.nn.Sequential(
-                MixedGroupConv2d(baseline=baseline, in_channels=self.channels[i-1], out_channels=self.channels[i], group=self.superspace, kernel_size=self.kernels[i], padding=self.kernels[i]//2, prior=prior, discrete=discrete, norm=norm, skip=skip),
+                MixedGroupConv2d(baseline=baseline, in_channels=self.channels[i-1], out_channels=self.channels[i], group=self.superspace, 
+                                 kernel_size=self.kernels[i], padding=self.kernels[i]//2, prior=prior, discrete=discrete, norm=norm, 
+                                 skip=skip, alphas=parentalphas[i].data if parentalphas is not None else None),
                 torch.nn.BatchNorm2d(self.channels[i]*groupsize(self.superspace)),
                 torch.nn.ReLU(inplace=True)
                 ))
@@ -1153,9 +1160,16 @@ class DEANASNet(torch.nn.Module):
         return distances
 
     def offspring(self, i, groupnew, verbose = False):
+        # for ind in range(len(self.blocks)):
+        #     for key in self.blocks[ind]._modules.keys():
+        #         if isinstance(self.blocks[ind]._modules[key], MixedGroupConv2d) or isinstance(self.blocks[ind]._modules[key], MixedLiftingConv2d):
+        #             print(self.blocks[ind]._modules[key].alphas.data, [list(w.shape) for w in self.blocks[ind]._modules[key].weights])
         assert all([sum(a > -np.inf) <= 2 for a in self.alphas()])
-        offspring = DEANASNet(name = self.name, alphalr = self.alphalr, weightlr = self.weightlr, superspace = self.superspace, basechannels = self.basechannels, stages = self.stages, stagedepth = self.stagedepth, pools = self.pools, kernel = self.kernel, indim = self.indim, outdim = self.outdim, prior = self.prior, discrete=self.discrete)
-        offspring.load_state_dict(self.state_dict())
+        offspring = DEANASNet(name = self.name, alphalr = self.alphalr, weightlr = self.weightlr, superspace = self.superspace, 
+                              basechannels = self.basechannels, stages = self.stages, stagedepth = self.stagedepth, pools = self.pools, 
+                              kernel = self.kernel, indim = self.indim, outdim = self.outdim, prior = self.prior, discrete=self.discrete, 
+                              parentalphas=list(self.alphas()))
+        offspring.load_state_dict(self.state_dict(), strict=False)
         for j in range(len(self.channels)):
             offspring.blocks[j]._modules["0"].outchannelorders = copy.deepcopy(self.blocks[j]._modules["0"].outchannelorders)
             offspring.blocks[j]._modules["0"].inchannelapply = copy.deepcopy(self.blocks[j]._modules["0"].inchannelapply)
@@ -1167,8 +1181,8 @@ class DEANASNet(torch.nn.Module):
         offspring.gs[i] = groupnew            
         indold = np.argmax(list(offspring.alphas())[i].data[:-1])
         groupold = offspring.blocks[i]._modules["0"].groups[indold]
-        for a in range(len(list(self.alphas()))):
-            list(offspring.alphas())[a].data.copy_(list(self.alphas())[a].data)
+        #for a in range(len(list(self.alphas()))):
+        #    list(offspring.alphas())[a].data.copy_(list(self.alphas())[a].data)
         indnew = offspring.blocks[i]._modules["0"].groups.index(groupnew)
         if offspring.gs[i] == self.gs[i]:
             assert indold == indnew
@@ -1210,8 +1224,12 @@ class DEANASNet(torch.nn.Module):
         if verbose and i > 0:
             print(semi_filter[0,1,0,:,0,1])
             print(weights.shape, offspring.blocks[i]._modules["0"].weights[indnew].shape, semi_filter.shape)
-        semi_filter = semi_filter.reshape(offspring.blocks[i]._modules["0"].weights[indnew].shape)
+        if i != 0:
+            semi_filter = semi_filter.reshape(-1, int(offspring.blocks[i]._modules["0"].in_channels//groupsize(groupnew)), groupsize(groupnew), semi_filter.shape[-2], semi_filter.shape[-1])
+        else:
+            semi_filter = semi_filter.reshape(-1, offspring.blocks[i]._modules["0"].in_channels, semi_filter.shape[-2], semi_filter.shape[-1])
         offspring.blocks[i]._modules["0"].weights[indnew] = torch.nn.Parameter(semi_filter)
+        offspring.blocks[i]._modules["0"].weights[indold] = torch.nn.Parameter(torch.zeros(()), requires_grad=True)
         offspring.blocks[i]._modules["0"].norms[indnew] = torch.linalg.norm(offspring.blocks[i]._modules["0"].weights[indnew].data)
         offspring.blocks[i]._modules["0"].outchannelorders[indnew] = self.blocks[i]._modules["0"].outchannelorders[indold]
         if i != 0:
