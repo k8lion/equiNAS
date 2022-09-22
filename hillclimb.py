@@ -31,6 +31,8 @@ class HillClimber(object):
         self.ordered = True
         self.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
         self.stagedepth = 4
+        self.skip = skip
+        self.lr = lr
         if "mnist" in task:
             self.train_loader, self.validation_loader, self.test_loader = utilities.get_mnist_dataloaders(path_to_dir=path, train_rot=not train_vanilla, val_rot=not val_vanilla, test_rot=not test_vanilla)
             self.indim = 1
@@ -80,8 +82,6 @@ class HillClimber(object):
                                      kernel=self.kernel, stages=self.stages, pools=self.pools, basechannels=self.basechannels)
         else:
             model = models.SkipEquiCNN(gs=[self.g for _ in range(8)], ordered = self.ordered, lr = lr, superspace = self.g)
-        self.lr = lr
-        self.skip = skip
         self.options = [model]
         self.allkids = popsize < 0
         self.popsize = popsize
