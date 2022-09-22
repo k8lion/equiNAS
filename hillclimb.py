@@ -67,7 +67,6 @@ class HillClimber(object):
             self.pools = 8
             self.hidden = 64
             self.basechannels = 16
-            self.stagedepth = 2
         self.reg = reg
         if d16:
             self.g = (1,4)
