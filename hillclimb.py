@@ -65,9 +65,9 @@ class HillClimber(object):
             self.indim = 3
             self.outdim = 10
             self.kernel = 5
-            self.stages = 2
-            self.pools = 8
-            self.hidden = 64
+            self.stages = 3
+            self.pools = 5
+            self.hidden = 128
             self.basechannels = 16
         self.reg = reg
         if d16:
@@ -80,6 +80,7 @@ class HillClimber(object):
             model = models.DEANASNet(superspace=self.g, discrete=True, alphalr=lr, weightlr=lr, 
                                      skip=self.skip, hidden=self.hidden, indim=self.indim, outdim=self.outdim, stagedepth=self.stagedepth,
                                      kernel=self.kernel, stages=self.stages, pools=self.pools, basechannels=self.basechannels)
+            print(model(torch.zeros(2, 3, 64, 64)).shape)
         else:
             model = models.SkipEquiCNN(gs=[self.g for _ in range(8)], ordered = self.ordered, lr = lr, superspace = self.g)
         self.options = [model]
