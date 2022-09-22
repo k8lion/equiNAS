@@ -926,7 +926,7 @@ class MixedGroupConv2d(torch.nn.Module):
         if self.out_channels % self.in_channels == 0 and alphas[-1] > 0:
             out = alphas[-1]*torch.tile(x, dims=(1,self.out_channels//self.in_channels,1,1))
         else:
-            out = torch.zeros(x.shape[0], self.out_channels, int((x.shape[-2]+1)//self.stride), int((x.shape[-1]+1)//self.stride)).to(x.device)
+            out = torch.zeros(x.shape[0], self.out_channels, int((x.shape[-2]+self.stride-1)//self.stride), int((x.shape[-1]+self.stride-1)//self.stride)).to(x.device)
 
         for layer in alphas[:-1].nonzero(as_tuple=True)[0].tolist():
             if len(x.shape)>1 and self.norm:
