@@ -1178,8 +1178,8 @@ class DEANASNet(torch.nn.Module):
         #             print(self.blocks[ind]._modules[key].alphas.data, [list(w.shape) for w in self.blocks[ind]._modules[key].weights])
         assert all([sum(a > -np.inf) <= 2 for a in self.alphas()])
         offspring = DEANASNet(name = self.name, alphalr = self.alphalr, weightlr = self.weightlr, superspace = self.superspace, hidden = self.hidden, 
-                              kernel = self.kernel, indim = self.indim, outdim = self.outdim, prior = self.prior, discrete=self.discrete, 
-                              parentalphas=list(self.alphas()), pool = self.pool, reg_conv = self.reg_conv, reg_group = self.reg_group)
+                              kernel = self.kernel, indim = self.indim, outdim = self.outdim, prior = self.prior, discrete=self.discrete, pools = self.pools,
+                              parentalphas=list(self.alphas()), pool = self.pool, reg_conv = self.reg_conv, reg_group = self.reg_group, basechannels=self.basechannels)
         offspring.load_state_dict(self.state_dict(), strict=False)
         for j in range(len(self.channels)):
             offspring.blocks[j]._modules["0"].outchannelorders = copy.deepcopy(self.blocks[j]._modules["0"].outchannelorders)
