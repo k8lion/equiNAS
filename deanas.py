@@ -247,7 +247,8 @@ if __name__ == "__main__":
     parser.add_argument('--path', "-p", type=pathlib.Path, default="..", help='datapath')
     parser.add_argument('--prior', action='store_true', default=False, help='do not equalize initial alphas')
     parser.add_argument('--skip', action='store_true', default=False, help='turn on skip connections') 
-    #RPP
+    parser.add_argument('--rpp', action='store_true', default=False, help='use rpp approach')
+    parser.add_argument('--rgroup', action='store_true', default=False, help='use rgroup approach')
     parser.add_argument('--baseline', action='store_true', default=False, help='lock network to C1+skip')
     parser.add_argument('--task', "-t", type=str, default="mnist", help='task')
     parser.add_argument('--seed', "-s", type=int, default=-1, help='random seed (-1 for unseeded)')

@@ -109,11 +109,6 @@ class HillClimber(object):
                 "validation": self.validation_loader
             }
             print(model.countparams())
-            t = torch.cuda.get_device_properties(0).total_memory
-            r = torch.cuda.memory_reserved(0)
-            a = torch.cuda.memory_allocated(0)
-            f = r-a
-            #print(f, "", t)
             print(torch.cuda.mem_get_info())
             if model.uuid not in self.history:
                 if model.parent is None or model.parent not in self.history:
