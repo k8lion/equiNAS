@@ -42,6 +42,7 @@ class HillClimber(object):
             self.pools = self.stages*2
             self.hidden = 64
             self.basechannels = 16
+            dim = 28
         elif task == "isic":
             self.train_loader, self.validation_loader, self.test_loader = utilities.get_isic_dataloaders(path_to_dir=path)
             self.indim = 3
@@ -51,15 +52,17 @@ class HillClimber(object):
             self.pools = self.stages*2
             self.hidden = 128
             self.basechannels = 32
+            dim = 256
         elif task == "galaxy10":
-            self.train_loader, self.validation_loader, self.test_loader = utilities.get_galaxy10_dataloaders(path_to_dir=path, small = False)
+            self.train_loader, self.validation_loader, self.test_loader = utilities.get_galaxy10_dataloaders(path_to_dir=path, batch_size = 32, small = False)
             self.indim = 3
             self.outdim = 10
             self.kernel = 7
-            self.stages = 4
-            self.pools = self.stages*2
+            self.stages = 2
+            self.pools = 5
             self.hidden = 128
             self.basechannels = 32
+            dim = 256
         elif task == "galaxy10small":
             self.train_loader, self.validation_loader, self.test_loader = utilities.get_galaxy10_dataloaders(path_to_dir=path, batch_size = 64, small = True)
             self.indim = 3
@@ -69,6 +72,7 @@ class HillClimber(object):
             self.pools = 5
             self.hidden = 128
             self.basechannels = 16
+            dim = 64
         self.reg = reg
         if d16:
             self.g = (1,4)
@@ -80,7 +84,12 @@ class HillClimber(object):
             model = models.DEANASNet(superspace=self.g, discrete=True, alphalr=lr, weightlr=lr, 
                                      skip=self.skip, hidden=self.hidden, indim=self.indim, outdim=self.outdim, stagedepth=self.stagedepth,
                                      kernel=self.kernel, stages=self.stages, pools=self.pools, basechannels=self.basechannels)
-            print(model(torch.zeros(2, 3, 64, 64)).shape)
+            x = torch.zeros(2, self.indim, dim, dim)
+            for i, block in enumerate(model.blocks):
+                x = block(x)
+                print(x.shape)
+                if i == len(model.blocks)-3:
+                    x = x.reshape(x.shape[0], -1)
         else:
             model = models.SkipEquiCNN(gs=[self.g for _ in range(8)], ordered = self.ordered, lr = lr, superspace = self.g)
         self.options = [model]

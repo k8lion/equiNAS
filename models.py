@@ -1070,10 +1070,13 @@ class DEANASNet(torch.nn.Module):
             torch.nn.BatchNorm2d(self.channels[0]*groupsize(self.superspace)),
             torch.nn.ReLU(inplace=True)
             ))
+        shrinks = [pools>0 and i%(len(self.channels)//pools) == 0 and i != len(self.channels)-1 for i in range(len(self.channels))]
+        while np.where(shrinks)[0].shape[0] > pools:
+            shrinks[np.where(shrinks)[0][0]] = False
         for i in range(1,len(self.channels)):
             stride = 1
             topool = False
-            if pools>0 and i%(len(self.channels)//pools) == 0 and i != len(self.channels)-1 and (not self.indim>1 or i > 2):
+            if shrinks[i]:
                 if pool:
                     topool = True
                 else:
@@ -1105,8 +1108,8 @@ class DEANASNet(torch.nn.Module):
         self.score = -1
         self.uuid = uuid.uuid4()
         self.parent = None
-        for (n,p) in self.named_params():
-            print(n, p.shape)
+        #for (n,p) in self.named_params():
+        #    print(n, p.shape)
 
     def forward(self, x: torch.Tensor):
         for i, block in enumerate(self.blocks):
