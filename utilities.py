@@ -190,9 +190,9 @@ def get_mnist_dataloaders(path_to_dir = "~", validation_split=0.2, batch_size=64
     return train_loader, validation_loader, test_loader
 
 
-def get_galaxy10_dataloaders(path_to_dir = "~", validation_split=0.2, batch_size=8, small=True):
+def get_galaxy10_dataloaders(path_to_dir = "~", validation_split=0.2, batch_size=32, small=True):
     if batch_size < 0:
-        batch_size = 8
+        batch_size = 32
     print(os.path.exists(str(path_to_dir)+"/data/Galaxy10_DECals_trainval.h5"), os.path.exists(str(path_to_dir)+"/data/Galaxy10_DECals.h5"))
     if not os.path.exists(str(path_to_dir)+"/data/Galaxy10_DECals_trainval.h5"):
         if os.path.exists(str(path_to_dir)+"/data/Galaxy10_DECals.h5"):
@@ -237,9 +237,9 @@ def get_galaxy10_dataloaders(path_to_dir = "~", validation_split=0.2, batch_size
 
     return train_loader, validation_loader, test_loader
 
-def get_isic_dataloaders(path_to_dir = "..", validation_split=0.2, batch_size=8):
+def get_isic_dataloaders(path_to_dir = "..", validation_split=0.2, batch_size=32):
     if batch_size < 0:
-        batch_size = 8
+        batch_size = 32
     if not os.path.exists(str(path_to_dir)+"/data/ISIC_2019/ISIC_2019_SplitTrain_GroundTruth.csv"):
         if os.path.exists(str(path_to_dir)+"/data/ISIC_2019/ISIC_2019_Training_GroundTruth.csv"):
             print("making dataset")

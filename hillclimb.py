@@ -48,8 +48,8 @@ class HillClimber(object):
             self.indim = 3
             self.outdim = 9
             self.kernel = 7
-            self.stages = 4
-            self.pools = self.stages*2
+            self.stages = 2
+            self.pools = 6
             self.hidden = 128
             self.basechannels = 32
             dim = 256
@@ -59,7 +59,7 @@ class HillClimber(object):
             self.outdim = 10
             self.kernel = 7
             self.stages = 2
-            self.pools = 5
+            self.pools = 6
             self.hidden = 128
             self.basechannels = 32
             dim = 256
@@ -69,7 +69,7 @@ class HillClimber(object):
             self.outdim = 10
             self.kernel = 7
             self.stages = 2
-            self.pools = 5
+            self.pools = 4
             self.hidden = 128
             self.basechannels = 16
             dim = 64
