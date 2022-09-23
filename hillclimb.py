@@ -51,7 +51,7 @@ class HillClimber(object):
             self.stages = 2
             self.pools = 6
             self.hidden = 128
-            self.basechannels = 32
+            self.basechannels = 16
             dim = 256
         elif task == "galaxy10":
             self.train_loader, self.validation_loader, self.test_loader = utilities.get_galaxy10_dataloaders(path_to_dir=path, batch_size = 32, small = False)
@@ -61,7 +61,7 @@ class HillClimber(object):
             self.stages = 2
             self.pools = 6
             self.hidden = 128
-            self.basechannels = 32
+            self.basechannels = 16
             dim = 256
         elif task == "galaxy10small":
             self.train_loader, self.validation_loader, self.test_loader = utilities.get_galaxy10_dataloaders(path_to_dir=path, batch_size = 64, small = True)
