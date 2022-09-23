@@ -109,24 +109,26 @@ def DEANASearch(args):
         args.outdim = 9
         if args.kernel < 0:
             args.kernel = 7
-        args.stages = 4
-        args.pools = args.stages*2
+        args.stages = 2
+        args.pools = 6
         if args.hidden < 0:
             args.hidden = 128
         if args.basechannels < 0:
-            args.basechannels = 32
+            args.basechannels = 16
     elif args.task == "galaxy10":
         train_loader, validation_loader, test_loader = utilities.get_galaxy10_dataloaders(path_to_dir=args.path, batch_size=args.batch_size)
         args.indim = 3
         args.outdim = 10
         if args.kernel < 0:
             args.kernel = 7
-        args.stages = 4
-        args.pools = args.stages*4
+        args.stages = 2
+        args.pools = 6
         if args.hidden < 0:
             args.hidden = 128
         if args.basechannels < 0:
-            args.basechannels = 32
+            args.basechannels = 16
+    if args.baseline and args.c4:
+        args.basechannels *= 2
     model = models.DEANASNet(superspace = (1,4) if args.d16 else (0,2) if args.c4 else (1,2), hidden = args.hidden,
                              weightlr = args.weightlr, alphalr = args.alphalr, basechannels = args.basechannels,
                              prior = args.prior, indim = args.indim, baseline = args.baseline,
