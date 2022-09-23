@@ -57,7 +57,7 @@ class HillClimber(object):
             self.train_loader, self.validation_loader, self.test_loader = utilities.get_galaxy10_dataloaders(path_to_dir=path, batch_size = 32, small = False)
             self.indim = 3
             self.outdim = 10
-            self.kernel = 7
+            self.kernel = 5
             self.stages = 2
             self.pools = 6
             self.hidden = 128
@@ -67,7 +67,7 @@ class HillClimber(object):
             self.train_loader, self.validation_loader, self.test_loader = utilities.get_galaxy10_dataloaders(path_to_dir=path, batch_size = 64, small = True)
             self.indim = 3
             self.outdim = 10
-            self.kernel = 7
+            self.kernel = 5
             self.stages = 2
             self.pools = 4
             self.hidden = 128

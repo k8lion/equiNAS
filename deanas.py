@@ -122,7 +122,7 @@ def DEANASearch(args):
         args.indim = 3
         args.outdim = 10
         if args.kernel < 0:
-            args.kernel = 7
+            args.kernel = 5
         args.stages = 2
         args.pools = 6
         if args.hidden < 0:
