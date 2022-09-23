@@ -103,6 +103,7 @@ def DEANASearch(args):
             args.hidden = 64
         if args.basechannels < 0:
             args.basechannels = 16
+        dim = 28
     elif args.task == "isic":
         train_loader, validation_loader, test_loader = utilities.get_isic_dataloaders(path_to_dir=args.path, batch_size=args.batch_size)
         args.indim = 3
@@ -115,6 +116,7 @@ def DEANASearch(args):
             args.hidden = 128
         if args.basechannels < 0:
             args.basechannels = 16
+        dim = 256
     elif args.task == "galaxy10":
         train_loader, validation_loader, test_loader = utilities.get_galaxy10_dataloaders(path_to_dir=args.path, batch_size=args.batch_size)
         args.indim = 3
@@ -127,6 +129,7 @@ def DEANASearch(args):
             args.hidden = 128
         if args.basechannels < 0:
             args.basechannels = 16
+        dim = 256
     if args.baseline and args.c4:
         args.basechannels *= 2
     model = models.DEANASNet(superspace = (1,4) if args.d16 else (0,2) if args.c4 else (1,2), hidden = args.hidden,
@@ -134,6 +137,12 @@ def DEANASearch(args):
                              prior = args.prior, indim = args.indim, baseline = args.baseline,
                              outdim = args.outdim, stages = args.stages, pools = args.pools, 
                              kernel = args.kernel, skip = args.skip).to(device)
+    x = torch.zeros(2, args.indim, dim, dim)
+    for i, block in enumerate(model.blocks):
+        x = block(x)
+        print(x.shape)
+        if i == len(model.blocks)-3:
+            x = x.reshape(x.shape[0], -1)
     history = {'args': args,
                 'alphas': [[torch.softmax(a, dim=0).detach().tolist() for a in model.alphas()]],
                 'channels': model.channels,
