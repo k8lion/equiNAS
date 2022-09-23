@@ -137,7 +137,7 @@ def DEANASearch(args):
                              prior = args.prior, indim = args.indim, baseline = args.baseline,
                              outdim = args.outdim, stages = args.stages, pools = args.pools, 
                              kernel = args.kernel, skip = args.skip).to(device)
-    x = torch.zeros(2, args.indim, dim, dim)
+    x = torch.zeros(2, args.indim, dim, dim).to(device)
     for i, block in enumerate(model.blocks):
         x = block(x)
         print(x.shape)
