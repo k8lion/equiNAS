@@ -118,7 +118,7 @@ def DEANASearch(args):
             args.basechannels = 16
         dim = 256
     elif args.task == "galaxy10":
-        train_loader, validation_loader, test_loader = utilities.get_galaxy10_dataloaders(path_to_dir=args.path, batch_size=args.batch_size)
+        train_loader, validation_loader, test_loader = utilities.get_galaxy10_dataloaders(path_to_dir=args.path, batch_size=args.batch_size, small=False)
         args.indim = 3
         args.outdim = 10
         if args.kernel < 0:
