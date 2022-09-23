@@ -373,8 +373,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
     if args.task == "mixmnist":
         args.train_vanilla = True
-    #if args.pareto:
-    #    args.pareto2 = True
+    elif args.task == "vanillamnist":
+        args.train_vanilla = True
+        args.val_vanilla = True
+        args.test_vanilla = True
     print(args)
     hillclimb = HillClimber(baselines=args.baselines, lr=args.lr, path=args.data, popsize=args.popsize, 
                             d16=args.d16, c4=args.c4, dea=args.dea, seed=args.seed, pareto=args.pareto, 

@@ -264,6 +264,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
     if args.task == "mixmnist":
         args.train_vanilla = True
+    elif args.task == "vanillamnist":
+        args.train_vanilla = True
+        args.val_vanilla = True
+        args.test_vanilla = True
     print(args)
     if args.tune:
         DEANASearch_tune(args)
