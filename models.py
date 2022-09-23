@@ -1102,7 +1102,7 @@ class DEANASNet(torch.nn.Module):
             self.optimizer = torch.optim.SGD(self.all_params(), lr=weightlr)
             self.alphaopt = None
         else:
-            self.optimizer = torch.optim.SGD(self.parameters(), lr=weightlr)
+            self.optimizer = torch.optim.Adam(self.parameters(), lr=weightlr)
             self.alphaopt = torch.optim.Adam(self.alphas(), lr=alphalr)
         self.gs = [self.superspace for _ in range(len(self.channels))]
         self.score = -1
