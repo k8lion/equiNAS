@@ -827,7 +827,7 @@ class MixedLiftingConv2d(torch.nn.Module):
         order = [(i,j) for j in range(subgroupsize(supergroup, 0)) for i in range(subgroupsize(supergroup, 1))]
         projected_filters = torch.stack([rotateflip_n(projected_weights, i, subgroupsize(supergroup, 1), j, subgroupsize(supergroup, 0)) for (i,j) in order], dim = -4)
         projected_filters = projected_filters.reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
-        return torch.linalg.norm(projected_filters - _filters)
+        return torch.linalg.norm(projected_filters - _filters)/torch.linalg.norm(_filters)
 
 class MixedGroupConv2d(torch.nn.Module):
     def __init__(self, group: tuple, in_channels: int, out_channels: int, kernel_size: int, padding: int = 0, bias: bool = True, baseline: bool = False, prior: bool = True, discrete: bool = False, norm: bool = True, skip: bool = True, alphas: torch.Tensor = None, stride: int = 1):
@@ -1024,7 +1024,7 @@ class MixedGroupConv2d(torch.nn.Module):
         order = [(i,j) for j in range(subgroupsize(supergroup, 0)) for i in range(subgroupsize(supergroup, 1))]
         projected_filters = torch.stack([rotateflipstack_n(projected_weights, i, subgroupsize(supergroup, 1), j, subgroupsize(supergroup, 0)) for (i,j) in order], dim = -5)
         projected_filters = projected_filters.reshape(self.out_channels, self.in_channels, self.kernel_size, self.kernel_size)
-        return torch.linalg.norm(projected_filters - _filters)
+        return torch.linalg.norm(projected_filters - _filters)/torch.linalg.norm(_filters)
 
 
 class DEANASNet(torch.nn.Module):
