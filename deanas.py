@@ -174,7 +174,7 @@ def DEANASearch(args):
                 inputs = inputs.to(device)
                 labels = labels.to(device)
                 if phase == 'train':
-                    inputs_search, labels_search = next(iter(validation_loader))
+                    inputs_search, labels_search = next(iter(train_loader))
                     inputs_search = inputs_search.to(device)
                     labels_search = labels_search.to(device)
                 model.optimizer.zero_grad()
