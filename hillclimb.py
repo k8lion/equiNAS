@@ -53,6 +53,16 @@ class HillClimber(object):
             self.hidden = 128
             self.basechannels = 16
             dim = 256
+        elif task == "isicsmall":
+            self.train_loader, self.validation_loader, self.test_loader = utilities.get_isic_dataloaders(path_to_dir=path, small=True)
+            self.indim = 3
+            self.outdim = 9
+            self.kernel = 5
+            self.stages = 2
+            self.pools = 5
+            self.hidden = 128
+            self.basechannels = 16
+            dim = 64
         elif task == "galaxy10":
             self.train_loader, self.validation_loader, self.test_loader = utilities.get_galaxy10_dataloaders(path_to_dir=path, batch_size = 32, small = False)
             self.indim = 3

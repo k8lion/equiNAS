@@ -237,7 +237,7 @@ def get_galaxy10_dataloaders(path_to_dir = "~", validation_split=0.1, batch_size
 
     return train_loader, validation_loader, test_loader
 
-def get_isic_dataloaders(path_to_dir = "..", validation_split=0.1, batch_size=32):
+def get_isic_dataloaders(path_to_dir = "..", validation_split=0.1, batch_size=32, small=True):
     if batch_size < 0:
         batch_size = 32
     if not os.path.exists(str(path_to_dir)+"/data/ISIC_2019/ISIC_2019_SplitTrain_GroundTruth.csv"):
@@ -257,7 +257,7 @@ def get_isic_dataloaders(path_to_dir = "..", validation_split=0.1, batch_size=32
         Normalize([0.68411015, 0.53133843, 0.5259248], [0.12060131, 0.14048626, 0.15317468]),
     ])
 
-    isic_train = ISICDataset(train_gt, path_to_dir, input_size=256, transform=transform)
+    isic_train = ISICDataset(train_gt, path_to_dir, input_size=64 if small else 256, transform=transform)
     print(isic_train.get_stats())
 
     shuffle_dataset = True
@@ -280,7 +280,7 @@ def get_isic_dataloaders(path_to_dir = "..", validation_split=0.1, batch_size=32
 
     test_gt = pd.read_csv(str(path_to_dir)+"/data/ISIC_2019/ISIC_2019_SplitTest_GroundTruth.csv")
     test_gt["target"] = test_gt.apply(lambda x: np.argmax(x[["MEL", "NV", "BCC", "AK", "BKL", "DF", "VASC", "SCC"]]), axis=1)
-    isic_test = ISICDataset(test_gt, path_to_dir, input_size=256)
+    isic_test = ISICDataset(test_gt, path_to_dir, input_size=64 if small else 256)
     test_loader = DataLoader(isic_test, batch_size=batch_size)
 
     return train_loader, validation_loader, test_loader
