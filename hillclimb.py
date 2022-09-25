@@ -329,7 +329,9 @@ class HillClimber(object):
         self.options.append(D4priorC1)
         self.options.append(D4priorC4)
         self.options.append(C4priorC1)
-        #RPP
+        self.options.append(models.DEANASNet(name = "RPP D4", superspace=(0,0), discrete=True, alphalr=self.lr, weightlr=self.lr, rpp=True,
+                                             skip=self.skip, hidden=self.hidden, indim=self.indim, outdim=self.outdim, stagedepth=self.stagedepth,
+                                             kernel=self.kernel, stages=self.stages, pools=self.pools, basechannels=self.basechannels))
         self.train(epochs = epochs, start = 0)
         for generation in range(generations):
             print("Generation ", generation)
@@ -352,7 +354,6 @@ if __name__ == "__main__":
     parser.add_argument('--d16', action='store_true', default=False, help='use d16 equivariance instead of default d4')
     parser.add_argument('--c4', action='store_true', default=False, help='use c4 equivariance instead of default d4')
     parser.add_argument('--seed', type=int, default=-1, help='random seed (-1 for unseeded)')
-    #RPP
     parser.add_argument('--dea', action='store_true', default=False, help='use DEANAS backbone')
     parser.add_argument('--skip', action='store_true', default=False, help='turn on skip connections')
     parser.add_argument('--pareto', action='store_true', default=False, help='use pareto front as parent selection')

@@ -846,6 +846,8 @@ class MixedGroupConv2d(torch.nn.Module):
         else:
             if discrete:
                 self.alphas.data[:-2] = -np.inf
+                if rpp:
+                    self.alphas.data[0] = 0
             elif prior: 
                 self.alphas.data[:-2] = -2
             if baseline:
