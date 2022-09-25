@@ -1072,7 +1072,12 @@ class DEANASNet(torch.nn.Module):
             torch.nn.BatchNorm2d(self.channels[0]*groupsize(self.superspace)),
             torch.nn.ReLU(inplace=True)
             ))
-        shrinks = [pools>0 and i%(len(self.channels)//pools) == 0 and i != len(self.channels)-1 for i in range(len(self.channels))]
+        if pools == 4:
+            shrinks = [False, False, True, False, True, False, True, False]
+        elif pools == 5:
+            shrinks = [False, False, True, False, True, True, True, False]
+        else:
+            shrinks = [pools>0 and i%(len(self.channels)//pools) == 0 and i != len(self.channels)-1 for i in range(len(self.channels))]
         while np.where(shrinks)[0].shape[0] > pools:
             shrinks[np.where(shrinks)[0][0]] = False
         for i in range(1,len(self.channels)):

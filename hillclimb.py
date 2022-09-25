@@ -309,10 +309,10 @@ class HillClimber(object):
         self.options[0].name = "D4 (prior: D4)"
         self.options.append(models.DEANASNet(name = "C4 (prior: C4)", superspace=(0,2), discrete=True, alphalr=self.lr, weightlr=self.lr,
                                              skip=self.skip, hidden=self.hidden, indim=self.indim, outdim=self.outdim, stagedepth=self.stagedepth,
-                                             kernel=self.kernel, stages=self.stages, pools=self.pools, basechannels=self.basechannels))
+                                             kernel=self.kernel, stages=self.stages, pools=self.pools, basechannels=self.basechannels*2))
         self.options.append(models.DEANASNet(name = "C1 (prior: C1)", superspace=(0,0), discrete=True, alphalr=self.lr, weightlr=self.lr,
                                              skip=self.skip, hidden=self.hidden, indim=self.indim, outdim=self.outdim, stagedepth=self.stagedepth,
-                                             kernel=self.kernel, stages=self.stages, pools=self.pools, basechannels=self.basechannels))
+                                             kernel=self.kernel, stages=self.stages, pools=self.pools, basechannels=self.basechannels*8))
         D4priorC1 = models.DEANASNet(name = "C1 (prior: D4)", superspace=(1,2), discrete=True, alphalr=self.lr, weightlr=self.lr,
                                      skip=self.skip, hidden=self.hidden, indim=self.indim, outdim=self.outdim, stagedepth=self.stagedepth,
                                      kernel=self.kernel, stages=self.stages, pools=self.pools, basechannels=self.basechannels)
@@ -321,7 +321,7 @@ class HillClimber(object):
                                      kernel=self.kernel, stages=self.stages, pools=self.pools, basechannels=self.basechannels)
         C4priorC1 = models.DEANASNet(name = "C1 (prior: C4)", superspace=(0,2), discrete=True, alphalr=self.lr, weightlr=self.lr,
                                      skip=self.skip, hidden=self.hidden, indim=self.indim, outdim=self.outdim, stagedepth=self.stagedepth,
-                                     kernel=self.kernel, stages=self.stages, pools=self.pools, basechannels=self.basechannels)
+                                     kernel=self.kernel, stages=self.stages, pools=self.pools, basechannels=self.basechannels*2)
         for i in range(len(D4priorC1.channels)):
                 D4priorC1 = D4priorC1.offspring(len(D4priorC1.channels)-1-i, (0,0))
                 D4priorC4 = D4priorC4.offspring(len(D4priorC4.channels)-1-i, (0,2))
@@ -329,7 +329,7 @@ class HillClimber(object):
         self.options.append(D4priorC1)
         self.options.append(D4priorC4)
         self.options.append(C4priorC1)
-        self.options.append(models.DEANASNet(name = "RPP D4", superspace=(0,0), discrete=True, alphalr=self.lr, weightlr=self.lr, rpp=True,
+        self.options.append(models.DEANASNet(name = "RPP D4", superspace=(1,2), discrete=True, alphalr=self.lr, weightlr=self.lr, rpp=True,
                                              skip=self.skip, hidden=self.hidden, indim=self.indim, outdim=self.outdim, stagedepth=self.stagedepth,
                                              kernel=self.kernel, stages=self.stages, pools=self.pools, basechannels=self.basechannels))
         self.train(epochs = epochs, start = 0)

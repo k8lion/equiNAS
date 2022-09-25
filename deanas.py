@@ -132,6 +132,19 @@ def DEANASearch(args):
         if args.basechannels < 0:
             args.basechannels = 16
         dim = 256
+    elif args.task == "galaxy10small":
+        train_loader, validation_loader, test_loader = utilities.get_galaxy10_dataloaders(path_to_dir=args.path, batch_size=args.batch_size, small=True)
+        args.indim = 3
+        args.outdim = 10
+        if args.kernel < 0:
+            args.kernel = 5
+        args.stages = 2
+        args.pools = 5
+        if args.hidden < 0:
+            args.hidden = 128
+        if args.basechannels < 0:
+            args.basechannels = 16
+        dim = 64
     if args.baseline and args.c4:
         args.basechannels *= 2
     model = models.DEANASNet(superspace = (1,4) if args.d16 else (0,2) if args.c4 else (1,2), hidden = args.hidden,
@@ -249,7 +262,7 @@ if __name__ == "__main__":
     parser.add_argument('--basechannels', "-c", type=int, default="-1", help='base number of channels')
     parser.add_argument('--kernel', "-k", type=int, default="-1", help='kernel size')
     parser.add_argument('--path', "-p", type=pathlib.Path, default="..", help='datapath')
-    parser.add_argument('--prior', action='store_true', default=False, help='do not equalize initial alphas')
+    parser.add_argument('--prior', action='store_true', default=False, help='do not equalize initial alphas or assume equivariance')
     parser.add_argument('--skip', action='store_true', default=False, help='turn on skip connections') 
     parser.add_argument('--rpp', action='store_true', default=False, help='use rpp approach')
     parser.add_argument('--rgroup', action='store_true', default=False, help='use rgroup approach')
