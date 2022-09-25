@@ -66,7 +66,9 @@ def DEANASearch(args):
         torch.cuda.manual_seed(args.seed)
         torch.cuda.manual_seed_all(args.seed)
         trial += str(args.seed) + "_"
-    if args.baseline:
+    if args.rpp:
+        trial += "rpp_"
+    elif args.baseline:
         trial += "bl"
         if not args.prior:
             trial+="C1"
@@ -136,7 +138,7 @@ def DEANASearch(args):
                              weightlr = args.weightlr, alphalr = args.alphalr, basechannels = args.basechannels,
                              prior = args.prior, indim = args.indim, baseline = args.baseline,
                              outdim = args.outdim, stages = args.stages, pools = args.pools, 
-                             kernel = args.kernel, skip = args.skip).to(device)
+                             kernel = args.kernel, skip = args.skip, reg_conv = 1e-6 if args.rpp else 0).to(device)
     x = torch.zeros(2, args.indim, dim, dim).to(device)
     for i, block in enumerate(model.blocks):
         x = block(x)
@@ -183,6 +185,8 @@ def DEANASearch(args):
                     outputs = model(inputs)
                     _, preds = torch.max(outputs, 1)
                     loss = model.loss_function(outputs, labels)
+                    if model.reg_group > 0 or model.reg_conv > 0:
+                        loss += model.regularization_loss()
                     if phase == 'train':
                         loss.backward()
                         model.optimizer.step()

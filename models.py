@@ -654,7 +654,8 @@ def order(subgroupsize: int):
     return [int('{:0{width}b}'.format(n, width=int(np.log2(subgroupsize)))[::-1], 2) for n in range(subgroupsize)]
 
 class MixedLiftingConv2d(torch.nn.Module):
-    def __init__(self, group: tuple, in_channels: int, out_channels: int, kernel_size: int, padding: int = 0, bias: bool = True, baseline: bool = False, prior: bool = True, discrete: bool = False, norm: bool = True, skip: bool = False, alphas: torch.Tensor = None, stride = 1):
+    def __init__(self, group: tuple, in_channels: int, out_channels: int, kernel_size: int, padding: int = 0, bias: bool = True, baseline: bool = False, 
+                 prior: bool = True, discrete: bool = False, norm: bool = True, skip: bool = False, alphas: torch.Tensor = None, stride = 1, rpp: bool = False):
         super(MixedLiftingConv2d, self).__init__()
         self.group = group
         self.kernel_size = kernel_size
@@ -673,7 +674,10 @@ class MixedLiftingConv2d(torch.nn.Module):
                 self.alphas.data[:-2] = -2
             if baseline:
                 self.alphas.data[:] = -np.inf
-                if prior:
+                if rpp:
+                    self.alphas.data[0] = 0
+                    self.alphas.data[-2] = 0
+                elif prior:
                     self.alphas.data[-2] = 0
                 else:
                     self.alphas.data[0] = 0
@@ -830,7 +834,8 @@ class MixedLiftingConv2d(torch.nn.Module):
         return torch.linalg.norm(projected_filters - _filters)/torch.linalg.norm(_filters)
 
 class MixedGroupConv2d(torch.nn.Module):
-    def __init__(self, group: tuple, in_channels: int, out_channels: int, kernel_size: int, padding: int = 0, bias: bool = True, baseline: bool = False, prior: bool = True, discrete: bool = False, norm: bool = True, skip: bool = True, alphas: torch.Tensor = None, stride: int = 1):
+    def __init__(self, group: tuple, in_channels: int, out_channels: int, kernel_size: int, padding: int = 0, bias: bool = True, baseline: bool = False, 
+                 prior: bool = True, discrete: bool = False, norm: bool = True, skip: bool = True, alphas: torch.Tensor = None, stride: int = 1, rpp: bool = False):
         super(MixedGroupConv2d, self).__init__()
         self.group = group
         self.kernel_size = kernel_size
@@ -849,7 +854,10 @@ class MixedGroupConv2d(torch.nn.Module):
                 self.alphas.data[:-2] = -2
             if baseline:
                 self.alphas.data[:] = -np.inf
-                if prior:
+                if rpp:
+                    self.alphas.data[0] = 0
+                    self.alphas.data[-2] = 0
+                elif prior:
                     self.alphas.data[-2] = 0
                 else:
                     self.alphas.data[0] = 0
@@ -1063,7 +1071,7 @@ class DEANASNet(torch.nn.Module):
         self.blocks = torch.nn.ModuleList([])
         mlc = MixedLiftingConv2d(baseline=baseline, in_channels=indim, out_channels=self.channels[0], group=self.superspace, 
                                  kernel_size=self.kernels[0], padding=self.kernels[0]//2, prior=prior, discrete=discrete, 
-                                 norm=norm, skip=skip, alphas=parentalphas[0].data if parentalphas is not None else None)
+                                 norm=norm, skip=skip, alphas=parentalphas[0].data if parentalphas is not None else None, rpp=reg_conv>0)
         self.groups = mlc.groups
         self.blocks.append(torch.nn.Sequential(
             mlc,
@@ -1084,7 +1092,7 @@ class DEANASNet(torch.nn.Module):
             self.blocks.append(torch.nn.Sequential(
                 MixedGroupConv2d(baseline=baseline, in_channels=self.channels[i-1], out_channels=self.channels[i], group=self.superspace, 
                                  kernel_size=self.kernels[i], padding=self.kernels[i]//2, prior=prior, discrete=discrete, norm=norm, 
-                                 skip=skip, alphas=parentalphas[i].data if parentalphas is not None else None, stride=stride),
+                                 skip=skip, alphas=parentalphas[i].data if parentalphas is not None else None, stride=stride, rpp=reg_conv>0),
                 torch.nn.BatchNorm2d(self.channels[i]*groupsize(self.superspace)),
                 torch.nn.ReLU(inplace=True)
                 ))
