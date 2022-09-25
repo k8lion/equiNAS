@@ -258,7 +258,7 @@ def get_isic_dataloaders(path_to_dir = "..", validation_split=0.1, batch_size=32
     ])
 
     isic_train = ISICDataset(train_gt, path_to_dir, input_size=64 if small else 256, transform=transform)
-    print(isic_train.get_stats())
+    #print(isic_train.get_stats())
 
     shuffle_dataset = True
     random_seed = 42
