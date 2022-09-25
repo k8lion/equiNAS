@@ -329,7 +329,7 @@ class HillClimber(object):
         self.options.append(D4priorC1)
         self.options.append(D4priorC4)
         self.options.append(C4priorC1)
-        self.options.append(models.DEANASNet(name = "RPP D4", superspace=(1,2), discrete=True, alphalr=self.lr, weightlr=self.lr, rpp=True,
+        self.options.append(models.DEANASNet(name = "RPP D4", superspace=(1,2), discrete=True, alphalr=self.lr, weightlr=self.lr, reg_conv = 1e-6,
                                              skip=self.skip, hidden=self.hidden, indim=self.indim, outdim=self.outdim, stagedepth=self.stagedepth,
                                              kernel=self.kernel, stages=self.stages, pools=self.pools, basechannels=self.basechannels))
         self.train(epochs = epochs, start = 0)
