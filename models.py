@@ -1078,8 +1078,8 @@ class DEANASNet(torch.nn.Module):
             shrinks = [False, False, True, False, True, True, True, False]
         else:
             shrinks = [pools>0 and i%(len(self.channels)//pools) == 0 and i != len(self.channels)-1 for i in range(len(self.channels))]
-        while np.where(shrinks)[0].shape[0] > pools:
-            shrinks[np.where(shrinks)[0][0]] = False
+            while np.where(shrinks)[0].shape[0] > pools:
+                shrinks[np.where(shrinks)[0][0]] = False
         for i in range(1,len(self.channels)):
             stride = 1
             topool = False
