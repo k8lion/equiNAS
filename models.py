@@ -790,9 +790,9 @@ class MixedLiftingConv2d(torch.nn.Module):
         for i in range(len(alphas)-1):
             if alphas[i] > 0:
                 if L2:
-                    weightsum += coeffs[i]*self.weights.pow(2).sum()
+                    weightsum += coeffs[i]*self.weights[i].pow(2).sum()
                 else:
-                    weightsum += coeffs[i]*self.weights.abs().sum()
+                    weightsum += coeffs[i]*self.weights[i].abs().sum()
         if L2:
             weightsum += reg_alphas*self.alphas.pow(2).sum()
         else:
@@ -983,9 +983,9 @@ class MixedGroupConv2d(torch.nn.Module):
         for i in range(len(alphas)-1):
             if alphas[i] > 0:
                 if L2:
-                    weightsum += coeffs[i]*self.weights.pow(2).sum()
+                    weightsum += coeffs[i]*self.weights[i].pow(2).sum()
                 else:
-                    weightsum += coeffs[i]*self.weights.abs().sum()
+                    weightsum += coeffs[i]*self.weights[i].abs().sum()
         if L2:
             weightsum += reg_alphas*self.alphas.pow(2).sum()
         else:
