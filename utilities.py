@@ -192,7 +192,7 @@ def get_mnist_dataloaders(path_to_dir = "~", validation_split=0.2, batch_size=64
 
 def get_galaxy10_dataloaders(path_to_dir = "~", validation_split=0.1, batch_size=32, small=True):
     if batch_size < 0:
-        batch_size = 32
+        batch_size = 32 if small else 16
     print(os.path.exists(str(path_to_dir)+"/data/Galaxy10_DECals_trainval.h5"), os.path.exists(str(path_to_dir)+"/data/Galaxy10_DECals.h5"))
     if not os.path.exists(str(path_to_dir)+"/data/Galaxy10_DECals_trainval.h5"):
         if os.path.exists(str(path_to_dir)+"/data/Galaxy10_DECals.h5"):
