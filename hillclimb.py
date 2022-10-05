@@ -133,13 +133,13 @@ class HillClimber(object):
                                             'ghistory': [],
                                             'paramcounts': [],
                                             'distances': [],
-                                            'name': model.name}
+                                            #'name': model.name}
                 else:
                     self.history[model.uuid] = copy.deepcopy(self.history[model.parent])
             self.history[model.uuid]["epochsteps"] += np.linspace(start, start+1, int(np.ceil(epochs)), endpoint=False).tolist()
             self.history[model.uuid]["ghistory"].append(model.gs)
             self.history[model.uuid]["paramcounts"].append(model.countparams())
-            self.history[model.uuid]["distances"].append(model.distance().item())
+            #self.history[model.uuid]["distances"].append(model.distance().item())
             print(torch.cuda.mem_get_info())
             counter = 0
             for epoch in range(int(np.ceil(epochs))):

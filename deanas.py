@@ -181,7 +181,7 @@ def DEANASearch(args):
                 'trainsteps': [],
                 'validation' : {'loss': [], 
                                 'accuracy': []},
-                'distances': [model.distance(layerwise=True)],
+                #'distances': [model.distance(layerwise=True)],
     }
     #scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
     #    model.optimizer, float(args.epochs), eta_min=1e-4)
@@ -238,7 +238,7 @@ def DEANASearch(args):
                     history["trainsteps"] += [epoch + b / running_count for b in batch]
             elif phase == "validation":
                 session.report({"loss": epoch_loss, "accuracy": epoch_acc})
-        history["distances"].append(model.distance(layerwise=True))
+        #history["distances"].append(model.distance(layerwise=True))
         if not args.tune:
             history['alphas'].append([torch.softmax(a, dim=0).detach().tolist() for a in model.alphas()])
         if scheduler is not None:
