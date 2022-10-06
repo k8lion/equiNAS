@@ -211,7 +211,7 @@ def get_galaxy10_dataloaders(path_to_dir = "~", validation_split=0.1, batch_size
     else:
         transform = Compose([
             totensor,
-            Normalize([0.16683201, 0.16196689, 0.15829432], ([0.12819551, 0.11757845, 0.11118137]),
+            Normalize([0.16683201, 0.16196689, 0.15829432], [0.12819551, 0.11757845, 0.11118137]),
         ])
     galaxy10_train = Galaxy10Dataset(mode='train', transform=transform, path_to_dir=path_to_dir)
     shuffle_dataset = True
