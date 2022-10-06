@@ -132,8 +132,8 @@ class HillClimber(object):
                                             'epochsteps': [],
                                             'ghistory': [],
                                             'paramcounts': [],
-                                            'distances': [],
-                                            #'name': model.name}
+                                            #'distances': [],
+                                            'name': model.name}
                 else:
                     self.history[model.uuid] = copy.deepcopy(self.history[model.parent])
             self.history[model.uuid]["epochsteps"] += np.linspace(start, start+1, int(np.ceil(epochs)), endpoint=False).tolist()
