@@ -9,7 +9,7 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
 import torchvision.datasets as datasets
-from torchvision.transforms import Normalize, Resize, ToTensor, Compose
+from torchvision.transforms import Normalize, Resize, ToTensor, Compose, RandomRotation
 
 
 class MnistRotDataset(Dataset):
@@ -122,7 +122,7 @@ class ISICDataset(Dataset):
                              (img_height + crop_size) // 2))
 
 
-def get_mnist_dataloaders(path_to_dir = "~", validation_split=0.2, batch_size=64, train_rot=True, val_rot=True, test_rot=True):
+def get_mnist_dataloaders(path_to_dir = "~", validation_split=0.2, batch_size=64, train_rot=True, val_rot=True, test_rot=True, train_ood=True, val_ood=True, test_ood=True):
     if batch_size < 0:
         batch_size = 64
     totensor = ToTensor()
@@ -134,12 +134,19 @@ def get_mnist_dataloaders(path_to_dir = "~", validation_split=0.2, batch_size=64
         totensor,
         Normalize(0.1307, 0.3081),
     ])
+    #rotate 180 degrees
+    transform_ood = Compose([
+        totensor,
+        RandomRotation(180),
+        Normalize(0.1307, 0.3081),
+    ])
 
-    if train_rot == val_rot:
+
+    if train_rot == val_rot and train_ood == val_ood:
         if train_rot:
             mnist_train = MnistRotDataset(mode='train', transform=transform_rot, path_to_dir=path_to_dir)
         else:
-            mnist_train = datasets.MNIST(root=str(path_to_dir)+"/data", train=True, download=True, transform=transform)
+            mnist_train = datasets.MNIST(root=str(path_to_dir)+"/data", train=True, download=True, transform=transform_ood if train_ood else transform)
 
         shuffle_dataset = True
         random_seed = 42
@@ -164,15 +171,18 @@ def get_mnist_dataloaders(path_to_dir = "~", validation_split=0.2, batch_size=64
             mnist_train = MnistRotDataset(mode='train', transform=transform_rot, path_to_dir=path_to_dir)
         else:
             mnist_train = datasets.MNIST(root=str(path_to_dir)+"/data", train=True, download=True, transform=transform)
-        train_loader = DataLoader(mnist_train, batch_size=batch_size, shuffle=True)
         if val_rot:
             mnist_val = MnistRotDataset(mode='train', transform=transform_rot, path_to_dir=path_to_dir)
         else:
-            mnist_val = datasets.MNIST(root=str(path_to_dir)+"/data", train=False, download=True, transform=transform)
+            mnist_val = datasets.MNIST(root=str(path_to_dir)+"/data", train=False, download=True, transform=transform_ood if val_ood else transform)
         shuffle_dataset = True
         random_seed = 42
-        indices = list(range(len(mnist_val)))
-        split = int(np.floor((1/(1-validation_split)-1) * len(mnist_train)))
+        if val_ood or train_ood:
+            indices = list(range(len(mnist_train)))
+            split = int(np.floor(validation_split * len(mnist_train)))
+        else:
+            indices = list(range(len(mnist_val)))
+            split = int(np.floor((1/(1-validation_split)-1) * len(mnist_train)))
         if shuffle_dataset :
             np.random.seed(random_seed)
             np.random.shuffle(indices)
@@ -180,11 +190,17 @@ def get_mnist_dataloaders(path_to_dir = "~", validation_split=0.2, batch_size=64
 
         valid_sampler = SubsetRandomSampler(val_indices)
         validation_loader = DataLoader(mnist_val, batch_size=batch_size, sampler=valid_sampler)
+        if val_ood or train_ood:
+            train_indices = indices[split:]
+            train_sampler = SubsetRandomSampler(train_indices)
+            train_loader = DataLoader(mnist_train, batch_size=batch_size, sampler=train_sampler)
+        else:
+            train_loader = DataLoader(mnist_train, batch_size=batch_size, shuffle=True)
 
     if test_rot:
         mnist_test = MnistRotDataset(mode='test', transform=transform_rot, path_to_dir=path_to_dir)
     else:
-        mnist_test = datasets.MNIST(root=str(path_to_dir)+"/data", train=False, download=True, transform=transform)
+        mnist_test = datasets.MNIST(root=str(path_to_dir)+"/data", train=False, download=True, transform=transform_ood if test_ood else transform)
     test_loader = DataLoader(mnist_test, batch_size=batch_size)
 
     return train_loader, validation_loader, test_loader
