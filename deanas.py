@@ -301,6 +301,7 @@ if __name__ == "__main__":
         args.train_vanilla = True
         args.val_vanilla = True
         args.test_vanilla = True
+        args.epochs = 10
     if args.rpp:
         args.baseline = True
     print(args)
