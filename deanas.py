@@ -165,6 +165,7 @@ def DEANASearch(args):
                              prior = args.prior, indim = args.indim, baseline = args.baseline,
                              outdim = args.outdim, stages = args.stages, pools = args.pools, 
                              kernel = args.kernel, skip = args.skip, reg_conv = 1e-6 if args.rpp else 0).to(device)
+    print(model.countparams())
     x = torch.zeros(2, args.indim, dim, dim).to(device)
     for i, block in enumerate(model.blocks):
         x = block(x)
@@ -181,6 +182,7 @@ def DEANASearch(args):
                 'trainsteps': [],
                 'validation' : {'loss': [], 
                                 'accuracy': []},
+                'paramcount': model.countparams(), 
                 #'distances': [model.distance(layerwise=True)],
     }
     #scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
