@@ -170,16 +170,17 @@ def get_mnist_dataloaders(path_to_dir = "~", validation_split=0.2, batch_size=64
         if train_rot:
             mnist_train = MnistRotDataset(mode='train', transform=transform_rot, path_to_dir=path_to_dir)
         else:
-            mnist_train = datasets.MNIST(root=str(path_to_dir)+"/data", train=True, download=True, transform=transform)
+            mnist_train = datasets.MNIST(root=str(path_to_dir)+"/data", train=True, download=True, transform=transform_ood if train_ood else transform)
         if val_rot:
             mnist_val = MnistRotDataset(mode='train', transform=transform_rot, path_to_dir=path_to_dir)
         else:
-            mnist_val = datasets.MNIST(root=str(path_to_dir)+"/data", train=False, download=True, transform=transform_ood if val_ood else transform)
+            mnist_val = datasets.MNIST(root=str(path_to_dir)+"/data", train=True, download=True, transform=transform_ood if val_ood else transform)
         shuffle_dataset = True
         random_seed = 42
         if val_ood or train_ood:
             indices = list(range(len(mnist_train)))
             split = int(np.floor(validation_split * len(mnist_train)))
+            print("train", len(mnist_train), "val", len(mnist_val), split)
         else:
             indices = list(range(len(mnist_val)))
             split = int(np.floor((1/(1-validation_split)-1) * len(mnist_train)))
