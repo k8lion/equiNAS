@@ -34,7 +34,8 @@ class HillClimber(object):
         self.skip = skip
         self.lr = lr
         if "mnist" in task:
-            self.train_loader, self.validation_loader, self.test_loader = utilities.get_mnist_dataloaders(path_to_dir=path, train_rot=not train_vanilla, val_rot=not val_vanilla, test_rot=not test_vanilla, train_ood = "1" in task, val_ood = "2" in task, test_ood = "3" in task)
+            self.train_loader, self.validation_loader, self.test_loader = utilities.get_mnist_dataloaders(path_to_dir=path, train_rot=not train_vanilla, val_rot=not val_vanilla, test_rot=not test_vanilla, 
+                                                                                                          train_ood = "T" in task, val_ood = "V" in task, test_ood = "E" in task, group=task[-2:])
             self.indim = 1
             self.outdim = 10
             self.kernel = 5

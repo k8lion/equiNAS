@@ -9,7 +9,29 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
 import torchvision.datasets as datasets
-from torchvision.transforms import Normalize, Resize, ToTensor, Compose, RandomRotation
+from torchvision.transforms import Normalize, Resize, ToTensor, Compose #, RandomRotation
+#import torchvision.transforms.functional as tvF
+
+
+class GroupAugment(torch.nn.Module):
+    def __init__(self, group="C1"):
+        super().__init__()
+        self.group = group
+        self.reflect = "D" in group
+        self.rotate = [0]
+        if "2" in group:
+            self.rotate.append(180)
+        if "4" in group:
+            self.rotate.extend([90, 270])
+        print(self.rotate, self.reflect)
+
+    def forward(self, img):
+        angle = np.random.choice(self.rotate)
+        if self.reflect and np.random.rand() > 0.5:
+            img = torch.flip(img, dims=(-2,))
+        return img.rot90(k=angle // 90, dims=(-2, -1))
+        #return tvF.rotate(img, angle)
+
 
 
 class MnistRotDataset(Dataset):
@@ -122,7 +144,7 @@ class ISICDataset(Dataset):
                              (img_height + crop_size) // 2))
 
 
-def get_mnist_dataloaders(path_to_dir = "~", validation_split=0.2, batch_size=64, train_rot=True, val_rot=True, test_rot=True, train_ood=True, val_ood=True, test_ood=True):
+def get_mnist_dataloaders(path_to_dir = "~", validation_split=0.2, batch_size=64, train_rot=True, val_rot=True, test_rot=True, train_ood=True, val_ood=True, test_ood=True, group="C2"):
     if batch_size < 0:
         batch_size = 64
     totensor = ToTensor()
@@ -134,10 +156,9 @@ def get_mnist_dataloaders(path_to_dir = "~", validation_split=0.2, batch_size=64
         totensor,
         Normalize(0.1307, 0.3081),
     ])
-    #rotate 180 degrees
     transform_ood = Compose([
         totensor,
-        RandomRotation(180),
+        GroupAugment(group),
         Normalize(0.1307, 0.3081),
     ])
 

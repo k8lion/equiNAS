@@ -94,7 +94,8 @@ def DEANASearch(args):
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     print(args.task)
     if "mnist" in args.task:
-        train_loader, validation_loader, test_loader = utilities.get_mnist_dataloaders(path_to_dir=args.path, batch_size=args.batch_size, train_rot=not args.train_vanilla, val_rot=not args.val_vanilla, test_rot=not args.test_vanilla, train_ood = "1" in args.task, val_ood = "2" in args.task, test_ood = "3" in args.task)
+        train_loader, validation_loader, test_loader = utilities.get_mnist_dataloaders(path_to_dir=args.path, batch_size=args.batch_size, train_rot=not args.train_vanilla, val_rot=not args.val_vanilla, test_rot=not args.test_vanilla, 
+                                                                                       train_ood = "T" in args.task, val_ood = "V" in args.task, test_ood = "E" in args.task, group = args.task[-2:])
         args.indim = 1
         args.outdim = 10
         if args.kernel < 0:
