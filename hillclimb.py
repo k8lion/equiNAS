@@ -13,7 +13,7 @@ class HillClimber(object):
     def __init__(self, reg = False, baselines = False, pareto = False, lr = 0.1, pareto2 = False,
                  path = "..", d16 = False, c4 = False, popsize = 10, seed = -1, dea = False, skip = False,
                  test = False, folder = "", name = "", task = "mnist", unique = False, train_vanilla = False,
-                 val_vanilla = False, test_vanilla = False):
+                 val_vanilla = False, test_vanilla = False, randsearch = False):
         self.seed = seed
         if seed != -1:
             torch.manual_seed(seed)
@@ -111,6 +111,7 @@ class HillClimber(object):
         self.test = test
         self.unique = unique
         self.history = {}
+        self.randsearch = randsearch
 
     def train(self, epochs = 1, start = 0):
         for model in self.options:
@@ -260,7 +261,7 @@ class HillClimber(object):
             print(len(self.options))
             if self.allkids:
                 return
-        if self.pareto:
+        if self.pareto and not self.randsearch:
             costs = np.zeros((len(self.options),2))
             for i, model in enumerate(self.options):
                 costs[i,0] = 1-model.score
@@ -285,7 +286,10 @@ class HillClimber(object):
             for child in sorted(self.options, key=attrgetter('score'), reverse=True):
                 print(child.gs, child.countparams(), child.score)
         else:
-            sorted_options = sorted(self.options, key=attrgetter('score'), reverse=True)
+            if self.randsearch:
+                sorted_options = np.random.shuffle(self.options)
+            else:
+                sorted_options = sorted(self.options, key=attrgetter('score'), reverse=True)
             self.options = sorted_options[:min(len(self.options),self.popsize)]
             for removed in sorted_options[min(len(self.options),self.popsize):]:
                 self.run_test(removed)
@@ -377,6 +381,7 @@ if __name__ == "__main__":
     parser.add_argument('--train_vanilla', action='store_true', default=False, help='train on vanilla data')
     parser.add_argument('--val_vanilla', action='store_true', default=False, help='val on vanilla data')
     parser.add_argument('--test_vanilla', action='store_true', default=False, help='test on vanilla data')
+    parser.add_argument('--randsearch', action='store_true', default=False, help='take random architecture steps')
     args = parser.parse_args()
     if args.task == "mixmnist":
         args.train_vanilla = True
@@ -387,7 +392,7 @@ if __name__ == "__main__":
     print(args)
     hillclimb = HillClimber(baselines=args.baselines, lr=args.lr, path=args.data, popsize=args.popsize, 
                             d16=args.d16, c4=args.c4, dea=args.dea, seed=args.seed, pareto=args.pareto, 
-                            skip=args.skip, test=args.test, folder=args.folder, name=args.name, 
+                            skip=args.skip, test=args.test, folder=args.folder, name=args.name, randsearch=args.randsearch,
                             task=args.task, unique=args.unique, train_vanilla=args.train_vanilla,
                             val_vanilla=args.val_vanilla, test_vanilla=args.test_vanilla, pareto2=args.pareto2)
     hillclimb.saveargs(vars(args))
