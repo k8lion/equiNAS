@@ -24,6 +24,8 @@ class HillClimber(object):
             torch.cuda.manual_seed_all(seed)
         if baselines:
             exp = "bs"
+        elif randsearch:
+            exp = "rs"
         else:
             exp = "hc"
         self.filename = str(path) +'/equiNAS/out'+folder+'/logs'+exp+'_'+name+'.pkl'

@@ -88,6 +88,8 @@ def DEANASearch(args):
             trial+="eq"
         if not args.skip:
             trial+="ns"
+        if args.randsearch:
+            trial+="rs"
         trial+="_"
     filename = str(args.path) +'/equiNAS/out'+args.folder+trial+args.name+'.pkl'
     print(filename)
