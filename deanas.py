@@ -206,6 +206,9 @@ def DEANASearch(args):
                 labels = labels.to(device)
                 if phase == 'train':
                     inputs_search, labels_search = next(iter(train_loader))
+                    if args.randsearch:
+                        inputs_search = inputs_search[:,:,torch.randperm(inputs_search.shape[2])[:,:,:,torch.randperm(inputs_search.shape[3])]]
+                        labels_search = labels_search[torch.randperm(labels_search.shape[0])]
                     inputs_search = inputs_search.to(device)
                     labels_search = labels_search.to(device)
                 model.optimizer.zero_grad()
@@ -295,6 +298,7 @@ if __name__ == "__main__":
     parser.add_argument('--train_vanilla', action='store_true', default=False, help='train on vanilla data')
     parser.add_argument('--val_vanilla', action='store_true', default=False, help='val on vanilla data')
     parser.add_argument('--test_vanilla', action='store_true', default=False, help='test on vanilla data')
+    parser.add_argument('--randsearch', action='store_true', default=False, help='take random architecture steps')
     args = parser.parse_args()
     if args.task == "mixmnist":
         args.train_vanilla = True
