@@ -209,7 +209,7 @@ def DEANASearch(args):
                 if phase == 'train':
                     inputs_search, labels_search = next(iter(train_loader))
                     if args.randsearch:
-                        inputs_search = inputs_search[:,:,torch.randperm(inputs_search.shape[2])[:,:,:,torch.randperm(inputs_search.shape[3])]]
+                        inputs_search = inputs_search[:,:,torch.randperm(inputs_search.shape[2])][:,:,:,torch.randperm(inputs_search.shape[3])]
                         labels_search = labels_search[torch.randperm(labels_search.shape[0])]
                     inputs_search = inputs_search.to(device)
                     labels_search = labels_search.to(device)
