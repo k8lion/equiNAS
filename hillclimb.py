@@ -289,7 +289,8 @@ class HillClimber(object):
                 print(child.gs, child.countparams(), child.score)
         else:
             if self.randsearch:
-                sorted_options = np.random.shuffle(self.options)
+                sorted_options = [option for option in self.options]
+                np.random.shuffle(sorted_options)
             else:
                 sorted_options = sorted(self.options, key=attrgetter('score'), reverse=True)
             self.options = sorted_options[:min(len(self.options),self.popsize)]
