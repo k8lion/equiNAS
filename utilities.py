@@ -22,7 +22,7 @@ class GroupAugment(torch.nn.Module):
         if "2" in group:
             self.rotate.append(180)
         if "4" in group:
-            self.rotate.extend([90, 270])
+            self.rotate.extend([90, 180, 270])
         print(self.rotate, self.reflect)
 
     def forward(self, img):
