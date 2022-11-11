@@ -309,6 +309,8 @@ if __name__ == "__main__":
         args.val_vanilla = True
         args.test_vanilla = True
         args.epochs = 10
+    elif args.task == "mnist" and args.epochs == 50:
+        args.epochs = 100
     if args.rpp:
         args.baseline = True
     print(args)
