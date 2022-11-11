@@ -165,7 +165,7 @@ def DEANASearch(args):
         args.basechannels *= 2
     model = models.DEANASNet(superspace = (1,4) if args.d16 else (0,2) if args.c4 else (1,2), hidden = args.hidden,
                              weightlr = args.weightlr, alphalr = args.alphalr, basechannels = args.basechannels,
-                             prior = args.prior, indim = args.indim, baseline = args.baseline,
+                             prior = args.prior, indim = args.indim, baseline = args.baseline, randsearch=args.randsearch,
                              outdim = args.outdim, stages = args.stages, pools = args.pools, 
                              kernel = args.kernel, skip = args.skip, reg_conv = 1e-6 if args.rpp else 0).to(device)
     print(model.countparams())
@@ -208,9 +208,9 @@ def DEANASearch(args):
                 labels = labels.to(device)
                 if phase == 'train':
                     inputs_search, labels_search = next(iter(train_loader))
-                    if args.randsearch:
-                        inputs_search = inputs_search[:,:,torch.randperm(inputs_search.shape[2])][:,:,:,torch.randperm(inputs_search.shape[3])]
-                        labels_search = labels_search[torch.randperm(labels_search.shape[0])]
+                    #if args.randsearch:
+                    #    inputs_search = inputs_search[:,:,torch.randperm(inputs_search.shape[2])][:,:,:,torch.randperm(inputs_search.shape[3])]
+                    #    labels_search = labels_search[torch.randperm(labels_search.shape[0])]
                     inputs_search = inputs_search.to(device)
                     labels_search = labels_search.to(device)
                 model.optimizer.zero_grad()

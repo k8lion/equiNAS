@@ -7,6 +7,14 @@ import copy
 import uuid
 
 
+class RandAdam(torch.optim.Adam):
+    def step(self, closure=None, *, grad_scaler=None):
+        for group in self.param_groups:
+            for p in group['params']:
+                if p.grad is not None:
+                    p.grad.data = p.grad.data[torch.randperm(p.grad.data.size()[0])]
+        return super().step(closure, grad_scaler=grad_scaler)
+
 def D4inverse(g: int) -> int:
     f, r = g
 
@@ -1034,7 +1042,7 @@ class DEANASNet(torch.nn.Module):
     def __init__(self, alphalr = 1e-3, weightlr = 1e-3, baseline: bool = False, superspace: tuple = (1,2), basechannels: int = 16, 
                  stages: int = 2, stagedepth: int = 4, pools: int = 4, kernel: int = 5, indim: int = 1, outdim: int = 10, 
                  hidden: int = 64, prior: bool = True, discrete: bool = False, norm: bool = True, skip: bool = True, reg_conv:float = 0.0, 
-                 reg_group: float = 0.0, pool: bool = True, name = "", parentalphas=None):
+                 reg_group: float = 0.0, pool: bool = True, name = "", parentalphas=None, randsearch: bool = False,):
         
         super(DEANASNet, self).__init__()
         if len(name) == 0:
@@ -1110,7 +1118,7 @@ class DEANASNet(torch.nn.Module):
             self.alphaopt = None
         else:
             self.optimizer = torch.optim.Adam(self.parameters(), lr=weightlr)
-            self.alphaopt = torch.optim.Adam(self.alphas(), lr=alphalr)
+            self.alphaopt = RandAdam(self.alphas(), lr=alphalr) if randsearch else torch.optim.Adam(self.alphas(), lr=alphalr)
         self.gs = [self.superspace for _ in range(len(self.channels))]
         self.score = -1
         self.uuid = uuid.uuid4()
