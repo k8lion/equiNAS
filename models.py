@@ -8,12 +8,12 @@ import uuid
 
 
 class RandAdam(torch.optim.Adam):
-    def step(self, closure=None, *, grad_scaler=None):
+    def step(self, closure=None):
         for group in self.param_groups:
             for p in group['params']:
                 if p.grad is not None:
                     p.grad.data = p.grad.data[torch.randperm(p.grad.data.size()[0])]
-        return super().step(closure, grad_scaler=grad_scaler)
+        return super().step(closure=closure)
 
 def D4inverse(g: int) -> int:
     f, r = g
