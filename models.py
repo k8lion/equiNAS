@@ -1080,7 +1080,7 @@ class DEANASNet(torch.nn.Module):
                 for j in range(group[1]+1):
                     groups.append((i,j))
             for i in range(len(self.channels)):
-                parentalphas.append(torch.nn.Parameter(torch.normal(np.prod([g+1 for g in self.superspace])+1), requires_grad=True))
+                parentalphas.append(torch.nn.Parameter(torch.normal(torch.zeros(np.prod([g+1 for g in self.superspace])+1)), requires_grad=True))
                 if discrete:
                     group = (np.random.choice(list(range(0,group[0]+1))), np.random.choice(list(range(0,group[1]+1))))
                     parentalphas[-1].data[:] = -np.inf
