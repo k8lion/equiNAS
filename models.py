@@ -1040,7 +1040,7 @@ class MixedGroupConv2d(torch.nn.Module):
 class DEANASNet(torch.nn.Module):
 
     def __init__(self, alphalr = 1e-3, weightlr = 1e-3, baseline: bool = False, superspace: tuple = (1,2), basechannels: int = 16, 
-                 stages: int = 2, stagedepth: int = 4, pools: int = 4, kernel: int = 5, indim: int = 1, outdim: int = 10, 
+                 stages: int = 2, stagedepth: int = 4, pools: int = 4, kernel: int = 5, indim: int = 1, outdim: int = 10, randbaseline: bool = False,
                  hidden: int = 64, prior: bool = True, discrete: bool = False, norm: bool = True, skip: bool = True, reg_conv:float = 0.0, 
                  reg_group: float = 0.0, pool: bool = True, name = "", parentalphas=None, randsearch: bool = False,):
         
@@ -1071,6 +1071,21 @@ class DEANASNet(torch.nn.Module):
         self.channels = [basechannels*2**i for i in range(stages) for _ in range(stagedepth)]
         self.kernels = [kernel for _ in range(len(self.channels))]
         self.blocks = torch.nn.ModuleList([])
+        if randbaseline:
+            parentalphas = []
+            group = self.superspace
+            groups = []
+            gs = []
+            for i in range(group[0]+1):
+                for j in range(group[1]+1):
+                    groups.append((i,j))
+            for i in range(len(self.channels)):
+                parentalphas.append(torch.nn.Parameter(torch.normal(np.prod([g+1 for g in self.superspace])+1), requires_grad=True))
+                if discrete:
+                    group = (np.random.choice(list(range(0,group[0]+1))), np.random.choice(list(range(0,group[1]+1))))
+                    parentalphas[-1].data[:] = -np.inf
+                    parentalphas[-1].data[groups.index(group)] = 0
+                    gs.append(group)
         mlc = MixedLiftingConv2d(baseline=baseline, in_channels=indim, out_channels=self.channels[0], group=self.superspace, 
                                  kernel_size=self.kernels[0], padding=self.kernels[0]//2, prior=prior, discrete=discrete, 
                                  norm=norm, skip=skip, alphas=parentalphas[0].data if parentalphas is not None else None, rpp=reg_conv>0)
@@ -1120,6 +1135,8 @@ class DEANASNet(torch.nn.Module):
             self.optimizer = torch.optim.Adam(self.parameters(), lr=weightlr)
             self.alphaopt = RandAdam(self.alphas(), lr=alphalr) if randsearch else torch.optim.Adam(self.alphas(), lr=alphalr)
         self.gs = [self.superspace for _ in range(len(self.channels))]
+        if randbaseline:
+            self.gs = gs
         self.score = -1
         self.uuid = uuid.uuid4()
         self.parent = None

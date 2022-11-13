@@ -13,7 +13,7 @@ class HillClimber(object):
     def __init__(self, reg = False, baselines = False, pareto = False, lr = 0.1, pareto2 = False,
                  path = "..", d16 = False, c4 = False, popsize = 10, seed = -1, dea = False, skip = False,
                  test = False, folder = "", name = "", task = "mnist", unique = False, train_vanilla = False,
-                 val_vanilla = False, test_vanilla = False, randsearch = False):
+                 val_vanilla = False, test_vanilla = False, randsearch = False, randbaseline = False,):
         self.seed = seed
         if seed != -1:
             torch.manual_seed(seed)
@@ -23,7 +23,10 @@ class HillClimber(object):
             torch.cuda.manual_seed(seed)
             torch.cuda.manual_seed_all(seed)
         if baselines:
-            exp = "bs"
+            if randbaseline:
+                exp = "bsrs"
+            else:
+                exp = "bs"
         elif randsearch:
             exp = "rs"
         else:
@@ -385,6 +388,7 @@ if __name__ == "__main__":
     parser.add_argument('--val_vanilla', action='store_true', default=False, help='val on vanilla data')
     parser.add_argument('--test_vanilla', action='store_true', default=False, help='test on vanilla data')
     parser.add_argument('--randsearch', action='store_true', default=False, help='take random architecture steps')
+    parser.add_argument('--randbaseline', action='store_true', default=False, help='train random static baselines')
     args = parser.parse_args()
     if args.task == "mixmnist":
         args.train_vanilla = True
@@ -393,7 +397,7 @@ if __name__ == "__main__":
         args.val_vanilla = True
         args.test_vanilla = True
     print(args)
-    hillclimb = HillClimber(baselines=args.baselines, lr=args.lr, path=args.data, popsize=args.popsize, 
+    hillclimb = HillClimber(baselines=args.baselines, lr=args.lr, path=args.data, popsize=args.popsize, randbaseline=args.randbaseline,
                             d16=args.d16, c4=args.c4, dea=args.dea, seed=args.seed, pareto=args.pareto, 
                             skip=args.skip, test=args.test, folder=args.folder, name=args.name, randsearch=args.randsearch,
                             task=args.task, unique=args.unique, train_vanilla=args.train_vanilla,

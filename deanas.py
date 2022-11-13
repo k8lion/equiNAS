@@ -70,7 +70,9 @@ def DEANASearch(args):
         trial += "rpp_"
     elif args.baseline:
         trial += "bl"
-        if not args.prior:
+        if args.randbaseline:
+            trial += "rs"
+        elif not args.prior:
             trial+="C1"
         else:
             if args.c4:
@@ -166,7 +168,7 @@ def DEANASearch(args):
     model = models.DEANASNet(superspace = (1,4) if args.d16 else (0,2) if args.c4 else (1,2), hidden = args.hidden,
                              weightlr = args.weightlr, alphalr = args.alphalr, basechannels = args.basechannels,
                              prior = args.prior, indim = args.indim, baseline = args.baseline, randsearch=args.randsearch,
-                             outdim = args.outdim, stages = args.stages, pools = args.pools, 
+                             outdim = args.outdim, stages = args.stages, pools = args.pools, randbaseline = args.randbaseline,
                              kernel = args.kernel, skip = args.skip, reg_conv = 1e-6 if args.rpp else 0).to(device)
     print(model.countparams())
     x = torch.zeros(2, args.indim, dim, dim).to(device)
@@ -301,6 +303,7 @@ if __name__ == "__main__":
     parser.add_argument('--val_vanilla', action='store_true', default=False, help='val on vanilla data')
     parser.add_argument('--test_vanilla', action='store_true', default=False, help='test on vanilla data')
     parser.add_argument('--randsearch', action='store_true', default=False, help='take random architecture steps')
+    parser.add_argument('--randbaseline', action='store_true', default=False, help='train random static baselines')
     args = parser.parse_args()
     if args.task == "mixmnist":
         args.train_vanilla = True
