@@ -97,7 +97,7 @@ class HillClimber(object):
         else:
             self.g = (1,2)
         if dea:
-            model = models.DEANASNet(superspace=self.g, discrete=True, alphalr=lr, weightlr=lr, 
+            model = models.DEANASNet(superspace=self.g, discrete=True, alphalr=lr, weightlr=lr, randbaseline=randbaseline, 
                                      skip=self.skip, hidden=self.hidden, indim=self.indim, outdim=self.outdim, stagedepth=self.stagedepth,
                                      kernel=self.kernel, stages=self.stages, pools=self.pools, basechannels=self.basechannels)
             x = torch.zeros(2, self.indim, dim, dim)
@@ -363,6 +363,22 @@ class HillClimber(object):
                 self.run_test(model)
         self.save(end=True)
 
+    def randbaselines(self, generations = -1, epochs = 5.0):
+        for _ in range(1,30):
+            self.options.append(models.DEANASNet(discrete=True, alphalr=self.lr, weightlr=self.lr, randbaseline = True,
+                                                 skip=self.skip, hidden=self.hidden, indim=self.indim, outdim=self.outdim, stagedepth=self.stagedepth,
+                                                 kernel=self.kernel, stages=self.stages, pools=self.pools, basechannels=self.basechannels*2))
+        self.train(epochs = epochs, start = 0)
+        for generation in range(generations):
+            print("Generation ", generation)
+            self.train(epochs = epochs, start = generation+1)
+            self.save()
+        if self.test:
+            for model in self.options:
+                self.run_test(model)
+        self.save(end=True)
+
+
             
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Run hillclimber algorithm')
@@ -403,7 +419,9 @@ if __name__ == "__main__":
                             task=args.task, unique=args.unique, train_vanilla=args.train_vanilla,
                             val_vanilla=args.val_vanilla, test_vanilla=args.test_vanilla, pareto2=args.pareto2)
     hillclimb.saveargs(vars(args))
-    if args.baselines:
+    if args.randbaseline:
+        hillclimb.randbaselines(generations=args.generations, epochs=args.epochs)
+    elif args.baselines:
         hillclimb.baselines(generations=args.generations, epochs=args.epochs)
     else:
         hillclimb.hillclimb(generations=args.generations, epochs=args.epochs)

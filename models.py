@@ -1137,6 +1137,7 @@ class DEANASNet(torch.nn.Module):
         self.gs = [self.superspace for _ in range(len(self.channels))]
         if randbaseline:
             self.gs = gs
+            self.name = "RS: " + str(self.gs)
         self.score = -1
         self.uuid = uuid.uuid4()
         self.parent = None
