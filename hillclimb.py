@@ -447,6 +447,9 @@ if __name__ == "__main__":
         args.train_vanilla = True
         args.val_vanilla = True
         args.test_vanilla = True
+    if len(args.arch) > 0:
+        if "mnist" in args.task:
+            args.arch = "[[(0,2),(0,2),(0,2),(0,1),(0,1),(0,1),(0,1),(0,0)],[(1,2),(1,2),(1,2),(1,2),(1,2),(1,2),(1,2),(0,2)],[(1,2),(1,2),(1,2),(1,2),(1,2),(1,2),(1,2),(1,2)],[(1,2),(1,2),(1,2),(1,2),(1,2),(1,2),(1,2),(0,0)],[(1,2),(1,2),(0,1),(0,1),(0,1),(0,1),(0,0),(0,0)]]"
     print(args)
     hillclimb = HillClimber(baselines=args.baselines, lr=args.lr, path=args.data, popsize=args.popsize, randbaseline=args.randbaseline,
                             d16=args.d16, c4=args.c4, dea=args.dea, seed=args.seed, pareto=args.pareto, 
