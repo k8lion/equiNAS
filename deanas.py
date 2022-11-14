@@ -58,7 +58,7 @@ def DEANASearch_train(config, args):
 def DEANASearch(args):
     import torch
     alphas = None
-    if len(str(args.alphas)) > 0:
+    if len(str(args.alphas)) > 1:
         assert args.baseline
         with open(args.alphas,'rb') as savefile:
             save = pickle.load(savefile)
