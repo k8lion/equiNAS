@@ -25,6 +25,20 @@ class HillClimber(object):
         if baselines:
             if randbaseline:
                 exp = "bsrs"
+                start = [tuple([(1,2) for _ in range(8)])]
+                allgroups = set(start)
+                newgroups = set()
+                for i in range(8):
+                    for group in allgroups:
+                        for j0 in range(group[i][0]):
+                            for j1 in range(group[i][1]):
+                                newgroups.add(tuple(group[:i] + tuple([(j0, j1) for _ in range(8-i)])))
+                            newgroups.add(tuple(group[:i] + tuple([(j0, group[i][1]) for _ in range(8-i)])))
+                        for j1 in range(group[i][1]):
+                            newgroups.add(tuple(group[:i] + tuple([(group[i][0], j1) for _ in range(8-i)])))
+                    print(len(allgroups))
+                    allgroups = allgroups.union(newgroups)
+                self.allgroups = [list(groups) for groups in allgroups]
             else:
                 exp = "bs"
         elif randsearch:
@@ -97,7 +111,7 @@ class HillClimber(object):
         else:
             self.g = (1,2)
         if dea:
-            model = models.DEANASNet(superspace=self.g, discrete=True, alphalr=lr, weightlr=lr, randbaseline=randbaseline, 
+            model = models.DEANASNet(superspace=self.g, discrete=True, alphalr=lr, weightlr=lr, randbaseline=randbaseline, arch=allgroups[np.random.randint(len(allgroups))],
                                      skip=self.skip, hidden=self.hidden, indim=self.indim, outdim=self.outdim, stagedepth=self.stagedepth,
                                      kernel=self.kernel, stages=self.stages, pools=self.pools, basechannels=self.basechannels)
             x = torch.zeros(2, self.indim, dim, dim)
@@ -365,7 +379,7 @@ class HillClimber(object):
 
     def randbaselines(self, generations = -1, epochs = 5.0):
         for _ in range(1,30):
-            self.options.append(models.DEANASNet(discrete=True, alphalr=self.lr, weightlr=self.lr, randbaseline = True,
+            self.options.append(models.DEANASNet(discrete=True, alphalr=self.lr, weightlr=self.lr, randbaseline = True, arch=allgroups[np.random.randint(len(allgroups))],
                                                  skip=self.skip, hidden=self.hidden, indim=self.indim, outdim=self.outdim, stagedepth=self.stagedepth,
                                                  kernel=self.kernel, stages=self.stages, pools=self.pools, basechannels=self.basechannels*2))
         self.train(epochs = epochs, start = 0)
