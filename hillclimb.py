@@ -7,10 +7,10 @@ from operator import attrgetter
 import argparse
 import copy
 import pathlib
-
+import ast
 
 class HillClimber(object):
-    def __init__(self, reg = False, baselines = False, pareto = False, lr = 0.1, pareto2 = False,
+    def __init__(self, reg = False, baselines = False, pareto = False, lr = 0.1, pareto2 = False, archs = "",
                  path = "..", d16 = False, c4 = False, popsize = 10, seed = -1, dea = False, skip = False,
                  test = False, folder = "", name = "", task = "mnist", unique = False, train_vanilla = False,
                  val_vanilla = False, test_vanilla = False, randsearch = False, randbaseline = False,):
@@ -22,6 +22,11 @@ class HillClimber(object):
             torch.backends.cudnn.benchmark = False
             torch.cuda.manual_seed(seed)
             torch.cuda.manual_seed_all(seed)
+        if len(archs) > 0:
+            archs = ast.literal_eval(archs)
+            self.archs = archs
+        else:
+            self.archs = []
         if baselines:
             if randbaseline:
                 exp = "bsrs"
@@ -113,7 +118,7 @@ class HillClimber(object):
         if dea:
             model = models.DEANASNet(superspace=self.g, discrete=True, alphalr=lr, weightlr=lr, randbaseline=randbaseline, arch=self.allgroups[np.random.randint(len(self.allgroups))],
                                      skip=self.skip, hidden=self.hidden, indim=self.indim, outdim=self.outdim, stagedepth=self.stagedepth,
-                                     kernel=self.kernel, stages=self.stages, pools=self.pools, basechannels=self.basechannels)
+                                     kernel=self.kernel, stages=self.stages, pools=self.pools, basechannels=self.basechannels, arch=self.archs[0] if len(self.archs) > 0 else None)
             x = torch.zeros(2, self.indim, dim, dim)
             for i, block in enumerate(model.blocks):
                 x = block(x)
@@ -392,6 +397,21 @@ class HillClimber(object):
                 self.run_test(model)
         self.save(end=True)
 
+    def retrain(self, generations = -1, epochs = 5.0):
+        for i in range(1,len(self.archs)):
+            self.options.append(models.DEANASNet(discrete=True, alphalr=self.lr, weightlr=self.lr, arch=self.archs[i],
+                                                 skip=self.skip, hidden=self.hidden, indim=self.indim, outdim=self.outdim, stagedepth=self.stagedepth,
+                                                 kernel=self.kernel, stages=self.stages, pools=self.pools, basechannels=self.basechannels*2))
+        self.train(epochs = epochs, start = 0)
+        for generation in range(generations):
+            print("Generation ", generation)
+            self.train(epochs = epochs, start = generation+1)
+            self.save()
+        if self.test:
+            for model in self.options:
+                self.run_test(model)
+        self.save(end=True)
+
 
             
 if __name__ == "__main__":
@@ -419,6 +439,7 @@ if __name__ == "__main__":
     parser.add_argument('--test_vanilla', action='store_true', default=False, help='test on vanilla data')
     parser.add_argument('--randsearch', action='store_true', default=False, help='take random architecture steps')
     parser.add_argument('--randbaseline', action='store_true', default=False, help='train random static baselines')
+    parser.add_argument('--arch', type=str, default="", help='static arch')
     args = parser.parse_args()
     if args.task == "mixmnist":
         args.train_vanilla = True
@@ -430,9 +451,11 @@ if __name__ == "__main__":
     hillclimb = HillClimber(baselines=args.baselines, lr=args.lr, path=args.data, popsize=args.popsize, randbaseline=args.randbaseline,
                             d16=args.d16, c4=args.c4, dea=args.dea, seed=args.seed, pareto=args.pareto, 
                             skip=args.skip, test=args.test, folder=args.folder, name=args.name, randsearch=args.randsearch,
-                            task=args.task, unique=args.unique, train_vanilla=args.train_vanilla,
+                            task=args.task, unique=args.unique, train_vanilla=args.train_vanilla, archs = args.archs,
                             val_vanilla=args.val_vanilla, test_vanilla=args.test_vanilla, pareto2=args.pareto2)
     hillclimb.saveargs(vars(args))
+    if len(args.archs) > 0:
+        hillclimb.retrain(generations=args.generations, epochs=args.epochs)
     if args.randbaseline:
         hillclimb.randbaselines(generations=args.generations, epochs=args.epochs)
     elif args.baselines:
