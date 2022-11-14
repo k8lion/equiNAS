@@ -57,6 +57,13 @@ def DEANASearch_train(config, args):
 """
 def DEANASearch(args):
     import torch
+    alphas = None
+    if len(str(args.alphas)) > 0:
+        assert args.baseline
+        with open(args.alphas,'rb') as savefile:
+            save = pickle.load(savefile)
+        alphas = save['alphas'][-1]
+        alphas = [torch.nn.Parameter(torch.log(torch.tensor(alphas[i], dtype=torch.float32))) for i in range(len(alphas))]
     trial = "/logsdea_"
     if args.seed != -1:
         torch.manual_seed(args.seed)
@@ -68,7 +75,7 @@ def DEANASearch(args):
         trial += str(args.seed) + "_"
     if args.rpp:
         trial += "rpp_"
-    elif args.baseline:
+    elif args.baseline and alphas is None:
         trial += "bl"
         if args.randbaseline:
             trial += "rs"
@@ -92,6 +99,8 @@ def DEANASearch(args):
             trial+="ns"
         if args.randsearch:
             trial+="rs"
+        if alphas is not None:
+            trial+="rt"
         trial+="_"
     filename = str(args.path) +'/equiNAS/out'+args.folder+trial+args.name+'.pkl'
     print(filename)
@@ -166,7 +175,7 @@ def DEANASearch(args):
     if args.baseline and args.c4:
         args.basechannels *= 2
     model = models.DEANASNet(superspace = (1,4) if args.d16 else (0,2) if args.c4 else (1,2), hidden = args.hidden,
-                             weightlr = args.weightlr, alphalr = args.alphalr, basechannels = args.basechannels,
+                             weightlr = args.weightlr, alphalr = args.alphalr, basechannels = args.basechannels, parentalphas=alphas,
                              prior = args.prior, indim = args.indim, baseline = args.baseline, randsearch=args.randsearch,
                              outdim = args.outdim, stages = args.stages, pools = args.pools, randbaseline = args.randbaseline,
                              kernel = args.kernel, skip = args.skip, reg_conv = 1e-6 if args.rpp else 0).to(device)
@@ -304,6 +313,7 @@ if __name__ == "__main__":
     parser.add_argument('--test_vanilla', action='store_true', default=False, help='test on vanilla data')
     parser.add_argument('--randsearch', action='store_true', default=False, help='take random architecture steps')
     parser.add_argument('--randbaseline', action='store_true', default=False, help='train random static baselines')
+    parser.add_argument('--alphas', type=pathlib.Path, default="", help='use alphas from this file')
     args = parser.parse_args()
     if args.task == "mixmnist":
         args.train_vanilla = True
