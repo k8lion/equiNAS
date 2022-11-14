@@ -111,7 +111,7 @@ class HillClimber(object):
         else:
             self.g = (1,2)
         if dea:
-            model = models.DEANASNet(superspace=self.g, discrete=True, alphalr=lr, weightlr=lr, randbaseline=randbaseline, arch=allgroups[np.random.randint(len(allgroups))],
+            model = models.DEANASNet(superspace=self.g, discrete=True, alphalr=lr, weightlr=lr, randbaseline=randbaseline, arch=self.allgroups[np.random.randint(len(self.allgroups))],
                                      skip=self.skip, hidden=self.hidden, indim=self.indim, outdim=self.outdim, stagedepth=self.stagedepth,
                                      kernel=self.kernel, stages=self.stages, pools=self.pools, basechannels=self.basechannels)
             x = torch.zeros(2, self.indim, dim, dim)
@@ -379,7 +379,7 @@ class HillClimber(object):
 
     def randbaselines(self, generations = -1, epochs = 5.0):
         for _ in range(1,30):
-            self.options.append(models.DEANASNet(discrete=True, alphalr=self.lr, weightlr=self.lr, randbaseline = True, arch=allgroups[np.random.randint(len(allgroups))],
+            self.options.append(models.DEANASNet(discrete=True, alphalr=self.lr, weightlr=self.lr, randbaseline = True, arch=self.allgroups[np.random.randint(len(self.allgroups))],
                                                  skip=self.skip, hidden=self.hidden, indim=self.indim, outdim=self.outdim, stagedepth=self.stagedepth,
                                                  kernel=self.kernel, stages=self.stages, pools=self.pools, basechannels=self.basechannels*2))
         self.train(epochs = epochs, start = 0)
