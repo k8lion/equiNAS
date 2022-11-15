@@ -460,7 +460,7 @@ if __name__ == "__main__":
     hillclimb = HillClimber(baselines=args.baselines, lr=args.lr, path=args.data, popsize=args.popsize, randbaseline=args.randbaseline,
                             d16=args.d16, c4=args.c4, dea=args.dea, seed=args.seed, pareto=args.pareto, 
                             skip=args.skip, test=args.test, folder=args.folder, name=args.name, randsearch=args.randsearch,
-                            task=args.task, unique=args.unique, train_vanilla=args.train_vanilla, archs = args.archs,
+                            task=args.task, unique=args.unique, train_vanilla=args.train_vanilla, arch = args.arch,
                             val_vanilla=args.val_vanilla, test_vanilla=args.test_vanilla, pareto2=args.pareto2)
     hillclimb.saveargs(vars(args))
     if len(args.archs) > 0:
