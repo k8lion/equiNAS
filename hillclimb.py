@@ -116,9 +116,10 @@ class HillClimber(object):
         else:
             self.g = (1,2)
         if dea:
-            model = models.DEANASNet(superspace=self.g, discrete=True, alphalr=lr, weightlr=lr, randbaseline=randbaseline, arch=self.allgroups[np.random.randint(len(self.allgroups))],
+            arch = self.archs[0] if len(self.archs) > 0 else self.allgroups[np.random.randint(len(self.allgroups))] if randbaseline else None
+            model = models.DEANASNet(superspace=self.g, discrete=True, alphalr=lr, weightlr=lr, randbaseline=randbaseline, arch=arch,
                                      skip=self.skip, hidden=self.hidden, indim=self.indim, outdim=self.outdim, stagedepth=self.stagedepth,
-                                     kernel=self.kernel, stages=self.stages, pools=self.pools, basechannels=self.basechannels, arch=self.archs[0] if len(self.archs) > 0 else None)
+                                     kernel=self.kernel, stages=self.stages, pools=self.pools, basechannels=self.basechannels)
             x = torch.zeros(2, self.indim, dim, dim)
             for i, block in enumerate(model.blocks):
                 x = block(x)
