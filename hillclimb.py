@@ -441,6 +441,7 @@ if __name__ == "__main__":
     parser.add_argument('--randsearch', action='store_true', default=False, help='take random architecture steps')
     parser.add_argument('--randbaseline', action='store_true', default=False, help='train random static baselines')
     parser.add_argument('--arch', type=str, default="", help='static arch')
+    parser.add_argument('--retrain', action='store_true', default=False, help='retrain equinas results')
     args = parser.parse_args()
     if args.task == "mixmnist":
         args.train_vanilla = True
@@ -448,7 +449,7 @@ if __name__ == "__main__":
         args.train_vanilla = True
         args.val_vanilla = True
         args.test_vanilla = True
-    if len(args.arch) > 0:
+    if len(args.arch) > 0 or args.retrain:
         if "mnist" in args.task:
             args.arch = "[[(0,2),(0,2),(0,2),(0,1),(0,1),(0,1),(0,1),(0,0)],[(1,2),(1,2),(1,2),(1,2),(1,2),(1,2),(1,2),(0,2)],[(1,2),(1,2),(1,2),(1,2),(1,2),(1,2),(1,2),(1,2)],[(1,2),(1,2),(1,2),(1,2),(1,2),(1,2),(1,2),(0,0)],[(1,2),(1,2),(0,1),(0,1),(0,1),(0,1),(0,0),(0,0)]]"
         elif "galaxy10" in args.task:
