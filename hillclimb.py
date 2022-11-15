@@ -463,7 +463,7 @@ if __name__ == "__main__":
                             task=args.task, unique=args.unique, train_vanilla=args.train_vanilla, archs = args.arch,
                             val_vanilla=args.val_vanilla, test_vanilla=args.test_vanilla, pareto2=args.pareto2)
     hillclimb.saveargs(vars(args))
-    if len(args.archs) > 0:
+    if len(args.arch) > 0 or args.retrain:
         hillclimb.retrain(generations=args.generations, epochs=args.epochs)
     if args.randbaseline:
         hillclimb.randbaselines(generations=args.generations, epochs=args.epochs)
