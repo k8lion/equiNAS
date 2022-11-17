@@ -25,6 +25,8 @@ class HillClimber(object):
         if len(archs) > 0:
             archs = ast.literal_eval(archs)
             self.archs = archs
+            for arch in self.archs:
+                print(arch)
         else:
             self.archs = []
         if baselines:
@@ -405,7 +407,7 @@ class HillClimber(object):
                                                  kernel=self.kernel, stages=self.stages, pools=self.pools, basechannels=self.basechannels*2))
         self.train(epochs = epochs, start = 0)
         for generation in range(generations):
-            print("Generation ", generation)
+            print("Generation ", generation, len(self.options))
             self.train(epochs = epochs, start = generation+1)
             self.save()
         if self.test:
